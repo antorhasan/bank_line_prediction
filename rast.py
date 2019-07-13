@@ -25,7 +25,7 @@ img = band1[0:3,:,:]
 #plt.imshow(rgb)
 #plt.show()
 #show(img,adjust='linear')
-show_hist(img,bins=50, histtype='stepfilled',lw=0.0, stacked=False, alpha=0.3)
+show_hist(img[0:1,:,:],bins=50, histtype='stepfilled',lw=0.0, stacked=False, alpha=0.3)
 """ cv2.namedWindow('image', cv2.WINDOW_NORMAL)
 cv2.imshow('image', band1)
 cv2.waitKey(0)
