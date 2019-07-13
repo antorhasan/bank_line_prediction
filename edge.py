@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 
 def auto_canny(image, sigma=0.99):
-	# compute the median of the single channel pixel intensities
+	
 	v = np.median(image)
 
 	# apply automatic Canny edge detection using the computed median
