@@ -1,10 +1,11 @@
 import numpy as np
 import cv2
 
-img = cv2.imread('./data/4.tif')
+img = cv2.imread('./houghlines5.jpg')
 
 
-#print(img)
+print(img.dtype)
+print(img)
 
 cv2.namedWindow('image', cv2.WINDOW_NORMAL)
 cv2.imshow('image', img)
