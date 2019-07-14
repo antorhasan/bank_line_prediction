@@ -12,9 +12,9 @@ path = '/media/antor/Stuff/projects/bank/data/Landsat8/'
 files = [f for f in glob.glob(path + "*.tif", recursive=True)]
 
 for f in files:
-
+    #print(f)
     #raster = rasterio.open("./data/drive-download-20190706T155419Z-001/LC08_138043_20130419.tif")
-    raster = rasterio.open("./data/drive-download-20190706T155419Z-001/LC08_138043_20130419.tif")
+    raster = rasterio.open(f)
 
 
     band1 = raster.read()
@@ -24,13 +24,13 @@ for f in files:
     #print(f)
 
 
-raster = rasterio.open("./data/drive-download-20190706T155419Z-001/LC08_138043_20130419.tif")
+""" raster = rasterio.open("./data/drive-download-20190706T155419Z-001/LC08_138043_20130419.tif")
 
 print(raster.meta)
 band1 = raster.read()
 
 vix = viz(band1)
-vix.cv_view()
+vix.cv_view() """
 
 
 
