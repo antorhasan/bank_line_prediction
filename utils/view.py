@@ -12,26 +12,23 @@ class viz():
         self.raster = raster
     
 
-    def torgb(self):
-        orig = self.raster
-        temp = self.raster
-        print(orig[:,:,0:1])
-        orig[:,:,0:1] = temp[:,:,2:3]
-        orig[:,:,1:2] = temp[:,:,1:2]
-        orig[:,:,2:3] = temp[:,:,2:3]
-        print(orig[:,:,0:1])
-        return orig
-
     def cv_view(self):
+        '''view raster file's first 3 channel in opencv, input: raster object. 
+        output: visualization of the first 3 channel in opencv'''
+
         img = rasterio.plot.reshape_as_image(self.raster)
         img = np.asarray(img)
         img = img[:,:,0:3]
-        print(img.dtype)
-        img = np.uint8((img*255)/3000)
-        print(img)
-        #img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
-        #print(img.shape)
-        #img1 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        '''the int16 format of the input channels needs to be changed into regular int64
+        format in order to broadcast properly with int64 numpy array'''
+        img = np.divide(np.multiply(np.int64(img), [255]), [3000])   
+        
+        #conversion is needed to unit8 to keep the range between 0-255
+        img = np.uint8(img)
+
+        '''opencv reads files in BGR channel format. Here this is satisfied and no 
+        conversion is needed'''
         cv2.namedWindow('image', cv2.WINDOW_NORMAL)
         cv2.imshow('image', img)
         cv2.waitKey(0)
