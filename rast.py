@@ -7,7 +7,7 @@ from rasterio.plot import show_hist
 from utils.view import *
 import glob
 
-path = './data/lan_8/'
+path = './data/lan8/'
 
 files = [f for f in glob.glob(path + "*.tif", recursive=True)]
 
