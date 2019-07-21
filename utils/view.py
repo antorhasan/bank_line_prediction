@@ -29,9 +29,21 @@ class viz():
 
         '''opencv reads files in BGR channel format. Here this is satisfied and no 
         conversion is needed'''
+
         cv2.namedWindow('image', cv2.WINDOW_NORMAL)
         cv2.imshow('image', img)
         cv2.waitKey(0)
         cv2.destroyAllWindows() 
-            
+        #cv2.imwrite('./data/try48/',)
+    
+    def cv_write(self, where, filename):
+        img = rasterio.plot.reshape_as_image(self.raster)
+        img = np.asarray(img)
+        img = img[:,:,0:3]
+        
+        img = np.divide(np.multiply(np.int64(img), [255]), [3000])   
 
+        img = np.uint8(img)
+        onlyname = filename.split('.')
+        #print(onlyname[0])
+        cv2.imwrite( where + onlyname[0] + '.png', img)

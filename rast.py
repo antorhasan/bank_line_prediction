@@ -6,22 +6,26 @@ from rasterio.plot import show
 from rasterio.plot import show_hist
 from utils.view import *
 import glob
+from os import listdir
+from os.path import isfile, join
 
-path = './data/lan8/'
+path = '/media/antor/Stuff/downloads/lan8m/'
 
-files = [f for f in glob.glob(path + "*.tif", recursive=True)]
+#files = [f for f in glob.glob(path + "*.tif", recursive=True)]
+files = [f for f in listdir(path) if isfile(join(path, f))]
+
+#print(files)
 
 for f in files:
-    #print(f)
+    print(f)
     #raster = rasterio.open("./data/l813.tif")
-    raster = rasterio.open(f)
+    raster = rasterio.open(path + f)
 
+    img = raster.read()
 
-    band1 = raster.read()
-
-    vix = viz(band1)
-    vix.cv_view()
-    #print(f)
+    vix = viz(img)
+    #vix.cv_view()
+    vix.cv_write('./data/lan8m/', f)
 
 """ 
 raster = rasterio.open("./data/l813.tif")
