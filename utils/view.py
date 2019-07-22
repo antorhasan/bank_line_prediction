@@ -29,7 +29,10 @@ class viz():
 
         '''opencv reads files in BGR channel format. Here this is satisfied and no 
         conversion is needed'''
-
+        """for i in range(10):
+            img_c = img[256*i:256*(i+1),:]
+            cv2.imwrite('./data/crop1/'+str(i)+'.png',img_c) """
+        
         cv2.namedWindow('image', cv2.WINDOW_NORMAL)
         cv2.imshow('image', img)
         cv2.waitKey(0)
@@ -39,7 +42,7 @@ class viz():
     def cv_write(self, where, filename):
         img = rasterio.plot.reshape_as_image(self.raster)
         img = np.asarray(img)
-        img = img[:,:,0:3]
+        img = img[:,:,3:6]
         
         img = np.divide(np.multiply(np.int64(img), [255]), [3000])   
 

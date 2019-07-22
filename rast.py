@@ -14,7 +14,7 @@ path = './data/finaltif/'
 
 #files = [f for f in glob.glob(path + "*.tif", recursive=True)]
 files = [f for f in listdir(path) if isfile(join(path, f))]
-files = files[0:1]
+#files = files[0:3]
 #print(files)
 
 for f in files:
@@ -26,8 +26,8 @@ for f in files:
     #    dst.write(Z,3)
     img = raster.read()
     vix = viz(img)
-    vix.cv_view()
-    #vix.cv_write('./data/extra/', f)
+    #vix.cv_view()
+    vix.cv_write('./data/infra1/', f)
 
 """
 raster = rasterio.open("./data/l813.tif")
