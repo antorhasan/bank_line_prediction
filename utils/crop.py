@@ -5,7 +5,7 @@ import glob
 from os import listdir
 from os.path import isfile, join
 
-path = './data/label1/'
+path = './data/finaljan/'
 
 files = [f for f in listdir(path) if isfile(join(path, f))]
 #files = files[0:2]
@@ -28,7 +28,7 @@ for i in range(len(files)):
         num = coor_list[k]
 
         crop_img = img[256*k : 256*(k+1),num:num+768]
-        cv2.imwrite("./data/infralabel/"+files[i].split('.')[0]+'_'+str(k)+".jpg", crop_img)
+        cv2.imwrite("./data/crop1/"+files[i].split('.')[0]+str(k)+".png", crop_img)
     
     
     
