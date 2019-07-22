@@ -9,6 +9,7 @@ from os.path import isfile, join
 from os import walk
 
 
+
 def _bytes_feature(value):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 def _int64_feature(value):
