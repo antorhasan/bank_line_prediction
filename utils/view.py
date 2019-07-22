@@ -47,3 +47,7 @@ class viz():
         onlyname = filename.split('.')
         #print(onlyname[0])
         cv2.imwrite( where + onlyname[0] + '.png', img)
+    
+
+#def wrtie_tif(tif_f):
+    

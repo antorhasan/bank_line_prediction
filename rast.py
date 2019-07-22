@@ -9,25 +9,27 @@ import glob
 from os import listdir
 from os.path import isfile, join
 
-path = '/media/antor/Stuff/downloads/lan8m/'
+path = './data/finaltif/'
+#path = '/media/antor/Stuff/downloads/extra/'
 
 #files = [f for f in glob.glob(path + "*.tif", recursive=True)]
 files = [f for f in listdir(path) if isfile(join(path, f))]
-
+files = files[0:1]
 #print(files)
 
 for f in files:
     print(f)
     #raster = rasterio.open("./data/l813.tif")
     raster = rasterio.open(path + f)
-
+    
+    #with rasterio.open(path + f, 'w') as dst:
+    #    dst.write(Z,3)
     img = raster.read()
-
     vix = viz(img)
-    #vix.cv_view()
-    vix.cv_write('./data/lan8m/', f)
+    vix.cv_view()
+    #vix.cv_write('./data/extra/', f)
 
-""" 
+"""
 raster = rasterio.open("./data/l813.tif")
 
 print(raster.meta)
