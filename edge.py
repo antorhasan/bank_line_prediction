@@ -29,7 +29,7 @@ for i in files:
     denoise = cv2.GaussianBlur(denoise,(17,11),0)
     #img = cv2.Canny(img, 25, 250)
     edges = auto_canny(denoise)
-    cv2.threshold(img,250,255,cv2.THRESH_BINARY)
+    edges = cv2.threshold(edges,250,255,cv2.THRESH_BINARY)
     cv2.imwrite('./data/label1/'+str(i).split('.')[0]+'.png',edges)
 
 """ lines = cv2.HoughLinesP(edges,1,np.pi/180,100,minLineLength=1,maxLineGap=2)

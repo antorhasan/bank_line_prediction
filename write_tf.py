@@ -98,10 +98,10 @@ for j in range(len(trainM_list)):
     trainM_list[j] = int(trainM_list[j].split('.')[0])
 trainM_list.sort()
 
-train_Y = trainY_list[0:20]
-train_M = trainM_list[0:20]
-val_Y = trainY_list[20:25]
-val_M = trainM_list[20:25]
+train_Y = trainY_list[0:280]
+train_M = trainM_list[0:280]
+val_Y = trainY_list[280:300]
+val_M = trainM_list[280:300]
 #train_Y = train_Y
 
 print(train_Y)
