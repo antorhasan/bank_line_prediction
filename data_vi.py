@@ -28,7 +28,7 @@ def _parse_function(example_proto):
     img_lab = tf.math.logical_not( img_lab )
     img_lab = tf.cast(img_lab,dtype=tf.float32)
 
-    mask = tf.concat([image_m, img_lab], 1)
+    mask = tf.concat([image_m, img_lab], 2)
 
     return image_y, mask
 
@@ -44,8 +44,8 @@ sess = tf.Session()
 
 sess.run(iterator.initializer)
 img, lab = sess.run(iterator.get_next())
-print(m, m.shape)
+print(lab.shape)
 cv2.namedWindow('image', cv2.WINDOW_NORMAL)
-cv2.imshow('image', lab[0,:,:,0])
+cv2.imshow('image', lab[0,:,:,1])
 cv2.waitKey(0)
 cv2.destroyAllWindows
