@@ -109,5 +109,5 @@ print(train_M)
 #print(val_M)
 #print(train_M)
 createDataRecord("./data/record/train.tfrecords", train_Y, train_M)
-createDataRecord("./data/record/val.tfrecords", val_Y, val_M)
+#createDataRecord("./data/record/val.tfrecords", val_Y, val_M)
     

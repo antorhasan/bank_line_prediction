@@ -1,8 +1,4 @@
 import tensorflow as tf
-from tensorflow.keras import layers
-import cv2
-import numpy as np
-
 
 def _parse_function(example_proto):
 
@@ -20,7 +16,7 @@ def _parse_function(example_proto):
     image_m = tf.reshape(image_m, [256,256,1])
     image_y = tf.cast(image_y,dtype=tf.float32)
     image_m = tf.cast(image_m,dtype=tf.float32)
-    
+
     img_lab = tf.cast(image_m,dtype=tf.bool)
     img_lab = tf.math.logical_not( img_lab )
     img_lab = tf.cast(img_lab,dtype=tf.float32)
@@ -28,33 +24,15 @@ def _parse_function(example_proto):
 
     return image_y, mask
 
-dataset = tf.data.TFRecordDataset('./data/record/val.tfrecords')
+
+dataset = tf.data.TFRecordDataset('./data/record/train.tfrecords')
 dataset = dataset.map(_parse_function)
-#dataset = dataset.shuffle(3000)
-#dataset = dataset.batch(8)
-print(dataset.output_shapes,dataset.output_types)
+dataset = dataset.shuffle(3000)
+dataset = dataset.batch(8)
+dataset = dataset.repeat()
+
 iterator = dataset.make_initializable_iterator()
 image, mask = iterator.get_next()
 
-sess = tf.Session()
 
-sess.run(iterator.initializer)
-count = 0
-while True:
-    img, lab = sess.run(iterator.get_next())
-    print(count)
-    count += 1
-#img, lab = sess.run(iterator.get_next())
-print(lab.shape)
-cv2.namedWindow('image', cv2.WINDOW_NORMAL)
-cv2.imshow('image', img[0,:,:,:])
-cv2.waitKey(0)
-cv2.destroyAllWindows
-cv2.namedWindow('image', cv2.WINDOW_NORMAL)
-cv2.imshow('image', lab[0,:,:,1])
-cv2.waitKey(0)
-cv2.destroyAllWindows
-cv2.namedWindow('image', cv2.WINDOW_NORMAL)
-cv2.imshow('image', lab[0,:,:,0])
-cv2.waitKey(0)
-cv2.destroyAllWindows
+tf.keras.layers.Conv2D(8,(3,3),padding='same', activation='relu', kernel_initializer='he_normal')
