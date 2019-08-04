@@ -28,7 +28,7 @@ def createDataRecord(out_filename, addrs_y, addrs_m):
         img_y = np.asarray(img_y)
 
         #img_y = np.asarray(cv2.imread(addrs_y[i], cv2.IMREAD_GRAYSCALE))
-        img_m = np.asarray(cv2.imread(trainM + str(addrs_m[i])+'.png', cv2.IMREAD_GRAYSCALE)) 
+        img_m = np.asarray(cv2.imread(trainM + str(addrs_m[i])+'.png')) 
         
         for i in range(3):
             imgy = img_y[:,256*i:256*(i+1)]
@@ -38,10 +38,11 @@ def createDataRecord(out_filename, addrs_y, addrs_m):
             imgy = np.reshape(imgy, (256,256,3))
             last_y = imgy/255
         
-            imgm = np.reshape(imgm,(256,256,1))
-            imgm = np.where(imgm>230,1,0)
-            last_m = imgm.astype(float)
-            
+            imgm = np.reshape(imgm,(256,256,3))
+            #imgm = np.where(imgm>230,1,0)
+            #last_m = imgm.astype(float)
+            last_m = imgm/255
+
             """             cv2.namedWindow('image', cv2.WINDOW_NORMAL)
             cv2.imshow('image', last_y)
             cv2.waitKey(0)
@@ -83,7 +84,7 @@ trainY_list = [f for f in listdir(trainY) if isfile(join(trainY, f))]
 
 #print(f)
 
-trainM = "./data/infralabel/"
+trainM = "./data/alt_la/"
 trainM_list = [f for f in listdir(trainM) if isfile(join(trainM, f))]
 #trainM_list = glob.glob(trainM)
 #trainM_list = trainM_list[0:10]
@@ -108,6 +109,6 @@ print(train_Y)
 print(train_M)
 #print(val_M)
 #print(train_M)
-createDataRecord("./data/record/train.tfrecords", train_Y, train_M)
-#createDataRecord("./data/record/val.tfrecords", val_Y, val_M)
+createDataRecord("./data/record/train_rgb.tfrecords", train_Y, train_M)
+createDataRecord("./data/record/val_rgb.tfrecords", val_Y, val_M)
     

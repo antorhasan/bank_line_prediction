@@ -62,12 +62,12 @@ model = tf.keras.models.Sequential([
 ])
 
 model.compile(optimizer=tf.train.AdamOptimizer(learning_rate=.001),
-              loss=tf.nn.weighted_cross_entropy_with_logits,
+              loss=tf.keras.losses.binary_crossentropy,
               metrics=[tf.keras.metrics.binary_accuracy])
 
 #model.summary()
 
-model.fit(dataset, epochs=2, steps_per_epoch=40)
+model.fit(dataset, epochs=25, steps_per_epoch=40)
 
 
 model.summary()

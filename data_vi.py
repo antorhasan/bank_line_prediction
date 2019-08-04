@@ -28,7 +28,7 @@ def _parse_function(example_proto):
 
     return image_y, mask
 
-dataset = tf.data.TFRecordDataset('./data/record/val.tfrecords')
+dataset = tf.data.TFRecordDataset('./data/record/train.tfrecords')
 dataset = dataset.map(_parse_function)
 #dataset = dataset.shuffle(3000)
 #dataset = dataset.batch(8)
