@@ -1,6 +1,7 @@
 import tensorflow as tf 
 import numpy as np 
 import cv2
+from utils.crop import *
 
 def _parse_function(example_proto):
 
@@ -43,7 +44,9 @@ def f_loss():
     #kernel = np.ones((7,7), np.uint8)
     #labels = cv2.dilate(labels, kernel, iterations=1)
     #wt = 0.6
-    loss = tf.reduce_mean(-0.64*tf.math.multiply(labels,tf.math.log(logits))-(1-0.64)*tf.math.multiply((1-labels),tf.math.log(1-logits)))
+    loss = tf.reduce_mean(-1.63*tf.math.multiply(labels,tf.math.log(logits))-tf.math.multiply((1-labels),tf.math.log(1-logits)))
+    #loss2 = tf.losses.absolute_difference(labels, logits)
+    #loss3 = tf.losses.hinge_loss(labels, logits)
     return loss
   return cost
 
@@ -82,37 +85,43 @@ x = tf.keras.layers.Conv2D(32,(3,3),padding='same', activation='relu', kernel_in
 #    bias_initializer=tf.keras.initializers.constant(.01))(x)
 #x = tf.keras.layers.Conv2D(128,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
 #    bias_initializer=tf.keras.initializers.constant(.01))(x)
+#x = tf.keras.layers.Conv2D(256,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
+#    bias_initializer=tf.keras.initializers.constant(.01))(x)
+#x = tf.keras.layers.Conv2D(128,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
+#    bias_initializer=tf.keras.initializers.constant(.01))(x)
 #x = tf.keras.layers.Conv2D(64,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
 #    bias_initializer=tf.keras.initializers.constant(.01))(x)
-#x = tf.keras.layers.Conv2D(32,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
-#    bias_initializer=tf.keras.initializers.constant(.01))(x)
+x = tf.keras.layers.Conv2D(32,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
+    bias_initializer=tf.keras.initializers.constant(.01))(x)
 x = tf.keras.layers.Conv2D(16,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
     bias_initializer=tf.keras.initializers.constant(.01))(x)
 
-predictions = tf.keras.layers.Conv2D(1,(3,3),padding='same', activation='sigmoid', kernel_initializer='he_normal',
+predictions = tf.keras.layers.Conv2D(1,(1,1),padding='same', activation='sigmoid', kernel_initializer='he_normal',
     bias_initializer=tf.keras.initializers.constant(.01))(x)
 
 model = tf.keras.Model(inputs=inputs, outputs=predictions)
 
 
-model.compile(optimizer=tf.train.AdamOptimizer(learning_rate=.0001),
+model.compile(optimizer=tf.train.AdamOptimizer(learning_rate=.001),
               loss=f_loss(),
               metrics=['accuracy'],)
               #target_tensors=[labels])
 
-model.fit( images, labels,epochs=100, steps_per_epoch=40, validation_data= val_dataset,
+model.fit( images, labels,epochs=15, steps_per_epoch=40, validation_data= val_dataset,
           validation_steps=3)
 
 #model.evaluate(images_val, labels_val, steps=3)
 
 result = model.predict(images_val, steps = 3)
 #result = np.argmax(result, axis=3)
-print(result)
+#print(result)
 result = result = np.where(result>0.5,1,0)
 #result = np.multiply( 255.0 , result)
 #result = np.argmax(result, axis=3)
-print(result,result.shape)
+#print(result,result.shape)
 result = np.multiply( 255.0 , result)
 
 for i in range(len(result)):
   cv2.imwrite('./data/result/'+str(i)+'.png',result[i,:,:])
+
+stitch_imgs()

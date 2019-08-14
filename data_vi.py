@@ -3,6 +3,7 @@ from tensorflow.keras import layers
 import cv2
 import numpy as np
 
+'''read tfrecord file and view images and labels'''
 
 def _parse_function(example_proto):
 
@@ -61,3 +62,5 @@ cv2.namedWindow('image', cv2.WINDOW_NORMAL)
 cv2.imshow('image', lab[0,:,:,0])
 cv2.waitKey(0)
 cv2.destroyAllWindows
+
+sess.close()
