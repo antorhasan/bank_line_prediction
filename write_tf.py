@@ -42,7 +42,7 @@ def createDataRecord(out_filename, addrs_y, addrs_m):
             #imgm = np.where(imgm>230,1,0)
             #last_m = imgm.astype(float)
             last_m = imgm/255
-            kernel = np.ones((7,7), np.uint8)
+            kernel = np.ones((5,5), np.uint8)
             last_m = cv2.dilate(last_m, kernel, iterations=1)
 
             """             cv2.namedWindow('image', cv2.WINDOW_NORMAL)
@@ -111,6 +111,6 @@ print(train_Y)
 print(train_M)
 #print(val_M)
 #print(train_M)
-createDataRecord("./data/record/train_dil.tfrecords", train_Y, train_M)
-createDataRecord("./data/record/val_dil.tfrecords", val_Y, val_M)
+createDataRecord("./data/record/train_dil_5.tfrecords", train_Y, train_M)
+createDataRecord("./data/record/val_dil_5.tfrecords", val_Y, val_M)
     
