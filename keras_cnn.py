@@ -45,7 +45,7 @@ def f_loss():
     #kernel = np.ones((7,7), np.uint8)
     #labels = cv2.dilate(labels, kernel, iterations=1)
     #wt = 0.6
-    loss = tf.reduce_mean(-0.89*tf.math.multiply(labels,tf.math.log(logits))-(1-0.89)*tf.math.multiply((1-labels),tf.math.log(1-logits)))
+    loss = tf.reduce_mean(-0.9*tf.math.multiply(labels,tf.math.log(logits))-(1-0.9)*tf.math.multiply((1-labels),tf.math.log(1-logits)))
     #loss2 = tf.losses.absolute_difference(labels, logits)
     #loss3 = tf.losses.hinge_loss(labels, logits)
     return loss
@@ -107,7 +107,7 @@ model = tf.keras.Model(inputs=inputs, outputs=predictions)
 model.summary()
 model.compile(optimizer=tf.train.AdamOptimizer(learning_rate=.001),
               loss=f_loss(),
-              metrics=[tf.keras.metrics.TruePositives()],)
+              metrics=['accuracy'],)
               #target_tensors=[labels])
 
 model.fit( images, labels,epochs=15, steps_per_epoch=40, validation_data= val_dataset,
