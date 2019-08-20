@@ -3,6 +3,7 @@ import cv2
 from rasterio.plot import show
 from rasterio.plot import show_hist
 import numpy as np
+import matplotlib.pyplot as plt
 
 class viz():
     '''change bgr to rgb of a 3 band image
