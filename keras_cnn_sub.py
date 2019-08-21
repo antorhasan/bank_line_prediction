@@ -82,18 +82,24 @@ class cnn_model(tf.keras.Model):
         outputs = self.conv5(x)
 
         return outputs
+    
+
+    def model(self):
+        x = tf.keras.layers.Input(shape=(256, 256, 3))
+        return tf.keras.Model(inputs=[x], outputs=self.call(x)).summary()
 
 model = cnn_model()
 
+model.model()
 
 model.compile(optimizer=tf.train.AdamOptimizer(learning_rate=.001),
               loss=f_loss(),
               metrics=['accuracy'],)
 
-model.fit( images, labels,epochs=15, steps_per_epoch=40, validation_data= val_dataset,
+model.fit( images, labels,epochs=2, steps_per_epoch=40, validation_data= val_dataset,
           validation_steps=3, callbacks=[tensorboard_callback])
 
-model.summary()
+
 
 result = model.predict(images_val, steps = 1)
 result = result = np.where(result>0.5,1,0)
