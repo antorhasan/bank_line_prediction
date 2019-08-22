@@ -3,6 +3,9 @@ import numpy as np
 import cv2
 from utils.crop import *
 from datetime import datetime
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dropout, UpSampling2D, InputLayer, Dense, Flatten, Reshape, Conv2DTranspose
+
+tf.enable_eager_execution()
 
 
 def _parse_function(example_proto):
@@ -29,65 +32,147 @@ def _parse_function(example_proto):
 
     return image_y, image_m
 
-def f_loss():
-  def cost(labels, logits):
-    loss = tf.reduce_mean(-0.95*tf.math.multiply(labels,tf.math.log(logits))-(1-0.95)*tf.math.multiply((1-labels),tf.math.log(1-logits)))
-    return loss
-  return cost
+
 
 dataset = tf.data.TFRecordDataset('./data/record/train.tfrecords')
 dataset = dataset.map(_parse_function)
 dataset = dataset.shuffle(1000)
 dataset = dataset.batch(8)
-dataset = dataset.repeat()
-iterator = dataset.make_one_shot_iterator()
-images, labels = iterator.get_next()
+#dataset = dataset.repeat()
+#iterator = dataset.make_one_shot_iterator()
+#images, labels = iterator.get_next()
 
 val_dataset = tf.data.TFRecordDataset('./data/record/val.tfrecords')
 val_dataset = val_dataset.map(_parse_function)
 #val_dataset = val_dataset.shuffle(3000)
 val_dataset = val_dataset.batch(60)
-val_dataset = val_dataset.repeat()
-iterator_val = val_dataset.make_one_shot_iterator()
-images_val, labels_val = iterator_val.get_next()
+#val_dataset = val_dataset.repeat()
+#iterator_val = val_dataset.make_one_shot_iterator()
+#images_val, labels_val = iterator_val.get_next()
 
 logdir = "./data/logs/scalars/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir, write_grads=True, write_images=True)
 
 
-class cnn_model(tf.keras.Model):
+class MyModel(tf.keras.Model):
 
-    def __init__(self):
-        super(cnn_model, self).__init__()
-        self.conv1 = tf.keras.layers.Conv2D(16,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
-                    bias_initializer=tf.keras.initializers.constant(.01))
-        
-        self.conv2 = tf.keras.layers.Conv2D(32,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
-                    bias_initializer=tf.keras.initializers.constant(.01))
+	def __init__(self):
+		super(MyModel, self).__init__()
 
-        self.conv3 = tf.keras.layers.Conv2D(32,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
+		self.conv1 = Conv2D(8,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
                     bias_initializer=tf.keras.initializers.constant(.01))
-        
-        self.conv4 = tf.keras.layers.Conv2D(16,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
-                    bias_initializer=tf.keras.initializers.constant(.01))
+		self.pool1 = MaxPooling2D(pool_size=(2, 2))
+		
+		self.conv2 = Conv2D(16,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
+					bias_initializer=tf.keras.initializers.constant(.01))
+		self.pool2 = MaxPooling2D(pool_size=(2, 2))
 
-        self.conv5 = tf.keras.layers.Conv2D(1,(1,1),padding='same', activation='sigmoid', kernel_initializer='he_normal',
-                    bias_initializer=tf.keras.initializers.constant(.01))
+		self.conv3 = Conv2D(32,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
+					bias_initializer=tf.keras.initializers.constant(.01))
+		self.pool3 = MaxPooling2D(pool_size=(3, 3))
+		
+		self.conv4 = Conv2D(48,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
+					bias_initializer=tf.keras.initializers.constant(.01))
+		self.pool4 = MaxPooling2D(pool_size=(3, 3))
+
+		self.conv5 = Conv2D(64,(3,3),padding='valid', activation='sigmoid', kernel_initializer='he_normal',
+					bias_initializer=tf.keras.initializers.constant(.01))
+		self.pool5 = MaxPooling2D(pool_size=(3, 3))
     
-    def call(self, inputs):
-        x = self.conv1(inputs)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        x = self.conv4(x)
-        outputs = self.conv5(x)
+	def call(self, inputs):
+		x = self.conv1(inputs)
+		x = self.conv2(x)
+		x = self.conv3(x)
+		x = self.conv4(x)
+		outputs = self.conv5(x)
 
-        return outputs
-    
+		return outputs
+		
+	def model(self):
+		x = tf.keras.layers.Input(shape=(256, 256, 3))
+		
+		return tf.keras.Model(inputs=[x], outputs=self.call(x)).summary()
 
-    def model(self):
-        x = tf.keras.layers.Input(shape=(256, 256, 3))
-        return tf.keras.Model(inputs=[x], outputs=self.call(x)).summary()
 
+model = MyModel()
+
+model.model()
+
+def loss_object(labels, predictions):
+	loss = tf.reduce_mean(-0.93*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.93)*tf.math.multiply((1-labels),tf.math.log(1-predictions)))
+	
+	#loss = -0.95*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.95)*tf.math.multiply((1-labels),tf.math.log(1-predictions))
+	#loss = tf.losses.hinge_loss(labels, predictions)
+	return loss 
+
+#loss_object = tf.keras.losses.binary_crossentropy()
+
+train_loss = tf.keras.metrics.Mean(name='train_loss')
+train_accuracy = tf.keras.metrics.Accuracy(name='train_accuracy')
+
+test_loss = tf.keras.metrics.Mean(name='test_loss')
+test_accuracy = tf.keras.metrics.Accuracy(name='test_accuracy')
+
+optimizer = tf.keras.optimizers.Adam(learning_rate=.001)
+
+@tf.function
+def train_step(images, labels):
+
+	with tf.GradientTape() as tape:
+		predictions = model(images)
+		loss = loss_object(labels, predictions)
+		gradients = tape.gradient(loss, model.trainable_variables)
+		optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+		train_loss(loss)
+		train_accuracy(labels, predictions)
+
+@tf.function
+def test_step(images, labels):
+	predictions = model(images)
+	t_loss = loss_object(labels, predictions)
+
+	test_loss(t_loss)
+	test_accuracy(labels, predictions)
+
+
+def predict_step(images):
+	result = model(images)
+	result = result = np.where(result>0.5,1,0)
+	result = np.multiply( 255.0 , result)
+
+	for i in range(len(result)):
+		cv2.imwrite('./data/result/'+str(i)+'.png',result[i,:,:])
+
+
+	stitch_imgs() 
+
+EPOCHS = 5
+
+for epoch in range(EPOCHS):
+	for images, labels in dataset:
+		train_step(images, labels)
+
+	for test_images, test_labels in val_dataset:
+		test_step(test_images, test_labels)
+
+	template = 'Epoch {}, Loss: {}, Accuracy: {}, Test Loss: {}, Test Accuracy: {}'
+	print(template.format(epoch+1,
+						train_loss.result(),
+						train_accuracy.result()*100,
+						test_loss.result(),
+						test_accuracy.result()*100))
+
+	# Reset the metrics for the next epoch
+	train_loss.reset_states()
+	train_accuracy.reset_states()
+	test_loss.reset_states()
+	test_accuracy.reset_states()
+
+for test_images, test_labels in val_dataset:
+	predict_step(test_images)
+
+'''
 model = cnn_model()
 
 model.model()
@@ -100,12 +185,13 @@ model.fit( images, labels,epochs=2, steps_per_epoch=40, validation_data= val_dat
           validation_steps=3, callbacks=[tensorboard_callback])
 
 
+'''
 
-result = model.predict(images_val, steps = 1)
+""" result = model.predict(val_dataset, steps = 1)
 result = result = np.where(result>0.5,1,0)
 result = np.multiply( 255.0 , result)
 
 for i in range(len(result)):
-  cv2.imwrite('./data/result/'+str(i)+'.png',result[i,:,:])
+	cv2.imwrite('./data/result/'+str(i)+'.png',result[i,:,:])
 
-stitch_imgs()
+stitch_imgs()  """

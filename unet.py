@@ -32,7 +32,10 @@ def _parse_function(example_proto):
 
 def f_loss():
   def cost(labels, logits):
-    loss = tf.reduce_mean(-0.95*tf.math.multiply(labels,tf.math.log(logits))-(1-0.95)*tf.math.multiply((1-labels),tf.math.log(1-logits)))
+    #loss = tf.reduce_mean(-0.95*tf.math.multiply(labels,tf.math.log(logits))-(1-0.95)*tf.math.multiply((1-labels),tf.math.log(1-logits)))
+    #loss = -tf.math.multiply(labels,tf.math.log(logits))-tf.math.multiply((1-labels),tf.math.log(1-logits))
+    #loss = tf.keras.losses.binary_crossentropy(labels, logits)
+
     return loss
   return cost
 
@@ -94,7 +97,7 @@ class cnn_model(tf.keras.Model):
 
         self.flat = Flatten()
         self.dense1 = Dense(192)
-        self.dense2 = Dense(192)
+        self.dense2 = Dense(256)
         self.dense3 = Dense(192)
         self.reshape = Reshape((2,2,48))
 
@@ -129,7 +132,7 @@ class cnn_model(tf.keras.Model):
         self.up_conv10 = Conv2DTranspose(8,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
                     bias_initializer=tf.keras.initializers.constant(.01))
 
-        self.up_conv11 = Conv2D(1,(1,1),padding='same', activation='sigmoid', kernel_initializer='he_normal',
+        self.up_conv11 = Conv2D(1,(1,1),padding='same', activation='relu', kernel_initializer='he_normal',
                     bias_initializer=tf.keras.initializers.constant(.01))
 
 
@@ -181,11 +184,11 @@ class cnn_model(tf.keras.Model):
 model = cnn_model()
 
 model.model()
-model.compile(optimizer=tf.train.AdamOptimizer(learning_rate=.00001),
-              loss=f_loss(),
+model.compile(optimizer=tf.train.AdamOptimizer(learning_rate=.001),
+              loss=tf.keras.losses.BinaryCrossentropy(),
               metrics=['accuracy'])
 
-model.fit( images, labels,epochs=1000, steps_per_epoch=40, validation_data= val_dataset,
+model.fit( images, labels,epochs=40, steps_per_epoch=40, validation_data= val_dataset,
           validation_steps=3, callbacks=[tensorboard_callback])
 
 
