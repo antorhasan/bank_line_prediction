@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 from utils.crop import *
 from datetime import datetime
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dropout, UpSampling2D, InputLayer, Dense, Flatten, Reshape, Conv2DTranspose
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dropout, UpSampling2D, InputLayer, Dense, Flatten, Reshape, Conv2DTranspose, concatenate
 
 tf.enable_eager_execution()
 
@@ -34,7 +34,7 @@ def _parse_function(example_proto):
 
 
 
-dataset = tf.data.TFRecordDataset('./data/record/train.tfrecords')
+dataset = tf.data.TFRecordDataset('./data/record/train_dil_3.tfrecords')
 dataset = dataset.map(_parse_function)
 dataset = dataset.shuffle(1000)
 dataset = dataset.batch(8)
@@ -42,7 +42,7 @@ dataset = dataset.batch(8)
 #iterator = dataset.make_one_shot_iterator()
 #images, labels = iterator.get_next()
 
-val_dataset = tf.data.TFRecordDataset('./data/record/val.tfrecords')
+val_dataset = tf.data.TFRecordDataset('./data/record/val_dil_3.tfrecords')
 val_dataset = val_dataset.map(_parse_function)
 #val_dataset = val_dataset.shuffle(3000)
 val_dataset = val_dataset.batch(60)
@@ -59,33 +59,92 @@ class MyModel(tf.keras.Model):
 	def __init__(self):
 		super(MyModel, self).__init__()
 
-		self.conv1 = Conv2D(8,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
+		self.conv1 = Conv2D(8,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
                     bias_initializer=tf.keras.initializers.constant(.01))
 		self.pool1 = MaxPooling2D(pool_size=(2, 2))
 		
-		self.conv2 = Conv2D(16,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
+		self.conv2 = Conv2D(16,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
 					bias_initializer=tf.keras.initializers.constant(.01))
 		self.pool2 = MaxPooling2D(pool_size=(2, 2))
 
-		self.conv3 = Conv2D(32,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
+		self.conv3 = Conv2D(32,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
 					bias_initializer=tf.keras.initializers.constant(.01))
 		self.pool3 = MaxPooling2D(pool_size=(3, 3))
 		
-		self.conv4 = Conv2D(48,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
+		self.conv4 = Conv2D(32,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
 					bias_initializer=tf.keras.initializers.constant(.01))
 		self.pool4 = MaxPooling2D(pool_size=(3, 3))
 
-		self.conv5 = Conv2D(64,(3,3),padding='valid', activation='sigmoid', kernel_initializer='he_normal',
+		self.conv5 = Conv2D(64,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
 					bias_initializer=tf.keras.initializers.constant(.01))
 		self.pool5 = MaxPooling2D(pool_size=(3, 3))
+
+		self.convm = Conv2D(128,(1,1),padding='same', activation='relu', kernel_initializer='he_normal',
+					bias_initializer=tf.keras.initializers.constant(.01))
+
+		#self.flat = Reshape((1,512))
+		#self.lstm = tf.keras.layers.CuDNNLSTM(512)
+		#self.reshape = Reshape((2,2,128))
+
+		self.up_sam1 = UpSampling2D(size = (3,3))
+		self.up_conv1 = Conv2D(64,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
+                    bias_initializer=tf.keras.initializers.constant(.01))
+		
+		self.up_sam2 = UpSampling2D(size = (3,3))
+		self.up_conv2 = Conv2D(32,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
+                    bias_initializer=tf.keras.initializers.constant(.01))
+
+		self.up_sam3 = UpSampling2D(size = (3,3))
+		self.up_conv3 = Conv2D(32,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
+                    bias_initializer=tf.keras.initializers.constant(.01))
+		
+		self.up_sam4 = UpSampling2D(size = (2,2))
+		self.up_conv4 = Conv2DTranspose(16,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
+                    bias_initializer=tf.keras.initializers.constant(.01))
+		
+		self.up_sam5 = UpSampling2D(size = (2,2))
+		self.up_conv5 = Conv2DTranspose(16,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
+                    bias_initializer=tf.keras.initializers.constant(.01))
+
+		self.up_conv6 = Conv2DTranspose(8,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
+                    bias_initializer=tf.keras.initializers.constant(.01))
+		self.conv7 = Conv2D(1,(1,1),padding='same', activation='sigmoid', kernel_initializer='he_normal',
+					bias_initializer=tf.keras.initializers.constant(.01))
+
     
 	def call(self, inputs):
-		x = self.conv1(inputs)
-		x = self.conv2(x)
-		x = self.conv3(x)
-		x = self.conv4(x)
-		outputs = self.conv5(x)
-
+		a = self.conv1(inputs)
+		x = self.pool1(a)
+		s = self.conv2(x)
+		x = self.pool2(s)
+		d = self.conv3(x)
+		x = self.pool3(d)
+		f = self.conv4(x)
+		x = self.pool4(f)
+		g = self.conv5(x)
+		x = self.pool5(g)
+		x = self.convm(x)
+		#x = self.flat(x)
+		#x = self.lstm(x)
+		#x = self.reshape(x)
+		z = self.up_sam1(x)
+		#x = concatenate([g,z])
+		x = self.up_conv1(z)
+		c = self.up_sam2(x)
+		#x = concatenate([f,c])
+		x = self.up_conv2(c)
+		v = self.up_sam3(x)
+		#x = concatenate([d,v])
+		x = self.up_conv3(v)
+		b = self.up_sam4(x)
+		#x = concatenate([s,b])
+		x = self.up_conv4(b)
+		x = self.up_sam5(x)
+		
+		n = self.up_conv5(x)
+		#x = concatenate([a,n])
+		x = self.up_conv6(n)
+		outputs = self.conv7(x)
 		return outputs
 		
 	def model(self):
@@ -99,11 +158,13 @@ model = MyModel()
 model.model()
 
 def loss_object(labels, predictions):
-	loss = tf.reduce_mean(-0.93*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.93)*tf.math.multiply((1-labels),tf.math.log(1-predictions)))
+	#loss = tf.reduce_mean(-0.93*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.93)*tf.math.multiply((1-labels),tf.math.log(1-predictions)))
 	
-	#loss = -0.95*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.95)*tf.math.multiply((1-labels),tf.math.log(1-predictions))
+	loss = -0.7*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.7)*tf.math.multiply((1-labels),tf.math.log(1-predictions))
+	#loss1 = tf.losses.absolute_difference(labels, predictions)
+
 	#loss = tf.losses.hinge_loss(labels, predictions)
-	return loss 
+	return loss
 
 #loss_object = tf.keras.losses.binary_crossentropy()
 
@@ -113,7 +174,7 @@ train_accuracy = tf.keras.metrics.Accuracy(name='train_accuracy')
 test_loss = tf.keras.metrics.Mean(name='test_loss')
 test_accuracy = tf.keras.metrics.Accuracy(name='test_accuracy')
 
-optimizer = tf.keras.optimizers.Adam(learning_rate=.001)
+optimizer = tf.keras.optimizers.Adam(learning_rate=.00001)
 
 @tf.function
 def train_step(images, labels):
@@ -147,7 +208,7 @@ def predict_step(images):
 
 	stitch_imgs() 
 
-EPOCHS = 5
+EPOCHS = 40
 
 for epoch in range(EPOCHS):
 	for images, labels in dataset:
@@ -171,6 +232,19 @@ for epoch in range(EPOCHS):
 
 for test_images, test_labels in val_dataset:
 	predict_step(test_images)
+
+for images , labels in dataset:
+	result = model(images)
+	result = result = np.where(result>0.5,1,0)
+	result = np.multiply( 255.0 , result)
+
+	for i in range(len(result)):
+		cv2.imwrite('./data/result/stitched/label/pred/'+str(i)+'.png',result[i,:,:])
+	
+	result = np.multiply( 255.0 , labels)
+	for i in range(len(labels)):
+		cv2.imwrite('./data/result/stitched/label/'+str(i)+'.png',result[i,:,:])
+	break
 
 '''
 model = cnn_model()
