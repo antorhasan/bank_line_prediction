@@ -69,82 +69,90 @@ class MyModel(tf.keras.Model):
 
 		self.conv3 = Conv2D(32,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
 					bias_initializer=tf.keras.initializers.constant(.01))
-		self.pool3 = MaxPooling2D(pool_size=(3, 3))
+		self.pool3 = MaxPooling2D(pool_size=(2, 2))
 		
-		self.conv4 = Conv2D(32,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
+		self.conv4 = Conv2D(32,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
 					bias_initializer=tf.keras.initializers.constant(.01))
-		self.pool4 = MaxPooling2D(pool_size=(3, 3))
+		self.pool4 = MaxPooling2D(pool_size=(2, 2))
 
-		self.conv5 = Conv2D(64,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
+		self.conv5 = Conv2D(64,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
 					bias_initializer=tf.keras.initializers.constant(.01))
-		self.pool5 = MaxPooling2D(pool_size=(3, 3))
+		self.pool5 = MaxPooling2D(pool_size=(2, 2))
 
-		self.convm = Conv2D(128,(1,1),padding='same', activation='relu', kernel_initializer='he_normal',
+		self.conv6 = Conv2D(128,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
 					bias_initializer=tf.keras.initializers.constant(.01))
+		self.pool6 = MaxPooling2D(pool_size=(2, 2))
 
+		self.convm = Conv2D(128,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
+					bias_initializer=tf.keras.initializers.constant(.01))
 		#self.flat = Reshape((1,512))
 		#self.lstm = tf.keras.layers.CuDNNLSTM(512)
 		#self.reshape = Reshape((2,2,128))
 
-		self.up_sam1 = UpSampling2D(size = (3,3))
-		self.up_conv1 = Conv2D(64,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
-                    bias_initializer=tf.keras.initializers.constant(.01))
-		
-		self.up_sam2 = UpSampling2D(size = (3,3))
-		self.up_conv2 = Conv2D(32,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
+		self.up_sam1 = UpSampling2D(size = (2,2))
+		self.up_conv1 = Conv2D(128,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
                     bias_initializer=tf.keras.initializers.constant(.01))
 
-		self.up_sam3 = UpSampling2D(size = (3,3))
-		self.up_conv3 = Conv2D(32,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
+		self.up_sam2 = UpSampling2D(size = (2,2))
+		self.up_conv2 = Conv2D(64,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
                     bias_initializer=tf.keras.initializers.constant(.01))
 		
+		self.up_sam3 = UpSampling2D(size = (2,2))
+		self.up_conv3 = Conv2D(32,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
+                    bias_initializer=tf.keras.initializers.constant(.01))
+
 		self.up_sam4 = UpSampling2D(size = (2,2))
-		self.up_conv4 = Conv2DTranspose(16,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
+		self.up_conv4 = Conv2D(32,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
                     bias_initializer=tf.keras.initializers.constant(.01))
 		
 		self.up_sam5 = UpSampling2D(size = (2,2))
-		self.up_conv5 = Conv2DTranspose(16,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
+		self.up_conv5 = Conv2D(16,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
+                    bias_initializer=tf.keras.initializers.constant(.01))
+		
+		self.up_sam6 = UpSampling2D(size = (2,2))
+		self.up_conv6 = Conv2D(8,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
                     bias_initializer=tf.keras.initializers.constant(.01))
 
-		self.up_conv6 = Conv2DTranspose(8,(3,3),padding='valid', activation='relu', kernel_initializer='he_normal',
-                    bias_initializer=tf.keras.initializers.constant(.01))
-		self.conv7 = Conv2D(1,(1,1),padding='same', activation='sigmoid', kernel_initializer='he_normal',
+		self.up_conv7 = Conv2D(1,(1,1),padding='same', activation='sigmoid', kernel_initializer='he_normal',
 					bias_initializer=tf.keras.initializers.constant(.01))
 
     
 	def call(self, inputs):
-		a = self.conv1(inputs)
-		x = self.pool1(a)
-		s = self.conv2(x)
-		x = self.pool2(s)
-		d = self.conv3(x)
-		x = self.pool3(d)
-		f = self.conv4(x)
-		x = self.pool4(f)
-		g = self.conv5(x)
-		x = self.pool5(g)
+		i = self.conv1(inputs)
+		x = self.pool1(i)
+		a = self.conv2(x)
+		x = self.pool2(a)
+		s = self.conv3(x)
+		x = self.pool3(s)
+		d = self.conv4(x)
+		x = self.pool4(d)
+		f = self.conv5(x)
+		x = self.pool5(f)
+		g = self.conv6(x)
+		x = self.pool6(g)
 		x = self.convm(x)
 		#x = self.flat(x)
 		#x = self.lstm(x)
 		#x = self.reshape(x)
 		z = self.up_sam1(x)
-		#x = concatenate([g,z])
-		x = self.up_conv1(z)
+		x = concatenate([g,z])
+		x = self.up_conv1(x)
 		c = self.up_sam2(x)
-		#x = concatenate([f,c])
-		x = self.up_conv2(c)
+		x = concatenate([f,c])
+		x = self.up_conv2(x)
 		v = self.up_sam3(x)
-		#x = concatenate([d,v])
-		x = self.up_conv3(v)
+		x = concatenate([d,v])
+		x = self.up_conv3(x)
 		b = self.up_sam4(x)
-		#x = concatenate([s,b])
-		x = self.up_conv4(b)
-		x = self.up_sam5(x)
-		
-		n = self.up_conv5(x)
-		#x = concatenate([a,n])
-		x = self.up_conv6(n)
-		outputs = self.conv7(x)
+		x = concatenate([s,b])
+		x = self.up_conv4(x)
+		n = self.up_sam5(x)
+		x = concatenate([a,n])
+		x = self.up_conv5(x)
+		m = self.up_sam6(x)
+		x = concatenate([i,m])
+		x = self.up_conv6(x)
+		outputs = self.up_conv7(x)
 		return outputs
 		
 	def model(self):
@@ -208,7 +216,7 @@ def predict_step(images):
 
 	stitch_imgs() 
 
-EPOCHS = 40
+EPOCHS = 100
 
 for epoch in range(EPOCHS):
 	for images, labels in dataset:
