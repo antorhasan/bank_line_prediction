@@ -47,13 +47,13 @@ def array_mean_var(np_array):
     sess.close()
     return mean, variance
     
-    
+"""     
 
 img_list = path_sort('./data/crop1/')
 array = filenames_to_array(img_list, './data/crop1/')
 mean , variance = array_mean_var(array)
 print(mean.shape)
-np.save('./data/numpy_arrays/mean', mean)
+np.save('./data/numpy_arrays/mean', mean) """
 
 #ar = np.load('./data/mean.np')
 #print(ar)

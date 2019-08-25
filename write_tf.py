@@ -30,10 +30,10 @@ def createDataRecord(out_filename, addrs_y, addrs_m):
         #img_y = np.asarray(cv2.imread(addrs_y[i], cv2.IMREAD_GRAYSCALE))
         img_m = np.asarray(cv2.imread(trainM + str(addrs_m[i])+'.png',cv2.IMREAD_GRAYSCALE)) 
         
-        for i in range(3):
-            imgy = img_y[:,256*i:256*(i+1)]
+        for j in range(3):
+            imgy = img_y[:,256*j:256*(j+1)]
 
-            imgm = img_m[:,256*i:256*(i+1)]
+            imgm = img_m[:,256*j:256*(j+1)]
             #print(imgy.shape)
             imgy = np.reshape(imgy, (256,256,3))
             last_y = imgy/255

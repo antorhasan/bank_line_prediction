@@ -10,31 +10,37 @@ tf.enable_eager_execution()
 
 def _parse_function(example_proto):
 
-    features = {
-                "image_y": tf.FixedLenFeature((), tf.string ),
-                "image_m": tf.FixedLenFeature((), tf.string )
-                }
+	features = {
+				"image_y": tf.FixedLenFeature((), tf.string ),
+				"image_m": tf.FixedLenFeature((), tf.string )
+				}
 
-    parsed_features = tf.parse_single_example(example_proto, features)
+	parsed_features = tf.parse_single_example(example_proto, features)
 
-    image_y = tf.decode_raw(parsed_features["image_y"],  tf.float64)
-    image_m = tf.decode_raw(parsed_features["image_m"],  tf.float64)
+	image_y = tf.decode_raw(parsed_features["image_y"],  tf.float64)
+	image_m = tf.decode_raw(parsed_features["image_m"],  tf.float64)
 
-    image_y = tf.reshape(image_y, [256,256,3])
-    image_m = tf.reshape(image_m, [256,256,1])
-    image_y = tf.cast(image_y,dtype=tf.float32)
-    image_m = tf.cast(image_m,dtype=tf.float32)
+	image_y = tf.reshape(image_y, [256,256,6])
+	image_m = tf.reshape(image_m, [256,256,1])
+	image_y = tf.cast(image_y,dtype=tf.float32)
+	image_m = tf.cast(image_m,dtype=tf.float32)
+	
+	mean = np.load('./data/numpy_arrays/mean.npy')
+	std = np.load('./data/numpy_arrays/variance.npy')
+	mean = tf.cast(mean,dtype=tf.float32)
+	std = tf.cast(std,dtype=tf.float32)
+	image_y = tf.math.divide(tf.math.subtract(image_y, mean), std)
+	
+	img_lab = tf.cast(image_m, dtype=tf.bool)
+	img_lab = tf.math.logical_not( img_lab )
+	img_lab = tf.cast(img_lab, dtype=tf.float32)
+	mask = tf.concat([image_m, img_lab], 2)
 
-    img_lab = tf.cast(image_m,dtype=tf.bool)
-    img_lab = tf.math.logical_not( img_lab )
-    img_lab = tf.cast(img_lab,dtype=tf.float32)
-    mask = tf.concat([image_m, img_lab], 2)
-
-    return image_y, image_m
+	return image_y, image_m
 
 
 
-dataset = tf.data.TFRecordDataset('./data/record/train_dil_3.tfrecords')
+dataset = tf.data.TFRecordDataset('./data/record/train_tif.tfrecords')
 dataset = dataset.map(_parse_function)
 dataset = dataset.shuffle(1000)
 dataset = dataset.batch(8)
@@ -42,7 +48,7 @@ dataset = dataset.batch(8)
 #iterator = dataset.make_one_shot_iterator()
 #images, labels = iterator.get_next()
 
-val_dataset = tf.data.TFRecordDataset('./data/record/val_dil_3.tfrecords')
+val_dataset = tf.data.TFRecordDataset('./data/record/val_tif.tfrecords')
 val_dataset = val_dataset.map(_parse_function)
 #val_dataset = val_dataset.shuffle(3000)
 val_dataset = val_dataset.batch(60)
@@ -156,7 +162,7 @@ class MyModel(tf.keras.Model):
 		return outputs
 		
 	def model(self):
-		x = tf.keras.layers.Input(shape=(256, 256, 3))
+		x = tf.keras.layers.Input(shape=(256, 256, 6))
 		
 		return tf.keras.Model(inputs=[x], outputs=self.call(x)).summary()
 
@@ -168,7 +174,7 @@ model.model()
 def loss_object(labels, predictions):
 	#loss = tf.reduce_mean(-0.93*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.93)*tf.math.multiply((1-labels),tf.math.log(1-predictions)))
 	
-	loss = -0.7*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.7)*tf.math.multiply((1-labels),tf.math.log(1-predictions))
+	loss = -0.9*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.9)*tf.math.multiply((1-labels),tf.math.log(1-predictions))
 	#loss1 = tf.losses.absolute_difference(labels, predictions)
 
 	#loss = tf.losses.hinge_loss(labels, predictions)
@@ -182,7 +188,7 @@ train_accuracy = tf.keras.metrics.Accuracy(name='train_accuracy')
 test_loss = tf.keras.metrics.Mean(name='test_loss')
 test_accuracy = tf.keras.metrics.Accuracy(name='test_accuracy')
 
-optimizer = tf.keras.optimizers.Adam(learning_rate=.000001)
+optimizer = tf.keras.optimizers.Adam(learning_rate=.00001)
 
 @tf.function
 def train_step(images, labels):
@@ -216,7 +222,7 @@ def predict_step(images):
 
 	stitch_imgs() 
 
-EPOCHS = 600
+EPOCHS = 20
 
 for epoch in range(EPOCHS):
 	for images, labels in dataset:
@@ -238,6 +244,7 @@ for epoch in range(EPOCHS):
 	test_loss.reset_states()
 	test_accuracy.reset_states()
 
+
 for test_images, test_labels in val_dataset:
 	predict_step(test_images)
 
@@ -253,6 +260,8 @@ for images , labels in dataset:
 	for i in range(len(labels)):
 		cv2.imwrite('./data/result/stitched/label/'+str(i)+'.png',result[i,:,:])
 	break
+ 
+
 
 '''
 model = cnn_model()

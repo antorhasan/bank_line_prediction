@@ -5,6 +5,7 @@ from rasterio.plot import show_hist
 import numpy as np
 import matplotlib.pyplot as plt
 from preprocess import *
+import sys
 
 class viz():
     '''change bgr to rgb of a 3 band image
@@ -47,39 +48,97 @@ class viz():
         cv2.imwrite( where + onlyname[0] + '.png', self.img)
 
 
-""" 
-def crop_to_256(array):
+
+def tif_to_npaggr(path):
+    
+    path_list = path_sort(path)
+    #path_list = path_list[0:29]
     data = []
-    coor_list = [516, 491, 516, 450, 396, 355, 325, 277, 310, 400]
-    img = self.img_np
-    for i in range(len(coor_list)):
-        num = coor_list[k]
-        crop_img = img[256*k : 256*(k+1),num:num+768]
+    for i in range(len(path_list)):
+        print(i)
+        #print('./data/finaltif/'+str(path_list[i]))
+        img = viz(path+str(path_list[i])+'.tif')
 
-        for j in range(3):
-            crop_img_256 = img_y[:,256*j:256*(j+1)]
-            data.append(crop_img_256)
-            print(i)
-            data = np.asarray(data) """
+        img_full = img.get_array()
+        coor_list = [516, 491, 516, 450, 396, 355, 325, 277, 310, 400]
 
+        for j in range(len(coor_list)):
+            num = coor_list[j]
+            crop_img = img_full[256*j : 256*(j+1),num:num+768]
+
+            for k in range(3):
+                crop_img_256 = crop_img[:,256*k:256*(k+1)]
+                data.append(crop_img_256)
+
+
+def _bytes_feature(value):
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+def _int64_feature(value):
+    return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+def createDataRecord(out_filename, addrs_y, addrs_m):
+
+    writer = tf.python_io.TFRecordWriter(out_filename)
+    for i in range(len(addrs_y)):
+        print(i)
+        #print('./data/finaltif/'+str(path_list[i]))
+        img = viz('./data/finaltif/'+str(addrs_y[i])+'.tif')
+
+        img_full = img.get_array()
+        coor_list = [516, 491, 516, 450, 396, 355, 325, 277, 310, 400]
+
+        for j in range(len(coor_list)):
+            num = coor_list[j]
+            crop_img = img_full[256*j : 256*(j+1),num:num+768]
+
+            img_m = np.asarray(cv2.imread(trainM + str(addrs_m[j])+'.png',cv2.IMREAD_GRAYSCALE)) 
+
+            for k in range(3):
+                crop_img_256 = crop_img[:,256*k:256*(k+1)]
+                #data.append(crop_img_256)
+                imgm = img_m[:,256*k:256*(k+1)]
+                imgm = np.reshape(imgm,(256,256,1))
+                last_m = imgm/255
+                kernel = np.ones((3,3), np.uint8)
+                last_m = cv2.dilate(last_m, kernel, iterations=1)
+                
+                feature = {
+                    'image_y': _bytes_feature(crop_img_256.tostring()),
+                    'image_m': _bytes_feature(last_m.tostring())
+                    #'image_x': _bytes_feature(last_x.tostring())     
+                }
+        
+                example = tf.train.Example(features=tf.train.Features(feature=feature))
+                
+                writer.write(example.SerializeToString())
+
+    writer.close()
+    sys.stdout.flush()
+        
 
 path_list = path_sort('./data/finaltif/')
-path_list = path_list[0:2]
-data = []
-for i in range(len(path_list)):
-    img = viz('./data/finaltif/'+path_list[i])
-    img_full = img.get_array()
-    coor_list = [516, 491, 516, 450, 396, 355, 325, 277, 310, 400]
+trainM = "./data/infralabel/"
+trainM_list = path_sort(trainM)
+print(len(path_list),len(trainM_list))
+train_M = trainM_list[0:280]
+val_M = trainM_list[280:300]
+path_list_train = path_list[0:28]
+path_list_val = path_list[28:30]
 
-    for j in range(len(coor_list)):
-        num = coor_list[j]
-        crop_img = img_full[256*j : 256*(j+1),num:num+768]
+createDataRecord("./data/record/train_tif.tfrecords", path_list_train, train_M)
+createDataRecord("./data/record/val_tif.tfrecords", path_list_val, val_M)
 
-        for k in range(3):
-            crop_img_256 = crop_img[:,256*k:256*(k+1)]
-            data.append(crop_img_256)
-    print(i)
 
-data = np.asarray(data)
 
-print(data.shape)
+
+def mean_std(data):
+    '''given a numpy array, calculate and save mean and std'''
+    data = np.asarray(data)
+    mean = np.mean(data, axis=0)
+    std_deviation = np.std(data, axis=0)
+    np.save('./data/numpy_arrays/mean', mean)
+    np.save('./data/numpy_arrays/variance', std_deviation)
+    print(data.shape)
+    print(mean.shape)
+    print(std_deviation.shape)
+
