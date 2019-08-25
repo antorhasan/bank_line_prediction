@@ -93,6 +93,8 @@ trainM_list = [f for f in listdir(trainM) if isfile(join(trainM, f))]
 
 #shuffle(trainY_list)
 #shuffle(trainM_list)
+
+'''sort the data'''
 for i in range(len(trainY_list)):
     trainY_list[i] = int(trainY_list[i].split('.')[0])
 trainY_list.sort()
