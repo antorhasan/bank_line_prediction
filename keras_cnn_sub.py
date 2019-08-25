@@ -182,7 +182,7 @@ train_accuracy = tf.keras.metrics.Accuracy(name='train_accuracy')
 test_loss = tf.keras.metrics.Mean(name='test_loss')
 test_accuracy = tf.keras.metrics.Accuracy(name='test_accuracy')
 
-optimizer = tf.keras.optimizers.Adam(learning_rate=.00001)
+optimizer = tf.keras.optimizers.Adam(learning_rate=.000001)
 
 @tf.function
 def train_step(images, labels):
@@ -216,7 +216,7 @@ def predict_step(images):
 
 	stitch_imgs() 
 
-EPOCHS = 100
+EPOCHS = 600
 
 for epoch in range(EPOCHS):
 	for images, labels in dataset:

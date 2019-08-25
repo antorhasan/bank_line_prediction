@@ -1,3 +1,5 @@
+'''important for training multiple models maybe'''
+
 from keras.backend.tensorflow_backend import set_session
 from keras.backend.tensorflow_backend import clear_session
 from keras.backend.tensorflow_backend import get_session
