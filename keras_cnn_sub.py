@@ -25,12 +25,16 @@ def _parse_function(example_proto):
 	image_y = tf.cast(image_y,dtype=tf.float32)
 	image_m = tf.cast(image_m,dtype=tf.float32)
 	
+	
 	mean = np.load('./data/numpy_arrays/mean.npy')
 	std = np.load('./data/numpy_arrays/variance.npy')
 	mean = tf.cast(mean,dtype=tf.float32)
 	std = tf.cast(std,dtype=tf.float32)
 	image_y = tf.math.divide(tf.math.subtract(image_y, mean), std)
-	
+
+	#image_y = tf.math.divide(tf.math.multiply(tf.cast(image_y,dtype=tf.int64), [255]), [3000])
+	#image_y = tf.cast(image_y,dtype=tf.float32)
+
 	img_lab = tf.cast(image_m, dtype=tf.bool)
 	img_lab = tf.math.logical_not( img_lab )
 	img_lab = tf.cast(img_lab, dtype=tf.float32)

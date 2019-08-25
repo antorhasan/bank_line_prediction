@@ -50,7 +50,7 @@ img, lab = sess.run(iterator.get_next())
 #kernel = np.ones((7,7), np.uint8)
 #lab = cv2.dilate(lab, kernel, iterations=1)
 print(img.shape)
-img = img[:,:,0:3]
+img = img[:,:,3:6]
 img = np.divide(np.multiply(np.int64(img), [255]), [3000])
 img = np.uint8(img)
 cv2.namedWindow('image', cv2.WINDOW_NORMAL)
