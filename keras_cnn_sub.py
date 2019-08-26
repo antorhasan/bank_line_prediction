@@ -24,10 +24,12 @@ def _parse_function(example_proto):
 	image_m = tf.reshape(image_m, [256,256,1])
 	image_y = tf.cast(image_y,dtype=tf.float32)
 	image_m = tf.cast(image_m,dtype=tf.float32)
-	
+
+	image_y = tf.cast(image_y, tf.uint8)
+	image_y = tf.cast(image_y, tf.float32)
 	
 	mean = np.load('./data/numpy_arrays/mean.npy')
-	std = np.load('./data/numpy_arrays/variance.npy')
+	std = np.load('./data/numpy_arrays/std.npy')
 	mean = tf.cast(mean,dtype=tf.float32)
 	std = tf.cast(std,dtype=tf.float32)
 	image_y = tf.math.divide(tf.math.subtract(image_y, mean), std)
@@ -69,7 +71,7 @@ class MyModel(tf.keras.Model):
 	def __init__(self):
 		super(MyModel, self).__init__()
 
-		self.conv1 = Conv2D(8,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
+		self.conv1 = Conv2D(16,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
                     bias_initializer=tf.keras.initializers.constant(.01))
 		self.pool1 = MaxPooling2D(pool_size=(2, 2))
 		
@@ -120,7 +122,7 @@ class MyModel(tf.keras.Model):
                     bias_initializer=tf.keras.initializers.constant(.01))
 		
 		self.up_sam6 = UpSampling2D(size = (2,2))
-		self.up_conv6 = Conv2D(8,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
+		self.up_conv6 = Conv2D(16,(3,3),padding='same', activation='relu', kernel_initializer='he_normal',
                     bias_initializer=tf.keras.initializers.constant(.01))
 
 		self.up_conv7 = Conv2D(1,(1,1),padding='same', activation='sigmoid', kernel_initializer='he_normal',
@@ -178,7 +180,7 @@ model.model()
 def loss_object(labels, predictions):
 	#loss = tf.reduce_mean(-0.93*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.93)*tf.math.multiply((1-labels),tf.math.log(1-predictions)))
 	
-	loss = -0.9*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.9)*tf.math.multiply((1-labels),tf.math.log(1-predictions))
+	loss = -0.65*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.65)*tf.math.multiply((1-labels),tf.math.log(1-predictions))
 	#loss1 = tf.losses.absolute_difference(labels, predictions)
 
 	#loss = tf.losses.hinge_loss(labels, predictions)
@@ -192,7 +194,7 @@ train_accuracy = tf.keras.metrics.Accuracy(name='train_accuracy')
 test_loss = tf.keras.metrics.Mean(name='test_loss')
 test_accuracy = tf.keras.metrics.Accuracy(name='test_accuracy')
 
-optimizer = tf.keras.optimizers.Adam(learning_rate=.00001)
+optimizer = tf.keras.optimizers.Adam(learning_rate=.000001)
 
 @tf.function
 def train_step(images, labels):
@@ -226,7 +228,7 @@ def predict_step(images):
 
 	stitch_imgs() 
 
-EPOCHS = 20
+EPOCHS = 200
 
 for epoch in range(EPOCHS):
 	for images, labels in dataset:

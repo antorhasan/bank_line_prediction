@@ -52,7 +52,7 @@ class viz():
 def tif_to_npaggr(path):
     
     path_list = path_sort(path)
-    #path_list = path_list[0:29]
+    #path_list = path_list[0:10]
     data = []
     for i in range(len(path_list)):
         print(i)
@@ -68,7 +68,17 @@ def tif_to_npaggr(path):
 
             for k in range(3):
                 crop_img_256 = crop_img[:,256*k:256*(k+1)]
+                #crop_img_256 = np.int64(crop_img_256)
+                '''the following two lines are needed to represent data in 
+                understandable image format'''
+                crop_img_256 = np.divide(np.multiply(np.int64(crop_img_256), [255]), [3000]) 
+                #print(crop_img_256.dtype, crop_img_256)
+                crop_img_256 = np.uint8(crop_img_256)
+
+                #print(crop_img_256)
+                #print(np.float32(crop_img_256))
                 data.append(crop_img_256)
+    return data
 
 
 def _bytes_feature(value):
@@ -76,7 +86,7 @@ def _bytes_feature(value):
 def _int64_feature(value):
     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
-def createDataRecord(out_filename, addrs_y, addrs_m):
+def createDataRecord_tif(out_filename, addrs_y, addrs_m):
 
     writer = tf.python_io.TFRecordWriter(out_filename)
     for i in range(len(addrs_y)):
@@ -95,6 +105,9 @@ def createDataRecord(out_filename, addrs_y, addrs_m):
 
             for k in range(3):
                 crop_img_256 = crop_img[:,256*k:256*(k+1)]
+                crop_img_256 = np.divide(np.multiply(np.int64(crop_img_256), [255]), [3000]) 
+                #crop_img_256 = np.uint8(crop_img_256)
+                #print(crop_img_256.shape)
                 #data.append(crop_img_256)
                 imgm = img_m[:,256*k:256*(k+1)]
                 imgm = np.reshape(imgm,(256,256,1))
@@ -125,8 +138,8 @@ val_M = trainM_list[280:300]
 path_list_train = path_list[0:28]
 path_list_val = path_list[28:30]
 
-createDataRecord("./data/record/train_tif.tfrecords", path_list_train, train_M)
-createDataRecord("./data/record/val_tif.tfrecords", path_list_val, val_M)
+createDataRecord_tif("./data/record/train_tif.tfrecords", path_list_train, train_M)
+createDataRecord_tif("./data/record/val_tif.tfrecords", path_list_val, val_M)
 
 
 
@@ -137,8 +150,13 @@ def mean_std(data):
     mean = np.mean(data, axis=0)
     std_deviation = np.std(data, axis=0)
     np.save('./data/numpy_arrays/mean', mean)
-    np.save('./data/numpy_arrays/variance', std_deviation)
+    np.save('./data/numpy_arrays/std', std_deviation)
     print(data.shape)
     print(mean.shape)
+    print(mean)
+    #print(meam)
     print(std_deviation.shape)
 
+""" data = tif_to_npaggr('./data/finaltif/')
+mean_std(data) """
+#data_from_tif()
