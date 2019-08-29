@@ -31,7 +31,7 @@ def _parse_function(example_proto):
 
     return imgtf, image_m
 
-dataset = tf.data.TFRecordDataset('./data/record/val_tif.tfrecords')
+dataset = tf.data.TFRecordDataset('./data/record/train_tif.tfrecords')
 dataset = dataset.map(_parse_function)
 #dataset = dataset.shuffle(3000)
 #dataset = dataset.batch(8)

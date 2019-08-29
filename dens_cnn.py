@@ -4,6 +4,7 @@ import cv2
 from utils.crop import *
 from datetime import datetime
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dropout, UpSampling2D, InputLayer, Dense, Flatten, Reshape, Conv2DTranspose, concatenate
+from tensorflow.keras.layers import BatchNormalization
 
 tf.enable_eager_execution()
 
@@ -47,7 +48,7 @@ def _parse_function(example_proto):
 
 dataset = tf.data.TFRecordDataset('./data/record/train_tif.tfrecords')
 dataset = dataset.map(_parse_function)
-dataset = dataset.shuffle(1000)
+dataset = dataset.shuffle(500)
 dataset = dataset.batch(8)
 #dataset = dataset.repeat()
 #iterator = dataset.make_one_shot_iterator()
@@ -72,113 +73,165 @@ class MyModel(tf.keras.Model):
         super(MyModel, self).__init__()
         self.conv1 = Conv2D(16, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal',
                             bias_initializer=tf.keras.initializers.constant(.01))
+        self.batch1 = BatchNormalization()
         self.pool1 = MaxPooling2D(pool_size=(2, 2))
 
         self.conv2 = Conv2D(32, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal',
                             bias_initializer=tf.keras.initializers.constant(.01))
+        self.batch2 = BatchNormalization()
         self.pool2 = MaxPooling2D(pool_size=(2, 2))
 
         self.conv3 = Conv2D(32, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal',
                             bias_initializer=tf.keras.initializers.constant(.01))
+        self.batch3 = BatchNormalization()
         self.pool3 = MaxPooling2D(pool_size=(2, 2))
 
         self.conv4 = Conv2D(64, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal',
                             bias_initializer=tf.keras.initializers.constant(.01))
+        self.batch4 = BatchNormalization()
         self.pool4 = MaxPooling2D(pool_size=(2, 2))
 
         self.conv5 = Conv2D(64, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal',
                             bias_initializer=tf.keras.initializers.constant(.01))
+        self.batch5 = BatchNormalization()
         self.pool5 = MaxPooling2D(pool_size=(2, 2))
 
         self.conv6 = Conv2D(128, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal',
                             bias_initializer=tf.keras.initializers.constant(.01))
+        self.batch6 = BatchNormalization()
         self.pool6 = MaxPooling2D(pool_size=(2, 2))
 
         self.conv7 = Conv2D(128, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal',
                             bias_initializer=tf.keras.initializers.constant(.01))
+        self.batch7 = BatchNormalization()
         self.pool7 = MaxPooling2D(pool_size=(2, 2))
 
-        self.flat = Flatten()
-        self.dense = Dense((512))
-
-        self.reshape = Reshape((2, 2, 128))
+        """ self.up_convm = Conv2D(128, (2, 2), padding='same', activation='relu', kernel_initializer='he_normal',
+                            bias_initializer=tf.keras.initializers.constant(.01))
+        self.batch8 = BatchNormalization() """
+        
+        #self.flat = Flatten()
+        self.reshape1 = Reshape((512,))
+        self.dense = Dense(512,activation='relu',kernel_initializer='he_normal',
+                            bias_initializer=tf.keras.initializers.constant(.01))
+        #self.batch8 = BatchNormalization()
+        self.reshape = Reshape((2, 2, 128)) 
         
         self.up_sam0 = UpSampling2D(size=(2, 2))
         self.up_conv0 = Conv2D(128, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal',
                             bias_initializer=tf.keras.initializers.constant(.01))
+        self.batch9 = BatchNormalization()
 
         self.up_sam1 = UpSampling2D(size=(2, 2))
         self.up_conv1 = Conv2D(128, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal',
                             bias_initializer=tf.keras.initializers.constant(.01))
+        self.batch10 = BatchNormalization()
 
         self.up_sam2 = UpSampling2D(size=(2, 2))
         self.up_conv2 = Conv2D(64, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal',
                             bias_initializer=tf.keras.initializers.constant(.01))
+        self.batch11 = BatchNormalization()
 
         self.up_sam3 = UpSampling2D(size=(2, 2))
         self.up_conv3 = Conv2D(32, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal',
                             bias_initializer=tf.keras.initializers.constant(.01))
+        self.batch12 = BatchNormalization()
 
         self.up_sam4 = UpSampling2D(size=(2, 2))
         self.up_conv4 = Conv2D(32, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal',
                             bias_initializer=tf.keras.initializers.constant(.01))
+        self.batch13 = BatchNormalization()
 
         self.up_sam5 = UpSampling2D(size=(2, 2))
         self.up_conv5 = Conv2D(16, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal',
                             bias_initializer=tf.keras.initializers.constant(.01))
+        self.batch14 = BatchNormalization()
 
         self.up_sam6 = UpSampling2D(size=(2, 2))
-        self.up_conv6 = Conv2D(16, (3, 3), padding='same', activation='relu', kernel_initializer='he_normal',
+        self.up_conv6 = Conv2D(1, (3, 3), padding='same', activation='sigmoid', kernel_initializer='he_normal',
                             bias_initializer=tf.keras.initializers.constant(.01))
+        """ self.batch15 = BatchNormalization()
 
         self.up_conv7 = Conv2D(1, (1, 1), padding='same', activation='sigmoid', kernel_initializer='he_normal',
-                            bias_initializer=tf.keras.initializers.constant(.01))
+                            bias_initializer=tf.keras.initializers.constant(.01)) """
 
-    def call(self, inputs):
+    def call(self, inputs, training):
         i = self.conv1(inputs)
+        
+        i = self.batch1(i,training=training)
         x = self.pool1(i)
         a = self.conv2(x)
+
+        a = self.batch2(a,training=training)
         x = self.pool2(a)
         s = self.conv3(x)
+        
+        s = self.batch3(s,training=training)
         x = self.pool3(s)
         d = self.conv4(x)
+        
+        d = self.batch4(d,training=training)
         x = self.pool4(d)
         f = self.conv5(x)
+        
+        f = self.batch5(f,training=training)
         x = self.pool5(f)
         g = self.conv6(x)
+        
+        g = self.batch6(g,training=training)
         x = self.pool6(g)
-        x = self.conv7(x)
-        x = self.pool7(x)
-        x = self.flat(x)
+        e = self.conv7(x)
+        
+        e = self.batch7(e,training=training)
+        x = self.pool7(e)
+
+        x = self.reshape1(x)
         x = self.dense(x)
         x = self.reshape(x)
+        #x = self.up_convm(x)
+        
         x = self.up_sam0(x)
+        #x = concatenate([e,x])
         x = self.up_conv0(x)
-        z = self.up_sam1(x)
-        #x = concatenate([g,z])
-        x = self.up_conv1(z)
-        c = self.up_sam2(x)
-        #x = concatenate([f,c])
-        x = self.up_conv2(c)
-        v = self.up_sam3(x)
-        #x = concatenate([d,v])
-        x = self.up_conv3(v)
-        b = self.up_sam4(x)
-        #x = concatenate([s,b])
-        x = self.up_conv4(b)
-        n = self.up_sam5(x)
-        #x = concatenate([a,n])
-        x = self.up_conv5(n)
-        m = self.up_sam6(x)
-        #x = concatenate([i,m])
-        x = self.up_conv6(m)
-        outputs = self.up_conv7(x)
+        
+        x = self.batch9(x,training=training)
+        x = self.up_sam1(x)
+        #x = concatenate([g,x])
+        x = self.up_conv1(x)
+        
+        x = self.batch10(x,training=training)
+        x = self.up_sam2(x)
+        #x = concatenate([f,x])
+        x = self.up_conv2(x)
+        
+        x = self.batch11(x,training=training)
+        x = self.up_sam3(x)
+        #x = concatenate([d,x])
+        x = self.up_conv3(x)
+        
+        x = self.batch12(x,training=training)
+        x = self.up_sam4(x)
+        #x = concatenate([s,x])
+        x = self.up_conv4(x)
+        
+        x = self.batch13(x,training=training)
+        x = self.up_sam5(x)
+        #x = concatenate([a,x])
+        x = self.up_conv5(x)
+        
+        x = self.batch14(x,training=training)
+        x = self.up_sam6(x)
+        #x = concatenate([i,x])
+        outputs = self.up_conv6(x)
+        """ if training:
+            x = self.batch15(x,training=training)
+        outputs = self.up_conv7(x) """
         return outputs
 
     def model(self):
         x = tf.keras.layers.Input(shape=(256, 256, 6))
 
-        return tf.keras.Model(inputs=[x], outputs=self.call(x)).summary()
+        return tf.keras.Model(inputs=[x], outputs=self.call(x,training=True)).summary()
 
 
 model = MyModel()
@@ -189,14 +242,11 @@ model.model()
 def loss_object(labels, predictions):
     #loss = tf.reduce_mean(-0.93*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.93)*tf.math.multiply((1-labels),tf.math.log(1-predictions)))
 
-    loss = -0.7*tf.math.multiply(labels, tf.math.log(predictions))-(
-        1-0.7)*tf.math.multiply((1-labels), tf.math.log(1-predictions))
+    loss = -0.7*tf.reduce_mean(tf.math.multiply(labels, tf.math.log(predictions)))-(1-0.7)*tf.reduce_mean(tf.math.multiply((1-labels), tf.math.log(1-predictions)))
     #loss1 = tf.losses.absolute_difference(labels, predictions)
 
     #loss = tf.losses.hinge_loss(labels, predictions)
     return loss
-
-#loss_object = tf.keras.losses.binary_crossentropy()
 
 
 train_loss = tf.keras.metrics.Mean(name='train_loss')
@@ -212,7 +262,7 @@ optimizer = tf.keras.optimizers.Adam(learning_rate=.00001)
 def train_step(images, labels):
 
     with tf.GradientTape() as tape:
-        predictions = model(images)
+        predictions = model(images,training=True)
         loss = loss_object(labels, predictions)
         gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
@@ -223,7 +273,7 @@ def train_step(images, labels):
 
 @tf.function
 def test_step(images, labels):
-    predictions = model(images)
+    predictions = model(images,training=False)
     t_loss = loss_object(labels, predictions)
 
     test_loss(t_loss)
@@ -231,7 +281,7 @@ def test_step(images, labels):
 
 
 def predict_step(images):
-    result = model(images)
+    result = model(images,training=False)
     result = result = np.where(result > 0.5, 1, 0)
     result = np.multiply(255.0, result)
 
@@ -241,7 +291,7 @@ def predict_step(images):
     stitch_imgs()
 
 
-EPOCHS = 15
+EPOCHS = 25
 
 for epoch in range(EPOCHS):
     for images, labels in dataset:
@@ -268,7 +318,7 @@ for test_images, test_labels in val_dataset:
     predict_step(test_images)
 
 for images, labels in dataset:
-    result = model(images)
+    result = model(images,training=False)
     result = result = np.where(result > 0.5, 1, 0)
     result = np.multiply(255.0, result)
 

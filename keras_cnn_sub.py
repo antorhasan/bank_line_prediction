@@ -180,7 +180,7 @@ model.model()
 def loss_object(labels, predictions):
 	#loss = tf.reduce_mean(-0.93*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.93)*tf.math.multiply((1-labels),tf.math.log(1-predictions)))
 	
-	loss = -0.65*tf.math.multiply(labels,tf.math.log(predictions))-(1-0.65)*tf.math.multiply((1-labels),tf.math.log(1-predictions))
+	loss = -0.74*tf.reduce_mean(tf.math.multiply(labels,tf.math.log(predictions)))-(1-0.74)*tf.reduce_mean(tf.math.multiply((1-labels),tf.math.log(1-predictions)))
 	#loss1 = tf.losses.absolute_difference(labels, predictions)
 
 	#loss = tf.losses.hinge_loss(labels, predictions)
@@ -194,7 +194,7 @@ train_accuracy = tf.keras.metrics.Accuracy(name='train_accuracy')
 test_loss = tf.keras.metrics.Mean(name='test_loss')
 test_accuracy = tf.keras.metrics.Accuracy(name='test_accuracy')
 
-optimizer = tf.keras.optimizers.Adam(learning_rate=.000001)
+optimizer = tf.keras.optimizers.Adam(learning_rate=.00001)
 
 @tf.function
 def train_step(images, labels):
@@ -228,7 +228,7 @@ def predict_step(images):
 
 	stitch_imgs() 
 
-EPOCHS = 200
+EPOCHS = 20
 
 for epoch in range(EPOCHS):
 	for images, labels in dataset:
