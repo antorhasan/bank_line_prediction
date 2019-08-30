@@ -208,22 +208,25 @@ def read_tfrecord():
 
     dataset = tf.data.TFRecordDataset('./data/record/thin/train.tfrecords')
     dataset = dataset.map(_parse_function)
-    dataset = dataset.window(size=3, shift=1, stride=1,drop_remainder=True).flat_map(lambda x: x.batch(3))
+    dataset = dataset.window(size=3, shift=1, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(3))
     
     #dataset = dataset.window(3,1,1,drop_remainder=True).flat_map(lambda x: x.batch(3))
     #dataset = dataset.window(28,28,drop_remainder=False)
     #dataset.flat_map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-    coun = 0
+    coun = 1
     for i in dataset:
         #arr = np.asarray(i)
-        coun += 1
-        if (coun%27) == 0 or (coun%28) == 0:
+        print(coun)
+        #print(type((coun-27)/28))
+        #if (coun%26) == 0 or (coun%26) == 1:
+        if (coun-27)%28 == 0 or (coun-28)%28 == 0 :
+            #print(type((coun-27)/28))
+            coun +=1
             continue
         print(i)
-        
-        if coun > 40 :
+        if coun > 70 :
             break
-        #coun += 1
+        coun += 1
 read_tfrecord()
 
 
