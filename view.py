@@ -18,7 +18,7 @@ class viz():
         img = rasterio.plot.reshape_as_image(data)
         img_np = np.asarray(img)
         img = img_np[:,:,:]
-        #print(img.shape)
+        #print(img)
         '''the int16 format of the input channels needs to be changed into regular int64
         format in order to broadcast properly with int64 numpy array'''
         img = np.divide(np.multiply(np.int64(img), [255]), [3000])   
@@ -128,18 +128,18 @@ def createDataRecord_tif(out_filename, addrs_y, addrs_m):
     writer.close()
     sys.stdout.flush()
         
+def write_data():
+    path_list = path_sort('./data/finaltif/')
+    trainM = "./data/infralabel/"
+    trainM_list = path_sort(trainM)
+    print(len(path_list),len(trainM_list))
+    train_M = trainM_list[0:280]
+    val_M = trainM_list[280:300]
+    path_list_train = path_list[0:28]
+    path_list_val = path_list[28:30]
 
-path_list = path_sort('./data/finaltif/')
-trainM = "./data/infralabel/"
-trainM_list = path_sort(trainM)
-print(len(path_list),len(trainM_list))
-train_M = trainM_list[0:280]
-val_M = trainM_list[280:300]
-path_list_train = path_list[0:28]
-path_list_val = path_list[28:30]
-
-createDataRecord_tif("./data/record/train_tif.tfrecords", path_list_train, train_M)
-createDataRecord_tif("./data/record/val_tif.tfrecords", path_list_val, val_M)
+    createDataRecord_tif("./data/record/train_tif.tfrecords", path_list_train, train_M)
+    createDataRecord_tif("./data/record/val_tif.tfrecords", path_list_val, val_M)
 
 
 
