@@ -144,18 +144,19 @@ def write_data():
 
 
 
-def mean_std(data):
+def mean_std(data, folder):
     '''given a numpy array, calculate and save mean and std'''
     data = np.asarray(data)
     mean = np.mean(data, axis=0)
-    std_deviation = np.std(data, axis=0)
-    np.save('./data/numpy_arrays/mean', mean)
-    np.save('./data/numpy_arrays/std', std_deviation)
+    std = np.std(data, axis=0)
+    np.save('./data/numpy_arrays/'+folder+'/mean', mean)
+    np.save('./data/numpy_arrays/'+folder+'/std', std)
     print(data.shape)
     print(mean.shape)
     print(mean)
     #print(meam)
-    print(std_deviation.shape)
+    print(std.shape)
+    return mean, std
 
 """ data = tif_to_npaggr('./data/finaltif/')
 mean_std(data) """
