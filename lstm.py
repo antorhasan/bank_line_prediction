@@ -32,9 +32,13 @@ def _parse_function(example_proto):
 
 dataset = tf.data.TFRecordDataset('./data/record/thin/train.tfrecords')
 dataset = dataset.map(_parse_function)
-dataset = dataset.window(size=3, shift=1, stride=1,drop_remainder=True).flat_map(lambda x: x.batch(3))
-dataset = dataset.shuffle(2000)
-dataset = dataset.batch(32)
+dataset = dataset.window(size=28, shift=28, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(28))
+dataset = dataset.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+dataset = dataset.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
+dataset = dataset.flat_map(lambda x: x.batch(3))
+
+val_dataset = tf.data.TFRecordDataset('./data/record/val_tif.tfrecords')
+val_dataset = val_dataset.map(_parse_function)
 
 class MyModel(tf.keras.Model):
 
@@ -67,12 +71,21 @@ def train_step(images, labels):
 		train_loss(labels, predictions)
 		#train_accuracy(labels, predictions)
 
+@tf.function
+def test_step(images, labels):
+	predictions = model(images)
+	t_loss = loss_object(labels, predictions)
+
+	test_loss(t_loss)
+	test_accuracy(labels, predictions)
+
+
 model = MyModel()
 
 model.model()
 
 
-optimizer = tf.keras.optimizers.Adam(learning_rate=.00001)
+optimizer = tf.keras.optimizers.Adam(learning_rate=.0001)
 #loss_object = tf.keras.losses.mse(labels, predictions)
 
 def loss_object(labels, predictions):
@@ -83,11 +96,12 @@ def loss_object(labels, predictions):
 train_loss = tf.keras.metrics.MeanSquaredError()
 #train_accuracy = tf.keras.metrics.Accuracy()
 
-EPOCHS = 15
+EPOCHS = 50
 
 for epoch in range(EPOCHS):
 	for data in dataset:
 		train_step(data[:,0:2,:], data[:,2:3,:])
+
 
 	template = 'Epoch {}, Loss: {}'
 	print(template.format(epoch+1,

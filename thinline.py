@@ -2,7 +2,6 @@ import cv2
 import numpy as np 
 from preprocess import path_sort
 from view import mean_std
-from sklearn.preprocessing import MinMaxScaler
 import tensorflow as tf
 import sys
 
@@ -13,10 +12,10 @@ def trip_thin_line():
     print(path)
     for i in range(len(path)):
         img = cv2.imread('./data/bankline/'+str(path[i])+'.png',0)
-        img = img[0:-1,:]
+        img = img[121:-120,121:-120]
         cv2.imwrite('./data/bankline/'+str(path[i])+'.png',img)
 
-def singl_pix():
+def single_pix():
     '''makes sure each row of an image has only two valid pixels'''
     path = path_sort('./data/bankline/')
     #path = path[0:2]
@@ -149,7 +148,7 @@ def _int64_feature(value):
     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
 
-def write_data():
+def write_data(mode):
     path = path_sort('./data/exp1/')
     #path = path[0:3]
     full = []
@@ -172,10 +171,20 @@ def write_data():
     print(struc[0:10])
     print(len(struc))
 
-    writer = tf.io.TFRecordWriter('./data/record/thin/test.tfrecords')
+    writer = tf.io.TFRecordWriter('./data/record/thin/'+mode+'.tfrecords')
     for i in range(len(struc)):
         '''change value to divide between train, val, test'''
-        lis = struc[i][30:32]
+        if mode == 'test' :
+            start = 28 
+            finish = 32
+        if mode == 'train' :
+            start = 0
+            finish = 28
+        if mode == 'val' :
+            start = 26
+            finish = 30
+
+        lis = struc[i][start:finish]
         if i < 10 :
             print(lis)
         for j in range(len(lis)):
@@ -192,10 +201,10 @@ def write_data():
 def _parse_function(example_proto):
 
 	features = {
-				"image_y": tf.FixedLenFeature((), tf.string )
+				"image_y": tf.io.FixedLenFeature((), tf.string )
 				}
 
-	parsed_features = tf.parse_single_example(example_proto, features)
+	parsed_features = tf.io.parse_single_example(example_proto, features)
 
 	image_y = tf.decode_raw(parsed_features["image_y"],  tf.int64)
 
@@ -208,19 +217,37 @@ def read_tfrecord():
 
     dataset = tf.data.TFRecordDataset('./data/record/thin/train.tfrecords')
     dataset = dataset.map(_parse_function)
-    dataset = dataset.window(size=3, shift=1, stride=1,drop_remainder=True).flat_map(lambda x: x.batch(3))
-    
+    #dataset = dataset.window(size=3, shift=1, stride=1,drop_remainder=True).flat_map(lambda x: x.batch(3))
+    '''behold really efficient pipeline
+    firs line-creates a dataset of tensors of size 'batch size'
+    second - maps each tensor to a dataset and so converts each into a dataset ,resulting
+    in a dataset of datasets
+    third - each dataset from the dataset is filtered out with a sliding window and flattened
+    fourth - all the tensors are turned into batches : need more explanation '''
+    dataset = dataset.window(size=28, shift=28, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(28))
+    dataset = dataset.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+    dataset = dataset.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
+    dataset = dataset.flat_map(lambda x: x.batch(3))
+
     coun = 1
     for i in dataset:
         print(coun)
         '''we have to skip 2 samples startin at 27 at an interval of 28'''
-        if (coun-27)%28 == 0 or (coun-28)%28 == 0 :
+        """ if (coun-27)%28 == 0 or (coun-28)%28 == 0 :
             coun +=1
-            continue
+            continue """
+        
         print(i)
         if coun > 70 :
             break
         coun += 1
+
+
+#trip_thin_line()
+#single_pix()
+#standar_height()
+#full_normalize()
+#write_data('train')
+#write_data('val')
+#write_data('test')
 read_tfrecord()
-
-
