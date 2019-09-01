@@ -46,24 +46,6 @@ def _parse_function(example_proto):
 
 
 
-dataset = tf.data.TFRecordDataset('./data/record/train_tif.tfrecords')
-dataset = dataset.map(_parse_function)
-dataset = dataset.shuffle(1000)
-dataset = dataset.batch(8)
-#dataset = dataset.repeat()
-#iterator = dataset.make_one_shot_iterator()
-#images, labels = iterator.get_next()
-
-val_dataset = tf.data.TFRecordDataset('./data/record/val_tif.tfrecords')
-val_dataset = val_dataset.map(_parse_function)
-#val_dataset = val_dataset.shuffle(3000)
-val_dataset = val_dataset.batch(60)
-#val_dataset = val_dataset.repeat()
-#iterator_val = val_dataset.make_one_shot_iterator()
-#images_val, labels_val = iterator_val.get_next()
-
-logdir = "./data/logs/scalars/" + datetime.now().strftime("%Y%m%d-%H%M%S")
-tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir, write_grads=True, write_images=True)
 
 
 class MyModel(tf.keras.Model):
@@ -172,6 +154,25 @@ class MyModel(tf.keras.Model):
 		
 		return tf.keras.Model(inputs=[x], outputs=self.call(x)).summary()
 
+
+dataset = tf.data.TFRecordDataset('./data/record/train_tif.tfrecords')
+dataset = dataset.map(_parse_function)
+dataset = dataset.shuffle(1000)
+dataset = dataset.batch(8)
+#dataset = dataset.repeat()
+#iterator = dataset.make_one_shot_iterator()
+#images, labels = iterator.get_next()
+
+val_dataset = tf.data.TFRecordDataset('./data/record/val_tif.tfrecords')
+val_dataset = val_dataset.map(_parse_function)
+#val_dataset = val_dataset.shuffle(3000)
+val_dataset = val_dataset.batch(60)
+#val_dataset = val_dataset.repeat()
+#iterator_val = val_dataset.make_one_shot_iterator()
+#images_val, labels_val = iterator_val.get_next()
+
+logdir = "./data/logs/scalars/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir, write_grads=True, write_images=True)
 
 model = MyModel()
 

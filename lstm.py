@@ -30,16 +30,6 @@ def _parse_function(example_proto):
     return image_y
 
 
-dataset = tf.data.TFRecordDataset('./data/record/thin/train.tfrecords')
-dataset = dataset.map(_parse_function)
-dataset = dataset.window(size=28, shift=28, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(28))
-dataset = dataset.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-dataset = dataset.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
-dataset = dataset.flat_map(lambda x: x.batch(3))
-
-val_dataset = tf.data.TFRecordDataset('./data/record/val_tif.tfrecords')
-val_dataset = val_dataset.map(_parse_function)
-
 class MyModel(tf.keras.Model):
 
     def __init__(self):
@@ -57,6 +47,10 @@ class MyModel(tf.keras.Model):
         x = tf.keras.layers.Input(shape=(3, 1))
 
         return tf.keras.Model(inputs=[x], outputs=self.call(x)).summary()
+
+def loss_object(labels, predictions):
+	loss = tf.keras.losses.mse(labels, predictions)
+	return loss
 
 
 @tf.function
@@ -76,37 +70,54 @@ def test_step(images, labels):
 	predictions = model(images)
 	t_loss = loss_object(labels, predictions)
 
-	test_loss(t_loss)
-	test_accuracy(labels, predictions)
+	test_loss(labels, predictions)
+	#test_accuracy(labels, predictions)
+
+
+dataset = tf.data.TFRecordDataset('./data/record/thin/train.tfrecords')
+dataset = dataset.map(_parse_function)
+dataset = dataset.window(size=28, shift=28, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(28))
+dataset = dataset.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+dataset = dataset.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
+dataset = dataset.flat_map(lambda x: x.batch(3))
+dataset = dataset.shuffle(1000)
+dataset = dataset.batch(32)
+
+val_dataset = tf.data.TFRecordDataset('./data/record/thin/val.tfrecords')
+val_dataset = val_dataset.map(_parse_function)
+val_dataset = val_dataset.window(size=4, shift=4, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(4))
+val_dataset = val_dataset.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+val_dataset = val_dataset.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
+val_dataset = val_dataset.flat_map(lambda x: x.batch(3))
+val_dataset = val_dataset.batch(32)
 
 
 model = MyModel()
 
 model.model()
 
-
-optimizer = tf.keras.optimizers.Adam(learning_rate=.0001)
+optimizer = tf.keras.optimizers.Adam(learning_rate=.00001)
 #loss_object = tf.keras.losses.mse(labels, predictions)
-
-def loss_object(labels, predictions):
-	loss = tf.keras.losses.mse(labels, predictions)
-	return loss
-
 
 train_loss = tf.keras.metrics.MeanSquaredError()
 #train_accuracy = tf.keras.metrics.Accuracy()
+test_loss = tf.keras.metrics.MeanSquaredError()
 
-EPOCHS = 50
+EPOCHS = 60
 
 for epoch in range(EPOCHS):
-	for data in dataset:
-		train_step(data[:,0:2,:], data[:,2:3,:])
+    for data in dataset:
+        train_step(data[:, 0:2, :], data[:, 2:3, :])
 
+    for data_val in val_dataset:
+        test_step(data_val[:, 0:2, :], data_val[:, 2:3, :])
 
-	template = 'Epoch {}, Loss: {}'
-	print(template.format(epoch+1,
-						train_loss.result()))
+    template = 'Epoch {}, Loss: {}, Test Loss: {},'
+    print(template.format(epoch+1,
+                        train_loss.result(), test_loss.result() ))
 
-	# Reset the metrics for the next epoch
-	train_loss.reset_states()
+    # Reset the metrics for the next epoch
+    train_loss.reset_states()
+    test_loss.reset_states()
+
 	#train_accuracy.reset_states()

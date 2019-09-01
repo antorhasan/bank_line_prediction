@@ -215,7 +215,7 @@ def _parse_function(example_proto):
 def read_tfrecord():
     tf.enable_eager_execution()
 
-    dataset = tf.data.TFRecordDataset('./data/record/thin/train.tfrecords')
+    dataset = tf.data.TFRecordDataset('./data/record/thin/val.tfrecords')
     dataset = dataset.map(_parse_function)
     #dataset = dataset.window(size=3, shift=1, stride=1,drop_remainder=True).flat_map(lambda x: x.batch(3))
     '''behold really efficient pipeline
@@ -224,10 +224,11 @@ def read_tfrecord():
     in a dataset of datasets
     third - each dataset from the dataset is filtered out with a sliding window and flattened
     fourth - all the tensors are turned into batches : need more explanation '''
-    dataset = dataset.window(size=28, shift=28, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(28))
+    dataset = dataset.window(size=4, shift=4, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(4))
     dataset = dataset.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
     dataset = dataset.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
     dataset = dataset.flat_map(lambda x: x.batch(3))
+    dataset = dataset.batch(10)
 
     coun = 1
     for i in dataset:
@@ -238,7 +239,8 @@ def read_tfrecord():
             continue """
         
         print(i)
-        if coun > 70 :
+        print(i[:,0:2,:], i[:,2:3,:])
+        if coun > 10 :
             break
         coun += 1
 
@@ -250,4 +252,4 @@ def read_tfrecord():
 #write_data('train')
 #write_data('val')
 #write_data('test')
-read_tfrecord()
+#read_tfrecord()
