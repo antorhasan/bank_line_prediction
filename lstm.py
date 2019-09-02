@@ -136,7 +136,7 @@ train_loss = tf.keras.metrics.MeanSquaredError()
 #train_accuracy = tf.keras.metrics.Accuracy()
 test_loss = tf.keras.metrics.MeanSquaredError()
 
-EPOCHS = 10
+EPOCHS = 30
 
 for epoch in range(EPOCHS):
     for data in dataset:
