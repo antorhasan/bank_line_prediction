@@ -134,6 +134,10 @@ def change_range(data,folder):
 def full_normalize():
     '''normalize the data and save meann,std and constants for rescaling'''
     data = data_ag()
+
+    data = np.asarray(data)
+    data = np.where(data>505,data-505,505-data)
+    
     mean, std = mean_std(data,'thin_line')
     print(data[0:10])
     data = np.asarray(data)

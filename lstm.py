@@ -81,13 +81,13 @@ def predict_step(images):
     std = np.load('./data/numpy_arrays/thin_line/std.npy')
     a = np.load('./data/numpy_arrays/thin_line/a.npy')
     b = np.load('./data/numpy_arrays/thin_line/b.npy')
-
+    print(result[0:30])
     result = (result - b) / a 
     result = (result * std) + mean
 
     img1 = np.zeros((1351,1119))
     img2 = np.zeros((1351,1119))
-    print(len(result))
+    
     for i in range(int(len(result)/4)):
         for j in range(4):
             img1[i,int(result[4*i+0])] = 255
