@@ -1,7 +1,7 @@
 import tensorflow as tf 
 import numpy as np
 from tensorflow.keras.layers import Conv2D, CuDNNLSTM, LSTM, Dense
-
+import cv2
 
 tf.enable_eager_execution()
 
@@ -35,8 +35,8 @@ class MyModel(tf.keras.Model):
     def __init__(self):
         super(MyModel, self).__init__()
 
-        self.lstm = LSTM(10)
-        self.dense = Dense(1)
+        self.lstm = LSTM(10,bias_initializer=tf.keras.initializers.constant(.01),kernel_initializer='he_normal')
+        self.dense = Dense(1, activation='tanh',bias_initializer=tf.keras.initializers.constant(.01),kernel_initializer='he_normal')
 
     def call(self, inputs):
         x = self.lstm(inputs)
@@ -49,8 +49,8 @@ class MyModel(tf.keras.Model):
         return tf.keras.Model(inputs=[x], outputs=self.call(x)).summary()
 
 def loss_object(labels, predictions):
-	loss = tf.keras.losses.mse(labels, predictions)
-	return loss
+    loss = tf.keras.losses.mse(labels, predictions)
+    return loss
 
 
 @tf.function
@@ -74,13 +74,39 @@ def test_step(images, labels):
 	#test_accuracy(labels, predictions)
 
 
+def predict_step(images):
+    result = model(images)
+
+    mean = np.load('./data/numpy_arrays/thin_line/mean.npy')
+    std = np.load('./data/numpy_arrays/thin_line/std.npy')
+    a = np.load('./data/numpy_arrays/thin_line/a.npy')
+    b = np.load('./data/numpy_arrays/thin_line/b.npy')
+
+    result = (result - b) / a 
+    result = (result * std) + mean
+
+    img1 = np.zeros((1351,1119))
+    img2 = np.zeros((1351,1119))
+    print(len(result))
+    for i in range(int(len(result)/4)):
+        for j in range(4):
+            img1[i,int(result[4*i+0])] = 255
+            #print(result[4*i+0])
+            img2[i,int(result[4*i+1])] = 255
+            img1[i,int(result[4*i+2])] = 255
+            img2[i,int(result[4*i+3])] = 255
+
+    cv2.imwrite('./data/resul_line/'+'year0'+'.png',img1)
+    cv2.imwrite('./data/resul_line/'+'year1'+'.png',img2)
+
+
 dataset = tf.data.TFRecordDataset('./data/record/thin/train.tfrecords')
 dataset = dataset.map(_parse_function)
 dataset = dataset.window(size=28, shift=28, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(28))
 dataset = dataset.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
 dataset = dataset.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
 dataset = dataset.flat_map(lambda x: x.batch(3))
-dataset = dataset.shuffle(1000)
+dataset = dataset.shuffle(5000)
 dataset = dataset.batch(32)
 
 val_dataset = tf.data.TFRecordDataset('./data/record/thin/val.tfrecords')
@@ -91,6 +117,13 @@ val_dataset = val_dataset.flat_map(lambda x: x.window(size=3, shift=1, stride=1,
 val_dataset = val_dataset.flat_map(lambda x: x.batch(3))
 val_dataset = val_dataset.batch(32)
 
+test = tf.data.TFRecordDataset('./data/record/thin/val.tfrecords')
+test = test.map(_parse_function)
+test = test.window(size=4, shift=4, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(4))
+test = test.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+test = test.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
+test = test.flat_map(lambda x: x.batch(3))
+test = test.batch(5404)
 
 model = MyModel()
 
@@ -103,7 +136,7 @@ train_loss = tf.keras.metrics.MeanSquaredError()
 #train_accuracy = tf.keras.metrics.Accuracy()
 test_loss = tf.keras.metrics.MeanSquaredError()
 
-EPOCHS = 60
+EPOCHS = 10
 
 for epoch in range(EPOCHS):
     for data in dataset:
@@ -121,3 +154,6 @@ for epoch in range(EPOCHS):
     test_loss.reset_states()
 
 	#train_accuracy.reset_states()
+
+for data in test:
+    predict_step(data[:, 0:2, :])

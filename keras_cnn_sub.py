@@ -222,7 +222,7 @@ def predict_step(images):
 	result = model(images)
 	result = result = np.where(result>0.5,1,0)
 	result = np.multiply( 255.0 , result)
-
+	
 	for i in range(len(result)):
 		cv2.imwrite('./data/result/'+str(i)+'.png',result[i,:,:])
 

@@ -200,17 +200,28 @@ def write_data(mode):
 
 def _parse_function(example_proto):
 
-	features = {
-				"image_y": tf.io.FixedLenFeature((), tf.string )
-				}
+    features = {
+                "image_y": tf.io.FixedLenFeature((), tf.string )
+                }
 
-	parsed_features = tf.io.parse_single_example(example_proto, features)
+    parsed_features = tf.io.parse_single_example(example_proto, features)
 
-	image_y = tf.decode_raw(parsed_features["image_y"],  tf.int64)
+    image_y = tf.decode_raw(parsed_features["image_y"],  tf.int64)
 
-	image_y = tf.cast(image_y,dtype=tf.float32)
+    image_y = tf.cast(image_y,dtype=tf.float32)
 
-	return image_y
+    mean = np.load('./data/numpy_arrays/thin_line/mean.npy')
+    std = np.load('./data/numpy_arrays/thin_line/std.npy')
+    a = np.load('./data/numpy_arrays/thin_line/a.npy')
+    b = np.load('./data/numpy_arrays/thin_line/b.npy')
+
+    image_y = (image_y-mean)/std
+
+    image_y = (image_y*a) + b  
+
+
+
+    return image_y
 
 def read_tfrecord():
     tf.enable_eager_execution()
@@ -252,4 +263,4 @@ def read_tfrecord():
 #write_data('train')
 #write_data('val')
 #write_data('test')
-#read_tfrecord()
+read_tfrecord()

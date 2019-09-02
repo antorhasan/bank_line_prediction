@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from preprocess import *
 import sys
+from preprocess import path_sort
 
 class viz():
     '''change bgr to rgb of a 3 band image
@@ -18,7 +19,7 @@ class viz():
         img = rasterio.plot.reshape_as_image(data)
         img_np = np.asarray(img)
         img = img_np[:,:,:]
-        #print(img)
+        #print(img.shape)
         '''the int16 format of the input channels needs to be changed into regular int64
         format in order to broadcast properly with int64 numpy array'''
         img = np.divide(np.multiply(np.int64(img), [255]), [3000])   
@@ -157,6 +158,21 @@ def mean_std(data, folder):
     #print(meam)
     print(std.shape)
     return mean, std
+
+def check_zero():
+    path = path_sort('./data/raster_o/raster/')
+    for i in range(len(path)):
+        print(i)
+        data  = viz('./data/raster_o/raster/'+str(path[i])+'.tif')
+        arr = data.get_array()
+        arr = arr.reshape((2638,1403))
+        coun = 0
+        for j in range(arr.shape[0]):
+            for k in range(arr.shape[1]):
+                if arr[j,k] != 0 :
+                    coun+=1
+                    print(i,'start')
+                    print(coun)
 
 """ data = tif_to_npaggr('./data/finaltif/')
 mean_std(data) """
