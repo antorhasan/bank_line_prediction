@@ -35,7 +35,7 @@ class MyModel(tf.keras.Model):
     def __init__(self):
         super(MyModel, self).__init__()
 
-        self.lstm = LSTM(10,bias_initializer=tf.keras.initializers.constant(.01),kernel_initializer='he_normal')
+        self.lstm = LSTM(10,bias_initializer=tf.keras.initializers.constant(.01))
         self.dense = Dense(1, activation='tanh',bias_initializer=tf.keras.initializers.constant(.01),kernel_initializer='he_normal')
 
     def call(self, inputs):
@@ -136,7 +136,7 @@ train_loss = tf.keras.metrics.MeanSquaredError()
 #train_accuracy = tf.keras.metrics.Accuracy()
 test_loss = tf.keras.metrics.MeanSquaredError()
 
-EPOCHS = 30
+EPOCHS = 10
 
 for epoch in range(EPOCHS):
     for data in dataset:
