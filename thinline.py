@@ -227,9 +227,9 @@ def write_data(mode):
     writer.close()
     sys.stdout.flush()
 
-def write_data_f(folder, mode):
+def write_data_f(folder, mode,name):
     path = path_sort('./data/exp1/')
-    path = path[0:4]
+    #path = path[0:4]
     full = []
 
     for i in range(len(path)):
@@ -275,17 +275,17 @@ def write_data_f(folder, mode):
         coun += 1
 
     print(struc[0:10,:])
-    writer = tf.io.TFRecordWriter('./data/record/'+folder+'/'+mode+'.tfrecords')
+    writer = tf.io.TFRecordWriter('./data/record/'+folder+'/'+name+'.tfrecords')
     for i in range(len(struc)):
         '''change value to divide between train, val, test'''
         if mode == 'test' :
-            start = 28 
+            start = 3 
             finish = 32
         if mode == 'train' :
             start = 0
             finish = 28
         if mode == 'val' :
-            start = 2
+            start = 1
             finish = 30
 
         lis = struc[i][start:finish]
@@ -381,11 +381,11 @@ def read_tfrecord_norm():
     in a dataset of datasets
     third - each dataset from the dataset is filtered out with a sliding window and flattened
     fourth - all the tensors are turned into batches : need more explanation '''
-    dataset = dataset.window(size=4, shift=4, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(4))
-    dataset = dataset.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-    dataset = dataset.flat_map(lambda x: x.window(size=4, shift=1, stride=1,drop_remainder=True))
-    dataset = dataset.flat_map(lambda x: x.batch(4))
-    dataset = dataset.batch(14)
+    dataset = dataset.window(size=28, shift=28, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(28))
+    #dataset = dataset.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+    #dataset = dataset.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
+    #dataset = dataset.flat_map(lambda x: x.batch(3))
+    dataset = dataset.batch(4)
     lef_mean = np.load('./data/numpy_arrays/left/mean.npy')
     lef_std = np.load('./data/numpy_arrays/left/std.npy')
     lef_a = np.load('./data/numpy_arrays/left/a.npy')
@@ -396,26 +396,49 @@ def read_tfrecord_norm():
     rg_b = np.load('./data/numpy_arrays/right/b.npy')
 
     coun = 0
-    for i in dataset:
+
+    #for i in dataset:
         #print(i)
-        for j in range(14):
-            print(coun)
-            if j%2==0:
+    for i in dataset:
+        print(coun)
+        for j in range(4):
+            
+            if j%2==0 :
                 stuff = (i[j,:,:] - lef_b) / lef_a
                 stuff = (stuff*lef_std) + lef_mean
-            
-            if j%2!=0:
+            if j%2 !=0 :
                 stuff = (i[j,:,:] - rg_b) / rg_a
                 stuff = (stuff*rg_std) + rg_mean
             #print(stuff.shape)
             print(stuff)
-        if coun > 3 :
+        if coun > 1 :
             break
         coun += 1
 
+    '''this is for rescaling ouput'''
+    """ for i in dataset:
+        print(i)
+        for j in range(14):
+            print(coun)
+            if j%4==0 or j%4==1:
+                stuff = (i[j,:,:] - lef_b) / lef_a
+                stuff = (stuff*lef_std) + lef_mean
+            
+            if (j-2)%4 == 0 or (j-2)%4 == 1:
+                stuff = (i[j,:,:] - rg_b) / rg_a
+                stuff = (stuff*rg_std) + rg_mean
+            #print(stuff.shape)
+            print(stuff)
+        if coun > 1 :
+            break
+        coun += 1 """
+
 
 #write_data_f('normal_dis', 'train')
-read_tfrecord_norm()
+write_data_f('normal_dis', 'val', 'val28')
+write_data_f('normal_dis', 'test', 'test28')
+
+#read_tfrecord_norm()
 
 #trip_thin_line()
 #single_pix()
