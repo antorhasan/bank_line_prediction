@@ -372,7 +372,7 @@ def read_tfrecord():
 def read_tfrecord_norm():
     tf.enable_eager_execution()
 
-    dataset = tf.data.TFRecordDataset('./data/record/normal_dis/train.tfrecords')
+    dataset = tf.data.TFRecordDataset('./data/record/normal_dis/val28.tfrecords')
     dataset = dataset.map(_parse_function)
     #dataset = dataset.window(size=3, shift=1, stride=1,drop_remainder=True).flat_map(lambda x: x.batch(3))
     '''behold really efficient pipeline
@@ -382,9 +382,9 @@ def read_tfrecord_norm():
     third - each dataset from the dataset is filtered out with a sliding window and flattened
     fourth - all the tensors are turned into batches : need more explanation '''
     dataset = dataset.window(size=28, shift=28, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(28))
-    #dataset = dataset.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-    #dataset = dataset.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
-    #dataset = dataset.flat_map(lambda x: x.batch(3))
+    dataset = dataset.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+    dataset = dataset.flat_map(lambda x: x.window(size=28, shift=1, stride=1,drop_remainder=True))
+    dataset = dataset.flat_map(lambda x: x.batch(28))
     dataset = dataset.batch(4)
     lef_mean = np.load('./data/numpy_arrays/left/mean.npy')
     lef_std = np.load('./data/numpy_arrays/left/std.npy')
@@ -399,7 +399,7 @@ def read_tfrecord_norm():
 
     #for i in dataset:
         #print(i)
-    for i in dataset:
+    """ for i in dataset:
         print(coun)
         for j in range(4):
             
@@ -413,12 +413,12 @@ def read_tfrecord_norm():
             print(stuff)
         if coun > 1 :
             break
-        coun += 1
+        coun += 1 """
 
     '''this is for rescaling ouput'''
-    """ for i in dataset:
+    for i in dataset:
         print(i)
-        for j in range(14):
+        for j in range(4):
             print(coun)
             if j%4==0 or j%4==1:
                 stuff = (i[j,:,:] - lef_b) / lef_a
@@ -431,14 +431,14 @@ def read_tfrecord_norm():
             print(stuff)
         if coun > 1 :
             break
-        coun += 1 """
+        coun += 1
 
 
 #write_data_f('normal_dis', 'train')
-write_data_f('normal_dis', 'val', 'val28')
-write_data_f('normal_dis', 'test', 'test28')
+#write_data_f('normal_dis', 'val', 'val28')
+#write_data_f('normal_dis', 'test', 'test28')
 
-#read_tfrecord_norm()
+read_tfrecord_norm()
 
 #trip_thin_line()
 #single_pix()

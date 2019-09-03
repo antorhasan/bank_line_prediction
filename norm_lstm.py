@@ -36,14 +36,14 @@ class MyModel(tf.keras.Model):
     def __init__(self):
         super(MyModel, self).__init__()
         
-        self.lstm = LSTM(1,bias_initializer=tf.keras.initializers.constant(.01),activation='relu')
+        self.lstm = LSTM(100,bias_initializer=tf.keras.initializers.constant(.01),activation='relu')
         self.dense1 = Dense(100, activation='relu',bias_initializer=tf.keras.initializers.constant(.01),kernel_initializer='he_normal')
         self.dense2 = Dense(1, activation='tanh',bias_initializer=tf.keras.initializers.constant(.01),kernel_initializer='he_normal')
 
     def call(self, inputs):
         x = self.lstm(inputs)
         #x = self.dense1(x)
-        #x = self.dense2(x)
+        x = self.dense2(x)
         return x
     
     def model(self):
@@ -93,7 +93,7 @@ def predict_step(images):
     result = np.asarray(result)
     '''this part rescales and renormalizes output according to their
     respective left and right means and stds(the following is for 2 stepsize'''
-    """ for j in range(5404):
+    for j in range(5404):
         #print(coun)
         if j%4==0 or j%4==1:
             stuff = (result[j] - lef_b) / lef_a
@@ -101,9 +101,9 @@ def predict_step(images):
         
         if (j-2)%4 == 0 or (j-2)%4 == 1:
             stuff = (result[j] - rg_b) / rg_a
-            result[j] = (stuff*rg_std) + rg_mean """
+            result[j] = (stuff*rg_std) + rg_mean
 
-    for j in range(5404):
+    """ for j in range(5404):
         #print(coun)
         if j%2==0 :
             stuff = (result[j] - lef_b) / lef_a
@@ -111,7 +111,7 @@ def predict_step(images):
         
         if j%2 !=0 :
             stuff = (result[j] - rg_b) / rg_a
-            result[j] = (stuff*rg_std) + rg_mean
+            result[j] = (stuff*rg_std) + rg_mean """
 
         #print(stuff.shape)
         #print(stuff)
@@ -152,7 +152,7 @@ dataset = dataset.window(size=28, shift=28, stride=1,drop_remainder=False).flat_
 dataset = dataset.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
 dataset = dataset.flat_map(lambda x: x.batch(3)) """
 dataset = dataset.shuffle(3000)
-dataset = dataset.batch(128)
+dataset = dataset.batch(10)
 
 
 val_dataset = tf.data.TFRecordDataset('./data/record/normal_dis/val28.tfrecords')
@@ -161,7 +161,7 @@ val_dataset = val_dataset.window(size=29, shift=29, stride=1,drop_remainder=Fals
 val_dataset = val_dataset.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
 val_dataset = val_dataset.flat_map(lambda x: x.window(size=28, shift=1, stride=1,drop_remainder=True))
 val_dataset = val_dataset.flat_map(lambda x: x.batch(28))
-val_dataset = val_dataset.batch(128)
+val_dataset = val_dataset.batch(10)
 
 test = tf.data.TFRecordDataset('./data/record/normal_dis/val28.tfrecords')
 test = test.map(_parse_function)
@@ -190,7 +190,7 @@ test_loss = tf.keras.metrics.MeanSquaredError()
 callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)
 
 
-EPOCHS = 2
+EPOCHS = 30
 for epoch in range(EPOCHS):
     for data in dataset:
         train_step(data[:, 0:27, :], data[:, 27:28, :])
