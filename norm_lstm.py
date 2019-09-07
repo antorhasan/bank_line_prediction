@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 from tensorflow.keras.layers import Conv2D, CuDNNLSTM, LSTM, Dense
 import cv2
-import datetime
+from datetime import datetime
 
 tf.enable_eager_execution()
 
@@ -45,7 +45,15 @@ class MyModel(tf.keras.Model):
         #x = self.dense1(x)
         x = self.dense2(x)
         return x
-    
+
+    def compute_output_shape(self, input_shape):
+        # You need to override this function if you want to use the subclassed model
+        # as part of a functional-style model.
+        # Otherwise, this method is optional.
+        shape = tf.TensorShape(input_shape).as_list()
+        shape[-1] = self.num_classes
+        return tf.TensorShape(shape)
+
     def model(self):
         x = tf.keras.layers.Input(shape=(27, 1))
 
@@ -59,14 +67,14 @@ def loss_object(labels, predictions):
 @tf.function
 def train_step(images, labels):
 
-	with tf.GradientTape() as tape:
-		predictions = model(images)
-		loss = loss_object(labels, predictions)
-		gradients = tape.gradient(loss, model.trainable_variables)
-		optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+    with tf.GradientTape() as tape:
+        predictions = model(images)
+        loss = loss_object(labels, predictions)
+    gradients = tape.gradient(loss, model.trainable_variables)
+    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
-		train_loss(labels, predictions)
-		#train_accuracy(labels, predictions)
+    train_loss(labels, predictions)
+    #train_accuracy(labels, predictions)
 
 @tf.function
 def test_step(images, labels):
@@ -184,24 +192,27 @@ train_loss = tf.keras.metrics.MeanSquaredError()
 #train_accuracy = tf.keras.metrics.Accuracy()
 test_loss = tf.keras.metrics.MeanSquaredError()
 
-#logdir = "./data/logs/scalars/" + datetime.now().strftime("%Y%m%d-%H%M%S")
-#tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir, write_grads=True, write_images=True)
+#callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)
 
-callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)
+logdir = "./data/logs/scalars/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir, write_grads=True, write_images=True)
+callback = [tensorboard_callback]
+tensorboard_callback.set_model(model)
+#model.evaluate(callbacks=callback)
 
-
-EPOCHS = 100
+EPOCHS = 2
 for epoch in range(EPOCHS):
     for data in dataset:
         train_step(data[:, 0:27, :], data[:, 27:28, :])
 
     for data_val in val_dataset:
         test_step(data_val[:, 0:27, :], data_val[:, 27:28, :])
-
+    
     template = 'Epoch {}, Loss: {}, Test Loss: {},'
     print(template.format(epoch+1,
                         train_loss.result(), test_loss.result() ))
 
+    tensorboard_callback.on_epoch_end(epoch, logs={'train_loss':train_loss,'test_loss':test_loss})
     # Reset the metrics for the next epoch
     train_loss.reset_states()
     test_loss.reset_states()
