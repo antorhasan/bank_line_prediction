@@ -177,3 +177,5 @@ def check_zero():
 """ data = tif_to_npaggr('./data/finaltif/')
 mean_std(data) """
 #data_from_tif()
+img = viz('./data/Reclass_Rec1811/Reclass_Rec1811.tif')
+img.cv_view()
