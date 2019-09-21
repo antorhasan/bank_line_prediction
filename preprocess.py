@@ -3,6 +3,7 @@ import tensorflow as tf
 from os import listdir
 from os.path import isfile, join
 import cv2
+import rasterio
 
 def path_sort(path):
     '''gets a path as input and returns a list of sorted filenames'''
@@ -54,10 +55,13 @@ array = filenames_to_array(img_list, './data/crop1/')
 mean , variance = array_mean_var(array)
 print(mean.shape)
 np.save('./data/numpy_arrays/mean', mean) """
-
 #ar = np.load('./data/mean.np')
 #print(ar)
 #print(ar.shape)
-
-
 #print(mean.shape)
+def save_png():
+
+
+if __name__ == "__main__":
+
+    pass

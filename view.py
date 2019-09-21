@@ -4,9 +4,9 @@ from rasterio.plot import show
 from rasterio.plot import show_hist
 import numpy as np
 import matplotlib.pyplot as plt
-from preprocess import *
+#from preprocess import *
 import sys
-from preprocess import path_sort
+#from preprocess import path_sort
 
 class viz():
     '''change bgr to rgb of a 3 band image
@@ -174,8 +174,10 @@ def check_zero():
                     print(i,'start')
                     print(coun)
 
-""" data = tif_to_npaggr('./data/finaltif/')
-mean_std(data) """
-#data_from_tif()
-img = viz('./data/Reclass_Rec1811/Reclass_Rec1811.tif')
-img.cv_view()
+
+if __name__ == "__main__" :
+    img = viz('./data/Reclass_Rec1811/Reclass_Rec1811.tif')
+    img.cv_view()
+    #img = viz('./data/ras_final/1.tif')
+    #img.cv_view()
+    pass
