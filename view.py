@@ -175,7 +175,7 @@ def check_zero():
                     print(coun)
 
 def create_tif_img(path,dest):
-    path = path_sort('./data/raster_o/raster/')
+    path = path_sort(path)
     for i in range(len(path)):
         print(i)
         data  = viz('./data/raster_o/raster/'+str(path[i])+'.tif')
@@ -184,9 +184,17 @@ def create_tif_img(path,dest):
         new_img = np.zeros((2638,1403),dtype=np.uint8)
         coun = 0
         for j in range(arr.shape[0]):
-            coor_list = 
+            coor_list = []
             for k in range(arr.shape[1]):
                 if arr[j,k] == 1 :
+                    coor_list.append(k)
+            coor_list = np.asarray(coor_list)
+            max_co = np.amax(coor_list)
+            min_co = np.amin(coor_list)
+            new_img[j,max_co] = 1
+            new_img[j,min_co] = 1
+        
+        cv2.imwrite('./data/')
 
 
 
