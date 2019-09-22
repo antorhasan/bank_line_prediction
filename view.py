@@ -27,7 +27,7 @@ class viz():
         #conversion is needed to unit8 to keep the range between 0-255
         self.img = np.uint8(img)
         self.img_np = img_np
-
+    
     def get_array(self):
         return self.img_np
 
@@ -173,6 +173,22 @@ def check_zero():
                     coun+=1
                     print(i,'start')
                     print(coun)
+
+def create_tif_img(path,dest):
+    path = path_sort('./data/raster_o/raster/')
+    for i in range(len(path)):
+        print(i)
+        data  = viz('./data/raster_o/raster/'+str(path[i])+'.tif')
+        arr = data.get_array()
+        arr = arr.reshape((2638,1403))
+        new_img = np.zeros((2638,1403),dtype=np.uint8)
+        coun = 0
+        for j in range(arr.shape[0]):
+            coor_list = 
+            for k in range(arr.shape[1]):
+                if arr[j,k] == 1 :
+
+
 
 
 if __name__ == "__main__" :
