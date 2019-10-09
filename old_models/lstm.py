@@ -1,3 +1,4 @@
+'''abandoned non-normal distribution lstm approach that didn't work out'''
 import tensorflow as tf 
 import numpy as np
 from tensorflow.keras.layers import Conv2D, CuDNNLSTM, LSTM, Dense

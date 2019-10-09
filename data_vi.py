@@ -33,30 +33,16 @@ def _parse_function(example_proto):
 
 dataset = tf.data.TFRecordDataset('./data/record/train_tif.tfrecords')
 dataset = dataset.map(_parse_function)
-#dataset = dataset.shuffle(3000)
-#dataset = dataset.batch(8)
-#print(dataset.output_shapes,dataset.output_types)
 iterator = dataset.make_initializable_iterator()
-#image, mask = iterator.get_next()
-
 sess = tf.Session()
 
 sess.run(iterator.initializer)
 count = 0
-""" while True:
-    img, lab = sess.run(iterator.get_next())
-    print(count)
-    count += 1 """
 img, lab = sess.run(iterator.get_next())
-#kernel = np.ones((7,7), np.uint8)
-#lab = cv2.dilate(lab, kernel, iterations=1)
 print(img.shape)
-#img = np.divide(np.multiply(np.int64(img), [255]), [3000])
 img = img[:,:,3:6]
-#img = np.divide(np.multiply(np.int64(img), [255]), [3000])
 print(img)
 print()
-#img = np.uint8(img)
 cv2.namedWindow('image', cv2.WINDOW_NORMAL)
 cv2.imshow('image', lab)
 cv2.waitKey(0)

@@ -5,12 +5,14 @@ import glob
 from os import listdir
 from os.path import isfile, join
 
-def crop_to_roi(where, input_dir):
+def crop_to_roi(output_dir, input_dir):
 	'''crop the jamuna river sat image into equal reaches with 256*768 size
-		input: paths
-		output: cropped images'''
+		Args: 
+			- output_dir : output path for image crops
+			- input_dir : input path for images to be cropped
+	'''
 	
-	path = './data/finaljan/'
+	path = input_dir
 
 	files = [f for f in listdir(path) if isfile(join(path, f))]
 	#files = files[0:2]
@@ -25,7 +27,7 @@ def crop_to_roi(where, input_dir):
 			num = coor_list[k]
 
 			crop_img = img[256*k : 256*(k+1),num:num+768]
-			cv2.imwrite("./data/alt_la/"+files[i].split('.')[0]+str(k)+".png", crop_img)
+			cv2.imwrite(output_dir + files[i].split('.')[0]+str(k)+".png", crop_img)
 
 def stitch_imgs():
 	'''stitch 3 consecutive images into 1 image'''

@@ -197,8 +197,6 @@ def create_tif_img(path,dest):
         cv2.imwrite('./data/')
 
 
-
-
 if __name__ == "__main__" :
     img = viz('./data/Reclass_Rec1811/Reclass_Rec1811.tif')
     img.cv_view()

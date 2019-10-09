@@ -1,3 +1,4 @@
+'''abandoned subclassed basic unet approach to predict next year bankline mask'''
 import tensorflow as tf 
 import numpy as np 
 import cv2

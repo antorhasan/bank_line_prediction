@@ -8,17 +8,23 @@ import matplotlib.pyplot as plt
 #from
 
 
-def trip_thin_line():
-    '''trim the image 120 pixel on four sides'''
-    path = path_sort('./data/bankline/')
+def trip_thin_line(input,output,pix_len):
+    '''trim the image pix_len number of pixels on four sides
+    Args :
+        - input : input directory
+        - output : output directory
+        - pix_len : number of pixels to trim
+    '''
+    path = path_sort(input)
     print(path)
     for i in range(len(path)):
-        img = cv2.imread('./data/bankline/'+str(path[i])+'.png',0)
-        img = img[121:-120,121:-120]
-        cv2.imwrite('./data/bankline/'+str(path[i])+'.png',img)
+        img = cv2.imread(input+str(path[i])+'.png',0)
+        img = img[pix_len+1:-pix_len,pix_len+1:-pix_len]
+        cv2.imwrite(output+str(path[i])+'.png',img)
 
 def single_pix():
     '''makes sure each row of an image has only two valid pixels'''
+    
     path = path_sort('./data/bankline/')
     #path = path[0:2]
     print(path)
