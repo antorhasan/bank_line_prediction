@@ -200,24 +200,24 @@ callback = [tensorboard_callback]
 tensorboard_callback.set_model(model)
 #model.evaluate(callbacks=callback)
 
-EPOCHS = 2
+EPOCHS = 300
 for epoch in range(EPOCHS):
     for data in dataset:
         train_step(data[:, 0:27, :], data[:, 27:28, :])
-
+        #break
     for data_val in val_dataset:
         test_step(data_val[:, 0:27, :], data_val[:, 27:28, :])
-    
+        #break
     template = 'Epoch {}, Loss: {}, Test Loss: {},'
     print(template.format(epoch+1,
                         train_loss.result(), test_loss.result() ))
 
-    tensorboard_callback.on_epoch_end(epoch, logs={'train_loss':train_loss,'test_loss':test_loss})
+    #tensorboard_callback.on_epoch_end(epoch, logs={'train_loss':train_loss,'test_loss':test_loss})
     # Reset the metrics for the next epoch
     train_loss.reset_states()
     test_loss.reset_states()
 
 	#train_accuracy.reset_states()
-
+model.save_weights('./data/model/weights.h5')
 for data in test:
     predict_step(data[:, 0:27, :])
