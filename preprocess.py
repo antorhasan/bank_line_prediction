@@ -59,8 +59,6 @@ np.save('./data/numpy_arrays/mean', mean) """
 #print(ar)
 #print(ar.shape)
 #print(mean.shape)
-def save_png():
-
 
 if __name__ == "__main__":
 

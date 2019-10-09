@@ -7,29 +7,45 @@ import matplotlib.pyplot as plt
 #from preprocess import *
 import sys
 #from preprocess import path_sort
+from utility import single_pix
 
 class viz():
-    '''change bgr to rgb of a 3 band image
-        input : np.ndarray
-        output : np.ndarray'''
+    '''read tif image and get relevant properties
+    '''
     def __init__(self, path):
+        '''parse input tif fime to numpy array
+        Args :
+            - path : .tif file path'''
         self.path = path
         data = rasterio.open(self.path)
         data = data.read()
         img = rasterio.plot.reshape_as_image(data)
         img_np = np.asarray(img)
-        img = img_np[:,:,:]
+        self.np_img = img_np
+
+    def get_image(self,img_type,norm):
+        img_np = self.np_img
+        if img_type == 'rgb' :
+            img = img_np[:,:,0:3]
+        elif img_type == 'infra' :
+            img = img_np[:,:,3:6]
+        elif img_type == 'raster' :
+            img = img_np[:,:]
+            #print(img.shape)
         #print(img.shape)
         '''the int16 format of the input channels needs to be changed into regular int64
         format in order to broadcast properly with int64 numpy array'''
-        img = np.divide(np.multiply(np.int64(img), [255]), [3000])   
+        if norm == True :
+            img = np.divide(np.multiply(np.int64(img), [255]), [3000])
+        elif norm == False :
+            img = np.where(np.int64(img)!=0,255,0)
         
         #conversion is needed to unit8 to keep the range between 0-255
         self.img = np.uint8(img)
-        self.img_np = img_np
+        #self.img_np = img_np
     
     def get_array(self):
-        return self.img_np
+        return np.asarray(self.img)
 
     def cv_view(self):
         '''view raster file's first 3 channel in opencv, input: raster object. 
@@ -42,11 +58,11 @@ class viz():
         cv2.waitKey(0)
         cv2.destroyAllWindows()
     
-    def cv_write(self, where, filename):
+    def cv_write(self, output_dir,filename):
 
-        onlyname = filename.split('.')
+        #onlyname = filename.split('.')
         #print(onlyname[0])
-        cv2.imwrite( where + onlyname[0] + '.png', self.img)
+        cv2.imwrite(output_dir + filename +'.png', self.img)
 
 
 
@@ -198,8 +214,9 @@ def create_tif_img(path,dest):
 
 
 if __name__ == "__main__" :
-    img = viz('./data/Reclass_Rec1811/Reclass_Rec1811.tif')
+    """ img = viz('./data/Reclass_Rec1811/Reclass_Rec1811.tif')
+    img.get_image('raster',norm=False)
     img.cv_view()
-    #img = viz('./data/ras_final/1.tif')
-    #img.cv_view()
+    img.cv_write('./data/img/png/','new') """
+    single_pix('./data/img/png/', './data/img/lines/')
     pass
