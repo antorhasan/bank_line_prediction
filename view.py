@@ -4,6 +4,9 @@ from rasterio.plot import show
 from rasterio.plot import show_hist
 import numpy as np
 import matplotlib.pyplot as plt
+from os import listdir
+from os.path import isfile, join
+
 #from preprocess import *
 import sys
 #from preprocess import path_sort
@@ -59,9 +62,8 @@ class viz():
         cv2.destroyAllWindows()
     
     def cv_write(self, output_dir,filename):
-
-        #onlyname = filename.split('.')
-        #print(onlyname[0])
+        self.img = self.img[13:,:]
+        self.img = self.img[0:2048,:]
         cv2.imwrite(output_dir + filename +'.png', self.img)
 
 
@@ -212,11 +214,36 @@ def create_tif_img(path,dest):
         
         cv2.imwrite('./data/')
 
+def check_img_dist():
+    '''plot distribution of all images in a directory'''
+    path = './data/img/final/'
+    path_ls = [f for f in listdir(path) if isfile(join(path, f))]
+    lis = []
+    #path_ls = path_ls[0:2]
+    for i in range(len(path_ls)):
+        img = cv2.imread(path+path_ls[i],1)
+        #print(img)
+        img = list(img)
+        #print(img)
+        lis.append(img)
+    #print(lis)
+    lis = np.asarray(lis)
+    lis = lis.flatten()
+    #lis = np.log(lis)
+    plt.hist(lis, bins=200)
+    plt.show()
 
 if __name__ == "__main__" :
-    """ img = viz('./data/Reclass_Rec1811/Reclass_Rec1811.tif')
-    img.get_image('raster',norm=False)
-    img.cv_view()
-    img.cv_write('./data/img/png/','new') """
-    single_pix('./data/img/png/', './data/img/lines/')
+    check_img_dist()
+    """ path = './data/ras_final/'
+    path_ls = [f for f in listdir(path) if isfile(join(path, f))]
+    for i in range(len(path_ls)):
+        print(path_ls[i])
+        img = viz(path + path_ls[i])
+        img.get_image('raster',norm=False)
+        #img.cv_view()
+        img.cv_write('./data/img/png/',path_ls[i].split('.')[0])
+        #break """
+    #img.cv_write('./data/img/png/','new')
+    #single_pix('./data/img/png/', './data/img/lines/')
     pass

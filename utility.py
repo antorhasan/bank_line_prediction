@@ -57,7 +57,7 @@ def single_pix(inputdir, outputdir):
         for j in coor:
             new[j[0], j[1]] = 255
 
-        cv2.imwrite(outputdir+str(path[i])+'.png', new)
+        cv2.imwrite(outputdir+str(path[i]), new)
 
 
 def standar_height(img_path,output_dir):
@@ -471,13 +471,17 @@ def read_tfrecord_norm():
         coun += 1
 
 def img_crop_mean():
+    '''get mean column mean value from masked banklines directory and crop from
+    both the rgb images and the masked ones to get same named images and lines in 
+    two separate folders
+    '''
 
     line_path = './data/img/lines/'
     line_lis = [f for f in listdir(line_path) if isfile(join(line_path, f))]
 
     img_path = './data/finaljan/'
     img_lis = [f for f in listdir(img_path) if isfile(join(img_path, f))]
-    img_lis = img_lis[0:3]
+    #img_lis = img_lis[0:3]
 
     for i in range(len(line_lis)):
 
@@ -535,17 +539,22 @@ def img_crop_mean():
     f_rmean = list(f_rmean/len(line_lis))
 
     for i in range(len(img_lis)):
-        img = cv2.imread(img_path + img_lis[i])
-
+        img = cv2.imread(img_path + line_lis[i])
+        img_ms = cv2.imread(line_path + line_lis[i], 0)
         for j in range(len(f_lmean)):
             img_lcrop = img[j*256:(j+1)*256,int(f_lmean[j])-128:int(f_lmean[j])+128]
             img_rcrop = img[j*256:(j+1)*256,int(f_rmean[j])-128:int(f_rmean[j])+128]
 
-            cv2.imwrite('./data/img/final/'+str(i)+str(j)+'l'+'.png',img_lcrop)
-            cv2.imwrite('./data/img/final/'+str(i)+str(j)+'r'+'.png',img_rcrop)
+            img_ms_lcrop = img_ms[j*256:(j+1)*256,int(f_lmean[j])-128:int(f_lmean[j])+128]
+            img_ms_rcrop = img_ms[j*256:(j+1)*256,int(f_rmean[j])-128:int(f_rmean[j])+128]
 
-            if j == 3 :
-                break
+            cv2.imwrite('./data/img/final/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_l'+'.png',img_lcrop)
+            cv2.imwrite('./data/img/final/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_r'+'.png',img_rcrop)
+            
+            cv2.imwrite('./data/img/final_ms/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_l'+'.png',img_ms_lcrop)
+            cv2.imwrite('./data/img/final_ms/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_r'+'.png',img_ms_rcrop)
+            #if j == 3 :
+            #    break
 
 
 if __name__ == "__main__":
