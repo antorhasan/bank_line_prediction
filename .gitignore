@@ -1,5 +1,6 @@
 data/
 bank_env/
+env2/
 .vscode
 *.jpg
 # Byte-compiled / optimized / DLL files
