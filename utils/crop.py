@@ -5,38 +5,47 @@ import glob
 from os import listdir
 from os.path import isfile, join
 
-path = './data/finaljan/'
+def crop_to_roi(where, input_dir):
+	'''crop the jamuna river sat image into equal reaches with 256*768 size
+		input: paths
+		output: cropped images'''
+	
+	path = './data/finaljan/'
 
-files = [f for f in listdir(path) if isfile(join(path, f))]
-files = files[0:1]
+	files = [f for f in listdir(path) if isfile(join(path, f))]
+	#files = files[0:2]
 
-""" only_need = glob.glob(path)
+	coor_list = [516, 491, 516, 450, 396, 355, 325, 277, 310, 400]
 
-onlyfiles = [os.path.basename(x) for x in only_need]
+	for i in range(len(files)):
+		print(files[i])
+		img = cv2.imread(path + files[i])
 
-onlyn = [os.path.splitext(x)[0] for x in onlyfiles]
- """
+		for k in range(len(coor_list)):
+			num = coor_list[k]
 
-coor_list = [510,440,350,275,265,285,250,215,105,125,260,345,
-            510,570,640,700,725,660,635,600,530,510,470,495]
+			crop_img = img[256*k : 256*(k+1),num:num+768]
+			cv2.imwrite("./data/alt_la/"+files[i].split('.')[0]+str(k)+".png", crop_img)
 
-print(len(only_need))
-img_coun = 0
-for i in range(len(only_need)):
-    
-    img = cv2.imread(only_need[i],cv2.IMREAD_GRAYSCALE)
+def stitch_imgs():
+	'''stitch 3 consecutive images into 1 image'''
+	input_dir = './data/result/'
+	file_list = [f for f in listdir(input_dir) if isfile(join(input_dir,f))]
 
-    for k in range(24):
-        num = coor_list[k]
-        
-    
-        if k==23:
-            crop_img = img[5833 : 6089,num+(256*0):num+(256*(2+1))]
-        else:
-            crop_img = img[256*k : 256*(k+1),num+(256*0):num+(256*(2+1))]
-        cv2.imwrite("/media/antor/Files/ML/Papers/river_bank/JPEG_(copy)/1/"+str(i)+"/"+"20141227 SS_1_"+str(i)+".jpg", new)
-    
-    img_coun+=1
-    print(img_coun)
+	'''sort the files according to interger values of filenames'''
+	for i in range(len(file_list)):
+		file_list[i] = int(file_list[i].split('.')[0])
+	file_list.sort()
+	#print(file_list)
 
-    
+	for i in range(0, len(file_list), 3):
+		#print(file_list[i])
+		img1 = cv2.imread(input_dir + str(file_list[i]) + '.png', cv2.IMREAD_GRAYSCALE)
+		img2 = cv2.imread(input_dir + str(file_list[i+1]) + '.png', cv2.IMREAD_GRAYSCALE)
+		img3 = cv2.imread(input_dir + str(file_list[i+2]) + '.png', cv2.IMREAD_GRAYSCALE)
+
+		#print(img1.shape)
+
+		stitched_img = np.concatenate([img1, img2, img3], axis=1)
+
+		cv2.imwrite('./data/result/stitched/' + str(i)+ '.png', stitched_img)
