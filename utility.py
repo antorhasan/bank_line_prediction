@@ -10,7 +10,6 @@ from os import listdir
 from os.path import isfile, join
 
 
-
 def trim_thin_line(inputdir, outputdir, pix_len):
     '''trim the image pix_len number of pixels on four sides
     Args :
