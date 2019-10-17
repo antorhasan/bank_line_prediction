@@ -130,9 +130,13 @@ def check_number():
         print(coor)
 
 
-def data_ag(bank):
-    path = path_sort('./data/exp1/')
+def data_ag(wh_bank,input_dir):
+    '''get all masked banklines in a path and return the full
+    list of column coordinates
+    '''
+    #path = path_sort('./data/exp1/')
     #path = path[0:2]
+    path = [f for f in listdir(input_dir) if isfile(join(input_dir,f))]
     data = []
     for i in range(len(path)):
         print(i)
@@ -143,16 +147,16 @@ def data_ag(bank):
             for k in range(img.shape[1]):
 
                 if img[j, k] == 255:
-                    if bank == 'both':
+                    if wh_bank == 'both':
                         data.append(k)
 
-                    if bank == 'left':
+                    if wh_bank == 'left':
                         if coun % 2 != 0:
                             coun += 1
                             continue
                         data.append(k)
                         coun += 1
-                    if bank == 'right':
+                    if wh_bank == 'right':
                         if coun % 2 == 0:
                             coun += 1
                             continue
@@ -175,14 +179,25 @@ def change_range(data, folder):
     np.save('./data/numpy_arrays/'+folder+'/b', b)
     return new_data
 
+def mean_std(data, folder):
+    '''given a numpy array, calculate and save mean and std'''
+    data = np.asarray(data)
+    mean = np.mean(data, axis=0)
+    std = np.std(data, axis=0)
+    np.save('./data/numpy_arrays/'+folder+'/mean', mean)
+    np.save('./data/numpy_arrays/'+folder+'/std', std)
+    print(data.shape)
+    print(mean.shape)
+    print(mean)
+    #print(meam)
+    print(std.shape)
+    return mean, std
 
 def full_normalize(data, folder):
-    '''normalize the data and save meann,std and constants for rescaling'''
+    '''normalize the data and save mean,std and constants for rescaling'''
     #data = data_ag()
-
     data = np.asarray(data)
     #data = np.where(data>505,data-505,505-data)
-
     mean, std = mean_std(data, folder)
     #print(data[0:10])
     data = np.asarray(data)
@@ -558,7 +573,8 @@ def img_crop_mean():
 
 
 if __name__ == "__main__":
+    
     #read_tfrecord_norm()
     #single_pix('./data/img/png/', './data/img/lines/')
-    img_crop_mean()
+    #img_crop_mean()
     pass

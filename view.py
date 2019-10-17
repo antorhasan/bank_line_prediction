@@ -161,22 +161,6 @@ def write_data():
     createDataRecord_tif("./data/record/val_tif.tfrecords", path_list_val, val_M)
 
 
-
-
-def mean_std(data, folder):
-    '''given a numpy array, calculate and save mean and std'''
-    data = np.asarray(data)
-    mean = np.mean(data, axis=0)
-    std = np.std(data, axis=0)
-    np.save('./data/numpy_arrays/'+folder+'/mean', mean)
-    np.save('./data/numpy_arrays/'+folder+'/std', std)
-    print(data.shape)
-    print(mean.shape)
-    print(mean)
-    #print(meam)
-    print(std.shape)
-    return mean, std
-
 def check_zero():
     path = path_sort('./data/raster_o/raster/')
     for i in range(len(path)):
