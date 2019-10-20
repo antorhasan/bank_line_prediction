@@ -25,5 +25,18 @@ Currently, an approach with RGB images as input and bankline coordinates as outp
 
 The actual banklines are idetified by white and the predicted banklines are identified by red.
 
-![alt text](https://github.com/antorhasan/bank_line_prediction/blob/master/pngs/label0.png) ![alt text](https://github.com/antorhasan/bank_line_prediction/blob/master/pngs/label1.png) 
+![alt text](https://github.com/antorhasan/bank_line_prediction/blob/master/pngs/label0.png) 
+
+<p align="center">
+  <b>Actual (white) and Predicted (Red) River Bank Lines One Year into the Future</b><br>
+  <br/>
+</p>
+
+
+![alt text](https://github.com/antorhasan/bank_line_prediction/blob/master/pngs/label1.png) 
+
+<p align="center">
+  <b>Actual (white) and Predicted (Red) River Bank Lines Two Years into the Future</b><br>
+  <br/>
+</p>
 
