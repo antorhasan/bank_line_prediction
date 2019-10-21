@@ -554,12 +554,12 @@ def img_crop_mean():
 
     fl = open("./data/img/left_co.txt","w+")
     for i in range(len(f_lmean)):
-        fl.write(str(f_lmean[i]))
+        fl.write(str(int(f_lmean[i]))+'  ')
     fl.close() 
 
     fr = open("./data/img/right_co.txt","w+")
     for i in range(len(f_rmean)):
-        fr.write(str(f_rmean[i]))
+        fr.write(str(int(f_rmean[i]))+'  ')
     fr.close() 
 
 
@@ -573,15 +573,15 @@ def img_crop_mean():
             img_ms_lcrop = img_ms[j*256:(j+1)*256,int(f_lmean[j])-128:int(f_lmean[j])+128]
             img_ms_rcrop = img_ms[j*256:(j+1)*256,int(f_rmean[j])-128:int(f_rmean[j])+128]
 
-            #cv2.imwrite('./data/img/final/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_l'+'.png',img_lcrop)
-            #cv2.imwrite('./data/img/final/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_r'+'.png',img_rcrop)
+            cv2.imwrite('./data/img/final/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_l'+'.png',img_lcrop)
+            cv2.imwrite('./data/img/final/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_r'+'.png',img_rcrop)
             
-            #cv2.imwrite('./data/img/final_ms/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_l'+'.png',img_ms_lcrop)
-            #cv2.imwrite('./data/img/final_ms/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_r'+'.png',img_ms_rcrop)
+            cv2.imwrite('./data/img/final_ms/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_l'+'.png',img_ms_lcrop)
+            cv2.imwrite('./data/img/final_ms/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_r'+'.png',img_ms_rcrop)
             #if j == 3 :
             #    break
-            break
-        break
+            #break
+        #break
 
 if __name__ == "__main__":
     
