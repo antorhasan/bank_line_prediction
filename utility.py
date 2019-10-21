@@ -485,7 +485,7 @@ def read_tfrecord_norm():
         coun += 1
 
 def img_crop_mean():
-    '''get mean column mean value from masked banklines directory and crop from
+    '''get column mean value from masked banklines directory and crop from
     both the rgb images and the masked ones to get same named images and lines in 
     two separate folders
     '''
@@ -552,6 +552,17 @@ def img_crop_mean():
     f_lmean = list(f_lmean/len(line_lis))
     f_rmean = list(f_rmean/len(line_lis))
 
+    fl = open("./data/img/left_co.txt","w+")
+    for i in range(len(f_lmean)):
+        fl.write(str(f_lmean[i]))
+    fl.close() 
+
+    fr = open("./data/img/right_co.txt","w+")
+    for i in range(len(f_rmean)):
+        fr.write(str(f_rmean[i]))
+    fr.close() 
+
+
     for i in range(len(img_lis)):
         img = cv2.imread(img_path + line_lis[i])
         img_ms = cv2.imread(line_path + line_lis[i], 0)
@@ -562,18 +573,19 @@ def img_crop_mean():
             img_ms_lcrop = img_ms[j*256:(j+1)*256,int(f_lmean[j])-128:int(f_lmean[j])+128]
             img_ms_rcrop = img_ms[j*256:(j+1)*256,int(f_rmean[j])-128:int(f_rmean[j])+128]
 
-            cv2.imwrite('./data/img/final/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_l'+'.png',img_lcrop)
-            cv2.imwrite('./data/img/final/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_r'+'.png',img_rcrop)
+            #cv2.imwrite('./data/img/final/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_l'+'.png',img_lcrop)
+            #cv2.imwrite('./data/img/final/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_r'+'.png',img_rcrop)
             
-            cv2.imwrite('./data/img/final_ms/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_l'+'.png',img_ms_lcrop)
-            cv2.imwrite('./data/img/final_ms/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_r'+'.png',img_ms_rcrop)
+            #cv2.imwrite('./data/img/final_ms/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_l'+'.png',img_ms_lcrop)
+            #cv2.imwrite('./data/img/final_ms/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_r'+'.png',img_ms_rcrop)
             #if j == 3 :
             #    break
-
+            break
+        break
 
 if __name__ == "__main__":
     
     #read_tfrecord_norm()
     #single_pix('./data/img/png/', './data/img/lines/')
-    #img_crop_mean()
+    img_crop_mean()
     pass
