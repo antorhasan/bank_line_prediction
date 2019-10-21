@@ -174,8 +174,8 @@ def change_range(data, folder):
     a = newR / oldR
     b = newmin - ((oldmin*newR)/oldR)
     new_data = (data*a) + b
-    np.save('./data/numpy_arrays/'+folder+'/a', a)
-    np.save('./data/numpy_arrays/'+folder+'/b', b)
+    np.save('./data/img/numpy_arrays/'+folder+'/a', a)
+    np.save('./data/img/numpy_arrays/'+folder+'/b', b)
     return new_data
 
 def mean_std(data, folder):
@@ -183,8 +183,8 @@ def mean_std(data, folder):
     data = np.asarray(data)
     mean = np.mean(data, axis=0)
     std = np.std(data, axis=0)
-    np.save('./data/numpy_arrays/'+folder+'/mean', mean)
-    np.save('./data/numpy_arrays/'+folder+'/std', std)
+    np.save('./data/img/numpy_arrays/'+folder+'/mean', mean)
+    np.save('./data/img/numpy_arrays/'+folder+'/std', std)
     print(data.shape)
     print(mean.shape)
     print(mean)
@@ -583,9 +583,50 @@ def img_crop_mean():
             #break
         #break
 
+
+def mean_img():
+    '''get mean value per channel in an image'''
+    img = cv2.imread('./data/img/final/198801_0_l.png',1)
+    print(np.mean(img[:,:,0]))
+    print(np.mean(img[:,:,1]))
+    print(np.mean(img[:,:,2]))
+
+def fill_img_blanks(path):
+    '''fill all images missing value with a value of 79,100,93'''
+    f = [f for f in listdir(path) if isfile(join(path, f))]
+    #print(f)
+    for i in range(len(f)):
+        #name = f[i].split()
+        img = cv2.imread(path + f[i], 1)
+        img = np.where(img < 3, [79,100,93], img)
+        img = np.asarray(img, dtype=np.uint8)
+        cv2.imwrite('./data/img/fin/' + f[i], img)
+
+#write an effective function for full normalization
+
+def check_msk_dist(path):
+    f = [f for f in listdir(path) if isfile(join(path, f))]
+    #f = f[0:3]
+    glb_coor = []
+    for i in range(len(f)):
+        img = cv2.imread(path + f[i], 0)
+        for j in range(img.shape[0]):
+            for k in range(img.shape[1]):
+                if img[j,k] == 255 :
+                    glb_coor.append(k)
+        
+    coor = np.asarray(glb_coor)
+    plt.hist(coor, bins=200)
+    plt.show()
+
+    full_normalize(coor, 'first_mask')
+
+
 if __name__ == "__main__":
-    
+    #check_msk_dist('./data/img/final_ms/')
+    #fill_img_blanks('./data/img/final/')
+    #mean_img()
     #read_tfrecord_norm()
     #single_pix('./data/img/png/', './data/img/lines/')
-    img_crop_mean()
+    #img_crop_mean()
     pass
