@@ -1,72 +1,143 @@
 import tensorflow as tf 
 import numpy as np
-from tensorflow.keras.layers import Conv2D, CuDNNLSTM, LSTM, Dense
-import cv2
+from tensorflow.keras.layers import Conv2D, Dense, MaxPool2D, ConvLSTM2D, Reshape, LSTM, Flatten
+#import cv2
 from datetime import datetime
 
 tf.enable_eager_execution()
 
 
-def _parse_function(example_proto):
+def _parse_function_img(example_proto):
 
     features = {
-            "image_y": tf.FixedLenFeature((), tf.string)
+            "image": tf.io.FixedLenFeature((), tf.string),
+            "msk": tf.io.FixedLenFeature((), tf.string)
         }
 
-    parsed_features = tf.parse_single_example(example_proto, features)
+    parsed_features = tf.io.parse_single_example(example_proto, features)
 
-    image_y = tf.decode_raw(parsed_features["image_y"],  tf.float32)
+    image = tf.io.decode_raw(parsed_features["image"],  tf.float32)
+    msk = tf.io.decode_raw(parsed_features["msk"],  tf.float32)
 
-    image_y = tf.cast(image_y, dtype=tf.float32)
+    image = tf.cast(image, dtype=tf.float32)
+    image = tf.reshape(image,[256,256,3])
+    msk = tf.cast(msk, dtype=tf.float32)
+    return image
 
-    """ mean = np.load('./data/numpy_arrays/thin_line/mean.npy')
-    std = np.load('./data/numpy_arrays/thin_line/std.npy')
-    a = np.load('./data/numpy_arrays/thin_line/a.npy')
-    b = np.load('./data/numpy_arrays/thin_line/b.npy')
 
-    image_y = (image_y-mean)/std
+def _parse_function_msk(example_proto):
 
-    image_y = (image_y*a) + b  """ 
+    features = {
+            "image": tf.io.FixedLenFeature((), tf.string),
+            "msk": tf.io.FixedLenFeature((), tf.string)
+        }
 
-    return image_y
+    parsed_features = tf.io.parse_single_example(example_proto, features)
 
+    #image = tf.io.decode_raw(parsed_features["image"],  tf.float32)
+    msk = tf.io.decode_raw(parsed_features["msk"],  tf.float32)
+
+    msk = tf.cast(msk, dtype=tf.float32)
+    msk = tf.reshape(msk,[256,])
+
+    return msk
+
+class Conv_layer(tf.keras.layers.Layer):
+    def __init__(self):
+        super(Conv_layer, self).__init__()
+        self.conv1 = Conv2D(32,(3,3),padding='valid',strides=(1,1),bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.max1 = MaxPool2D((2,2))
+        self.conv2 = Conv2D(64,(3,3),padding='valid',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.max2 = MaxPool2D((2,2))
+        self.conv3 = Conv2D(64,(3,3),padding='same',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.max3 = MaxPool2D((2,2))
+        self.conv4 = Conv2D(128,(3,3),padding='same',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.max4 = MaxPool2D((2,2))
+        self.conv5 = Conv2D(128,(3,3),padding='same',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.max5 = MaxPool2D((2,2))
+        self.conv6 = Conv2D(256,(3,3),padding='same',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.max6 = MaxPool2D((2,2))
+        #self.reshape1 = Reshape((1,256,256,3))
+        #self.reshape2 = Reshape((3,3,256))
+        #self.conv7 = Conv2D(256,(3,3),padding='valid',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+
+    def call(self, inputs):
+        #x = self.reshape1(inputs)
+        x = self.conv1(inputs)
+        x = self.max1(x)
+        x = self.conv2(x)
+        x = self.max2(x)
+        x = self.conv3(x)
+        x = self.max3(x)
+        x = self.conv4(x)
+        x = self.max4(x)
+        x = self.conv5(x)
+        x = self.max5(x)
+        x = self.conv6(x)
+        x = self.max6(x)
+        #x = self.conv7(x)
+        #o = self.reshape2(x)
+        return x
+
+    def model(self):
+        #x = np.zeros((1,256,256,3), dtype=np.float32)
+        #x = tf.random.uniform((1,256,256,3))
+        x = tf.keras.layers.Input(shape=(256,256,3), dtype=tf.float32)
+        return tf.keras.Model(inputs=[x], outputs=self.call(x)).summary()
+
+#conv = Conv_layer()
+#conv.model()
 
 class MyModel(tf.keras.Model):
 
     def __init__(self):
         super(MyModel, self).__init__()
-        
-        self.lstm = LSTM(100,bias_initializer=tf.keras.initializers.constant(.01),activation='relu')
-        self.dense1 = Dense(100, activation='relu',bias_initializer=tf.keras.initializers.constant(.01),kernel_initializer='he_normal')
-        self.dense2 = Dense(1, activation='tanh',bias_initializer=tf.keras.initializers.constant(.01),kernel_initializer='he_normal')
+        self.conv_layer = Conv_layer()
+        #self.reshape = Reshape((1,2,3,3,256))
+        self.convlstm = ConvLSTM2D(256,(3,3), data_format='channels_last',padding='same',return_sequences=False)
+        #self.lstm = LSTM(256,bias_initializer=tf.keras.initializers.constant(.01),activation='relu')
+        #self.flat = Flatten()
+        #self.reshape_d = Reshape((2,2,256))  #first dimension is batch size,second is 2 input images
+        self.dense1 = Dense(256, activation='tanh',bias_initializer=tf.keras.initializers.constant(.01),kernel_initializer='he_normal')
+        self.reshape_output = Reshape((2,-1))   #it's running due to this.something is very off with the reshape
+        self.reshape_last = Reshape((2,1,256))
+        self.res = Reshape((2,-1,3,256))
+        self.conv7 = Conv2D(256,(3,3),padding='valid',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
 
     def call(self, inputs):
-        x = self.lstm(inputs)
-        #x = self.dense1(x)
-        x = self.dense2(x)
+        x = tf.map_fn(self.conv_layer, inputs) # input needs to be of shpae (sample,2,256,256,3)
+        #x = self.conv_layer(inputs)
+        #x = self.reshape(x)
+        #x = self.flat(x)
+        #x = self.flat(x)
+        x = self.convlstm(x)
+        #x = self.reshape_d(x)
+
+        #print(x)
+        #x = self.res(x)
+        x = self.conv7(x)
+        #x = self.lstm(x)
+        #print(x)
+        #print(x)
+        x = self.reshape_output(x)
+        x = self.dense1(x)
+        x = self.reshape_last(x)
+
         return x
-
-    def compute_output_shape(self, input_shape):
-        # You need to override this function if you want to use the subclassed model
-        # as part of a functional-style model.
-        # Otherwise, this method is optional.
-        shape = tf.TensorShape(input_shape).as_list()
-        shape[-1] = self.num_classes
-        return tf.TensorShape(shape)
-
+        
     def model(self):
-        x = tf.keras.layers.Input(shape=(27, 1))
-
+        x = tf.keras.layers.Input(shape=(2,256,256,3), dtype=tf.float32)
         return tf.keras.Model(inputs=[x], outputs=self.call(x)).summary()
+
+#model = MyModel()
+#model.model()
 
 def loss_object(labels, predictions):
     loss = tf.keras.losses.mse(labels, predictions)
     return loss
 
-
-@tf.function
+#@tf.function
 def train_step(images, labels):
-
     with tf.GradientTape() as tape:
         predictions = model(images)
         loss = loss_object(labels, predictions)
@@ -76,7 +147,7 @@ def train_step(images, labels):
     train_loss(labels, predictions)
     #train_accuracy(labels, predictions)
 
-@tf.function
+#@tf.function
 def test_step(images, labels):
 	predictions = model(images)
 	t_loss = loss_object(labels, predictions)
@@ -153,71 +224,89 @@ def predict_step(images):
     cv2.imwrite('./data/resul_line/'+'label1'+'.png',img_2)
 
 
-dataset = tf.data.TFRecordDataset('./data/record/normal_dis/train.tfrecords')
-dataset = dataset.map(_parse_function)
-dataset = dataset.window(size=28, shift=28, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(28))
-""" dataset = dataset.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-dataset = dataset.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
-dataset = dataset.flat_map(lambda x: x.batch(3)) """
-dataset = dataset.shuffle(3000)
-dataset = dataset.batch(1)
+dataseti = tf.data.TFRecordDataset('./data/img/record/first_img/train.tfrecords')
+dataseti = dataseti.map(_parse_function_img)
+#dataset = dataset.window(size=2, shift=2, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(2))
+dataseti = dataseti.window(size=30, shift=30, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(30))
+dataseti = dataseti.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+dataseti = dataseti.flat_map(lambda x: x.window(size=3, shift=3, stride=1,drop_remainder=True))
+dataseti = dataseti.flat_map(lambda x: x.batch(3))
+#dataset = dataset.shuffle(3000)
+dataseti = dataseti.batch(2)
+
+datasetm = tf.data.TFRecordDataset('./data/img/record/first_img/train.tfrecords')
+datasetm = datasetm.map(_parse_function_msk)
+#dataset = dataset.window(size=2, shift=2, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(2))
+datasetm = datasetm.window(size=30, shift=30, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(30))
+datasetm = datasetm.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+datasetm = datasetm.flat_map(lambda x: x.window(size=3, shift=3, stride=1,drop_remainder=True))
+datasetm = datasetm.flat_map(lambda x: x.batch(3))
+#dataset = dataset.shuffle(3000)
+datasetm = datasetm.batch(2)
 
 
-val_dataset = tf.data.TFRecordDataset('./data/record/normal_dis/val28.tfrecords')
-val_dataset = val_dataset.map(_parse_function)
-val_dataset = val_dataset.window(size=29, shift=29, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(29))
-val_dataset = val_dataset.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-val_dataset = val_dataset.flat_map(lambda x: x.window(size=28, shift=1, stride=1,drop_remainder=True))
-val_dataset = val_dataset.flat_map(lambda x: x.batch(28))
-val_dataset = val_dataset.batch(32)
+dataset_vali = tf.data.TFRecordDataset('./data/img/record/first_img/val.tfrecords')
+dataset_vali = dataset_vali.map(_parse_function_img)
+#dataset_val = dataset_val.window(size=2, shift=2, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(2))
+dataset_vali = dataset_vali.window(size=4, shift=4, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(4))
+dataset_vali = dataset_vali.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+dataset_vali = dataset_vali.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
+dataset_vali = dataset_vali.flat_map(lambda x: x.batch(3))
+#dataset = dataset.shuffle(3000)
+dataset_vali = dataset_vali.batch(2)
 
-test = tf.data.TFRecordDataset('./data/record/normal_dis/val28.tfrecords')
-test = test.map(_parse_function)
-test = test.window(size=29, shift=29, stride=1,drop_remainder=False).flat_map(lambda x: x.batch(29))
-test = test.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-test = test.flat_map(lambda x: x.window(size=28, shift=1, stride=1,drop_remainder=True))
-test = test.flat_map(lambda x: x.batch(28))
-test = test.batch(5404)
+
+dataset_valm = tf.data.TFRecordDataset('./data/img/record/first_img/val.tfrecords')
+dataset_valm = dataset_valm.map(_parse_function_msk)
+#dataset_val = dataset_val.window(size=2, shift=2, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(2))
+dataset_valm = dataset_valm.window(size=4, shift=4, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(4))
+dataset_valm = dataset_valm.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+dataset_valm = dataset_valm.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
+dataset_valm = dataset_valm.flat_map(lambda x: x.batch(3))
+#dataset = dataset.shuffle(3000)
+dataset_valm = dataset_valm.batch(2)
 
 model = MyModel()
 
-model.model()
+#model.model()
 
-optimizer = tf.keras.optimizers.Adam(learning_rate=.00001)
-#min lr which is working = .0001 for 1 unit lstm
+optimizer = tf.keras.optimizers.Adam(learning_rate=.0001)
 
-#loss_object = tf.keras.losses.mse(labels, predictions)
 
 train_loss = tf.keras.metrics.MeanSquaredError()
-#train_accuracy = tf.keras.metrics.Accuracy()
+
 test_loss = tf.keras.metrics.MeanSquaredError()
 
 #callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)
 
-logdir = "./data/logs/scalars/" + datetime.now().strftime("%Y%m%d-%H%M%S")
-tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir, write_grads=True, write_images=True)
-callback = [tensorboard_callback]
-tensorboard_callback.set_model(model)
+#logdir = "./data/logs/scalars/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+#tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir, write_grads=True, write_images=True)
+#callback = [tensorboard_callback]
+#tensorboard_callback.set_model(model)
+
 #model.evaluate(callbacks=callback)
 
-EPOCHS = 2
+EPOCHS = 30
 for epoch in range(EPOCHS):
-    for data in dataset:
-        train_step(data[:, 0:27, :], data[:, 27:28, :])
+    #for img, msk in zip(dataseti, datasetm):
+    #    print(img[:,0:2,:,:],msk[:,2:3,:])
+    
+    for img, msk in zip(dataseti, datasetm):
+        train_step(img[:,0:2,:,:],msk[:,2:3,:])
 
-    for data_val in val_dataset:
-        test_step(data_val[:, 0:27, :], data_val[:, 27:28, :])
+    for img, msk in zip(dataset_vali, dataset_valm):
+        test_step(img[:,0:2,:,:],msk[:,2:3,:])
     
     template = 'Epoch {}, Loss: {}, Test Loss: {},'
     print(template.format(epoch+1,
                         train_loss.result(), test_loss.result() ))
 
-    tensorboard_callback.on_epoch_end(epoch, logs={'train_loss':train_loss,'test_loss':test_loss})
+    #tensorboard_callback.on_epoch_end(epoch, logs={'train_loss':train_loss,'test_loss':test_loss})
     # Reset the metrics for the next epoch
     train_loss.reset_states()
     test_loss.reset_states()
 
 	#train_accuracy.reset_states()
 
-for data in test:
-    predict_step(data[:, 0:27, :])
+#for data in test:
+#    predict_step(data[:, 0:27, :])

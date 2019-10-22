@@ -413,8 +413,7 @@ def read_tfrecord():
 def read_tfrecord_norm():
     tf.enable_eager_execution()
 
-    dataset = tf.data.TFRecordDataset(
-        './data/record/normal_dis/val28.tfrecords')
+    dataset = tf.data.TFRecordDataset('./data/record/normal_dis/val28.tfrecords')
     dataset = dataset.map(_parse_function)
     #dataset = dataset.window(size=3, shift=1, stride=1,drop_remainder=True).flat_map(lambda x: x.batch(3))
     '''behold really efficient pipeline
@@ -618,7 +617,8 @@ def check_msk_dist(path):
 
 
 def write_img_data(img_path, msk_path, mode):
-    '''mode is writte with two input images and one output vector in mind'''
+    '''mode is writte with two input images and one output vector in mind
+    write image and mask pair from two folders into a tfrecord file'''
     path = path_sort(img_path)
     #path = path[0:32]
     #print(path)
@@ -669,7 +669,7 @@ def write_img_data(img_path, msk_path, mode):
     writer = tf.io.TFRecordWriter('./data/img/record/first_img/'+mode+'.tfrecords')
     
     for i in range(len(global_lis)):
-        print(global_lis[i])
+        #print(global_lis[i])
         img = cv2.imread(img_path + str(global_lis[i])+'.png', 1)
         img = img / 255
         img = np.asarray(img, dtype=np.float32)
@@ -680,6 +680,9 @@ def write_img_data(img_path, msk_path, mode):
             for k in range(msk.shape[1]):
                 if msk[j, k] == 255:
                     msk_list.append(k)
+        if len(msk_list) != 256 :
+            print(global_lis[i],len(msk_list))
+
         msk = np.asarray(msk_list)
         msk = (((msk - mean)/std)*a) + b 
         msk = np.asarray(msk, dtype=np.float32)
@@ -694,12 +697,6 @@ def write_img_data(img_path, msk_path, mode):
 
     writer.close()
     sys.stdout.flush()
-
-
-
-    
-    
-
 
 
 if __name__ == "__main__":

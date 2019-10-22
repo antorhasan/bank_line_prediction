@@ -2,21 +2,42 @@ import cv2
 import numpy as np 
 
 
-
-
-""" img = cv2.imread('./data/exp1/201601.png')
-
+left_lis_147 = [20110100,20120100,20130100,20140100,20150100,20160100,20170100,20180100,20190100]
+right_lis_208 = [20110101,20120101,20130101,20140101,20150101,20160101,20170101,20180101,20190101]
+right_lis = [201101,201201,201301,201401,201501,201601,201701,201801,201901]
+right_lis = [201801,201901]
+other = [19880161,19880171,19890171]
+""" 
+#img = cv2.imread('./data/img/lines/198801.png')
+img = cv2.imread('./data/finaljan/198901.png')
+ctrl = 860
+img = img[7*256:8*256,ctrl-128:ctrl+128]
 cv2.namedWindow('image', cv2.WINDOW_NORMAL)
 cv2.imshow('image', img)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
- """
+cv2.imwrite('./data/img/msk_corrected/' + str(19890171) + '.png', img)
+    """
+
+for i in range(len(right_lis)):
+
+    #print(right_lis_208[i])
+    img = cv2.imread('./data/img/lines/' + str(right_lis[i]) + '.png', 0)
+    ctrl = 679
+    img = img[0*256:1*256,ctrl-128:ctrl+128]
+    img[0,147] = 255
+    cv2.imwrite('./data/img/msk_corrected/' + str(right_lis[i]) +'01'+ '.png', img)
+
+
+
+
+""" 
 def data_ag():
-    """ path = path_sort('./data/exp1/198801.png')
+    path = path_sort('./data/exp1/198801.png')
     #path = path[0:2]
     data = []
     for i in range(len(path)):
-        print(i) """
+        print(i)
     data = []
     img = cv2.imread('./data/exp1/198801.png',0)
     for j in range(img.shape[0]):
@@ -32,7 +53,7 @@ data = np.asarray(data)
 data = np.where(data>505,data-505,505-data)
 
 print(data[0:50])
-
+ """
 
 
 #write_data_f('normal_dis', 'train')
