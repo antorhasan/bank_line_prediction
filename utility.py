@@ -348,31 +348,24 @@ def write_data_f(folder, mode, name):
     sys.stdout.flush()
 
 
-def _parse_function(example_proto):
-
-    features = {
-        "image_y": tf.io.FixedLenFeature((), tf.string)
-    }
-
-    parsed_features = tf.io.parse_single_example(example_proto, features)
-
-    image_y = tf.decode_raw(parsed_features["image_y"],  tf.float32)
-
-    image_y = tf.cast(image_y, dtype=tf.float32)
-
-    #mean = np.load('./data/numpy_arrays/thin_line/mean.npy')
-    #std = np.load('./data/numpy_arrays/thin_line/std.npy')
-    #a = np.load('./data/numpy_arrays/thin_line/a.npy')
-    #b = np.load('./data/numpy_arrays/thin_line/b.npy')
-
-    #image_y = (image_y-mean)/std
-
-    #image_y = (image_y*a) + b
-
-    return image_y
 
 
 def read_tfrecord():
+
+    def _parse_function(example_proto):
+
+        features = {
+            "image_y": tf.io.FixedLenFeature((), tf.string)
+        }
+
+        parsed_features = tf.io.parse_single_example(example_proto, features)
+
+        image_y = tf.decode_raw(parsed_features["image_y"],  tf.float32)
+
+        image_y = tf.cast(image_y, dtype=tf.float32)
+
+        return image_y
+
     tf.enable_eager_execution()
 
     dataset = tf.data.TFRecordDataset('./data/record/thin/train.tfrecords')
@@ -573,11 +566,13 @@ def img_crop_mean():
             img_ms_lcrop = img_ms[j*256:(j+1)*256,int(f_lmean[j])-128:int(f_lmean[j])+128]
             img_ms_rcrop = img_ms[j*256:(j+1)*256,int(f_rmean[j])-128:int(f_rmean[j])+128]
 
-            cv2.imwrite('./data/img/final/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_l'+'.png',img_lcrop)
-            cv2.imwrite('./data/img/final/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_r'+'.png',img_rcrop)
+            #namin convention - year, month,row number,left or right bank
             
-            cv2.imwrite('./data/img/final_ms/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_l'+'.png',img_ms_lcrop)
-            cv2.imwrite('./data/img/final_ms/'+str(line_lis[i].split('.')[0])+'_'+str(j)+'_r'+'.png',img_ms_rcrop)
+            cv2.imwrite('./data/img/final/'+str(line_lis[i].split('.')[0])+str(j)+'0'+'.png',img_lcrop)
+            cv2.imwrite('./data/img/final/'+str(line_lis[i].split('.')[0])+str(j)+'1'+'.png',img_rcrop)
+            
+            cv2.imwrite('./data/img/final_ms/'+str(line_lis[i].split('.')[0])+str(j)+'0'+'.png',img_ms_lcrop)
+            cv2.imwrite('./data/img/final_ms/'+str(line_lis[i].split('.')[0])+str(j)+'1'+'.png',img_ms_rcrop)
             #if j == 3 :
             #    break
             #break
@@ -622,7 +617,93 @@ def check_msk_dist(path):
     full_normalize(coor, 'first_mask')
 
 
+def write_img_data(img_path, msk_path, mode):
+    '''mode is writte with two input images and one output vector in mind'''
+    path = path_sort(img_path)
+    #path = path[0:32]
+    #print(path)
+    global_lis = []
+    for i in range(16): #as there are 16 patches for each image
+        for j in range(int(len(path)/16)):
+            global_lis.append(path[i+(16*j)])
+    #print(global_lis)
+    
+    if mode == 'test':
+        start = 28
+        finish = 32
+
+    if mode == 'train':   # taking first30 years data for all 16 patches
+        new = []
+        coun = 0
+        for i in range(len(global_lis)):
+            if coun==30 or coun==31 :
+                coun += 1
+                continue
+            if coun == 32 :
+                coun = 0
+            new.append(global_lis[i])
+            coun += 1 
+            
+    if mode == 'val':
+        new = []
+        coun = 0
+        for i in range(len(global_lis)):
+            #print(coun)
+            if 28 <= coun <= 31 :
+                new.append(global_lis[i])
+            coun += 1 
+            if coun == 32:
+                coun = 0
+            continue
+
+            
+    #global_lis = global_lis[start:finish]
+    global_lis = new 
+
+    array_path = './data/img/numpy_arrays/first_mask/'
+    mean = np.load(array_path + 'mean.npy')
+    std = np.load(array_path + 'std.npy')
+    a = np.load(array_path + 'a.npy')
+    b = np.load(array_path + 'b.npy')
+
+    writer = tf.io.TFRecordWriter('./data/img/record/first_img/'+mode+'.tfrecords')
+    
+    for i in range(len(global_lis)):
+        print(global_lis[i])
+        img = cv2.imread(img_path + str(global_lis[i])+'.png', 1)
+        img = img / 255
+        img = np.asarray(img, dtype=np.float32)
+
+        msk = cv2.imread(msk_path + str(global_lis[i])+'.png', 0)
+        msk_list = []
+        for j in range(msk.shape[0]):
+            for k in range(msk.shape[1]):
+                if msk[j, k] == 255:
+                    msk_list.append(k)
+        msk = np.asarray(msk_list)
+        msk = (((msk - mean)/std)*a) + b 
+        msk = np.asarray(msk, dtype=np.float32)
+
+        feature = {
+            'image': _bytes_feature(img.tostring()),
+            'msk': _bytes_feature(msk.tostring())
+        }
+        example = tf.train.Example(
+            features=tf.train.Features(feature=feature))
+        writer.write(example.SerializeToString())
+
+    writer.close()
+    sys.stdout.flush()
+
+
+
+    
+    
+
+
+
 if __name__ == "__main__":
+    write_img_data('./data/img/final/','./data/img/final_ms/','val')
     #check_msk_dist('./data/img/final_ms/')
     #fill_img_blanks('./data/img/final/')
     #mean_img()

@@ -217,9 +217,8 @@ def check_img_dist():
     plt.hist(lis, bins=200)
     plt.show()
 
-if __name__ == "__main__" :
-    check_img_dist()
-    """ path = './data/ras_final/'
+def tif_to_png_lines():
+    path = './data/ras_final/'
     path_ls = [f for f in listdir(path) if isfile(join(path, f))]
     for i in range(len(path_ls)):
         print(path_ls[i])
@@ -227,7 +226,10 @@ if __name__ == "__main__" :
         img.get_image('raster',norm=False)
         #img.cv_view()
         img.cv_write('./data/img/png/',path_ls[i].split('.')[0])
-        #break """
+
+
+if __name__ == "__main__" :
+    #check_img_dist()
     #img.cv_write('./data/img/png/','new')
     #single_pix('./data/img/png/', './data/img/lines/')
     pass
