@@ -227,9 +227,66 @@ def tif_to_png_lines():
         #img.cv_view()
         img.cv_write('./data/img/png/',path_ls[i].split('.')[0])
 
+def view_data_1():
+    '''view the dataset where '''
+    dataseti = tf.data.TFRecordDataset('./data/img/record/first_img/train_28.tfrecords')
+    dataseti = dataseti.map(_parse_function_img)
+    #dataset = dataset.window(size=2, shift=2, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(2))
+    dataseti = dataseti.window(size=28, shift=28, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(28))
+    dataseti = dataseti.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+    dataseti = dataseti.flat_map(lambda x: x.window(size=3, shift=3, stride=1,drop_remainder=True))
+    dataseti = dataseti.flat_map(lambda x: x.batch(3))
+    #dataset = dataset.shuffle(3000)
+    dataseti = dataseti.batch(2)
+
+    datasetm = tf.data.TFRecordDataset('./data/img/record/first_img/train_28.tfrecords')
+    datasetm = datasetm.map(_parse_function_msk)
+    #dataset = dataset.window(size=2, shift=2, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(2))
+    datasetm = datasetm.window(size=28, shift=28, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(28))
+    datasetm = datasetm.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+    datasetm = datasetm.flat_map(lambda x: x.window(size=3, shift=3, stride=1,drop_remainder=True))
+    datasetm = datasetm.flat_map(lambda x: x.batch(3))
+    #dataset = dataset.shuffle(3000)
+    datasetm = datasetm.batch(2)
+
+    for img, msk in zip(dataseti, datasetm):
+        img1 = img[0,0,:,:,:]
+        img2 = img[0,1,:,:,:]
+        img1 = img1*255
+        img2 = img2*255
+
+        msk1 = msk[0,2,:]
+
+        msk1 = (((msk1-b)/a) * std ) + mean
+
+        msk = np.zeros((256,256))
+        for i in range(msk.shape[0]):
+            for j in range(msk.shape[1]):
+                if j == int(msk1[i]):
+                    msk[i,j] = 255
+
+        img1 = np.asarray(img1,dtype=np.uint8)
+        img2 = np.asarray(img2,dtype=np.uint8)
+        msk = np.asarray(msk,dtype=np.uint8)
+        
+        cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
+        cv2.imshow('image1',img1)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+        cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
+        cv2.imshow('image1',img2)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+        cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
+        cv2.imshow('image1',msk)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
 
 if __name__ == "__main__" :
-    #check_img_dist()
+    check_img_dist()
     #img.cv_write('./data/img/png/','new')
     #single_pix('./data/img/png/', './data/img/lines/')
     pass

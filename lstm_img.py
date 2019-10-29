@@ -48,17 +48,23 @@ def _parse_function_msk(example_proto):
 class Conv_layer(tf.keras.layers.Layer):
     def __init__(self):
         super(Conv_layer, self).__init__()
-        self.conv1 = Conv2D(32,(3,3),padding='valid',strides=(1,1),bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.conv1 = Conv2D(32,(3,3),padding='valid',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.conv11 = Conv2D(32,(3,3),padding='valid',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
         self.max1 = MaxPool2D((2,2))
         self.conv2 = Conv2D(64,(3,3),padding='valid',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.conv22 = Conv2D(64,(3,3),padding='valid',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')        
         self.max2 = MaxPool2D((2,2))
         self.conv3 = Conv2D(64,(3,3),padding='same',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.conv33 = Conv2D(64,(3,3),padding='same',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
         self.max3 = MaxPool2D((2,2))
         self.conv4 = Conv2D(128,(3,3),padding='same',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.conv44 = Conv2D(128,(3,3),padding='same',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
         self.max4 = MaxPool2D((2,2))
-        self.conv5 = Conv2D(128,(3,3),padding='same',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.conv5 = Conv2D(256,(3,3),padding='same',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.conv55 = Conv2D(256,(3,3),padding='same',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
         self.max5 = MaxPool2D((2,2))
-        self.conv6 = Conv2D(256,(3,3),padding='same',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.conv6 = Conv2D(512,(3,3),padding='same',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.conv66 = Conv2D(512,(3,3),padding='same',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
         self.max6 = MaxPool2D((2,2))
         #self.reshape1 = Reshape((1,256,256,3))
         #self.reshape2 = Reshape((3,3,256))
@@ -67,16 +73,22 @@ class Conv_layer(tf.keras.layers.Layer):
     def call(self, inputs):
         #x = self.reshape1(inputs)
         x = self.conv1(inputs)
+        x = self.conv11(x)
         x = self.max1(x)
         x = self.conv2(x)
+        x = self.conv22(x)
         x = self.max2(x)
         x = self.conv3(x)
+        x = self.conv33(x)
         x = self.max3(x)
         x = self.conv4(x)
+        x = self.conv44(x)
         x = self.max4(x)
         x = self.conv5(x)
+        x = self.conv55(x)
         x = self.max5(x)
         x = self.conv6(x)
+        x = self.conv66(x)
         x = self.max6(x)
         #print(x)
         #print(asd)
@@ -84,11 +96,6 @@ class Conv_layer(tf.keras.layers.Layer):
         #o = self.reshape2(x)
         return x
 
-    def model(self):
-        #x = np.zeros((1,256,256,3), dtype=np.float32)
-        #x = tf.random.uniform((1,256,256,3))
-        x = tf.keras.layers.Input(shape=(256,256,3), dtype=tf.float32)
-        return tf.keras.Model(inputs=[x], outputs=self.call(x)).summary()
 
 #conv = Conv_layer()
 #conv.model()
@@ -98,47 +105,15 @@ class MyModel(tf.keras.Model):
     def __init__(self):
         super(MyModel, self).__init__()
         self.conv_layer = Conv_layer()
-        #self.reshape = Reshape((1,2,3,3,256))
-        self.convlstm = ConvLSTM2D(256,(3,3), data_format='channels_last',padding='valid',return_sequences=False)
-        #self.lstm = LSTM(256,bias_initializer=tf.keras.initializers.constant(.01),activation='relu')
-        #self.flat = Flatten()
-        #self.reshape_d = Reshape((2,2,256))  #first dimension is batch size,second is 2 input images
-        self.dense1 = Dense(256, activation='tanh',bias_initializer=tf.keras.initializers.constant(.01),kernel_initializer='he_normal')
-        #self.reshape_output = Reshape((2,-1))   #it's running due to this.something is very off with the reshape
-        #self.reshape_last = Reshape((2,1,256))
-        #self.res = Reshape((2,-1,3,256))
-        #self.conv7 = Conv2D(256,(3,3),padding='valid',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        self.convlstm = ConvLSTM2D(512,(3,3), data_format='channels_last',padding='valid',return_sequences=False)
+        self.dense1 = Dense(256, activation=None,bias_initializer=tf.keras.initializers.constant(.01),kernel_initializer='he_normal')
 
     def call(self, inputs):
         x = tf.map_fn(self.conv_layer, inputs) # input needs to be of shpae (sample,2,256,256,3)
-        #x = self.conv_layer(inputs)
-        #x = self.reshape(x)
-        #x = self.flat(x)
-        #x = self.flat(x)
-        
         x = self.convlstm(x)
-        #x = self.reshape_d(x)
-        #print(x)
-        #print(asd)
-        #print(x)
-        #x = self.res(x)
-        #x = self.conv7(x)
-        #x = self.lstm(x)
-        #print(x)
-        #print(x)
         x = tf.reshape(x, [2,256])
-        #x = self.reshape_output(x)
         x = self.dense1(x)
-        #x = self.reshape_last(x)
-        #print(x)
-        #x = tf.reshape(x, [2,256])
-        #print(x)
-        #print(asd)
         return x
-        
-    def model(self):
-        x = tf.keras.layers.Input(shape=(2,256,256,3), dtype=tf.float32)
-        return tf.keras.Model(inputs=[x], outputs=self.call(x)).summary()
 
 #model = MyModel()
 #model.model()
@@ -167,38 +142,6 @@ def test_step(images, labels):
     test_loss(labels, predictions)
     #test_accuracy(labels, predictions)
 
-
-def predict_step(images):
-    result = model(images)
-    #print(result)
-    #print(asd)
-    result = tf.reshape(result,[2,256])
-    array_path = './data/img/numpy_arrays/first_mask/'
-    mean = np.load(array_path + 'mean.npy')
-    std = np.load(array_path + 'std.npy')
-    a = np.load(array_path + 'a.npy')
-    b = np.load(array_path + 'b.npy')
-
-    result = (((result-b)/a) * std ) + mean
-
-    line1 = result[0,:]
-    line2 = result[1,:]
-
-    img1 = np.zeros((256,256))
-    img2 = np.zeros((256,256))
-
-    for i in range(img1.shape[0]):
-        for j in range(img2.shape[1]):
-            if j == int(line1[i]) :
-                img1[i,j] = 255
-    
-    for i in range(img2.shape[0]):
-        for j in range(img2.shape[1]):
-            if j == int(line2[i]) :
-                img2[i,j] = 255
-    
-    cv2.imwrite('./data/img/result/'+'label0'+'.png',img1)
-    cv2.imwrite('./data/img/result/'+'label1'+'.png',img2)
 
 
 dataseti = tf.data.TFRecordDataset('./data/img/record/first_img/train_28.tfrecords')
@@ -248,8 +191,6 @@ model = MyModel()
 #model.model()
 
 optimizer = tf.keras.optimizers.Adam(learning_rate=.001)
-
-
 train_loss = tf.keras.metrics.MeanSquaredError()
 
 test_loss = tf.keras.metrics.MeanSquaredError()
@@ -263,14 +204,24 @@ test_loss = tf.keras.metrics.MeanSquaredError()
 
 #model.evaluate(callbacks=callback)
 
-EPOCHS = 2
+""" for img, msk in zip(dataseti, datasetm):
+    train_step(img[:,0:2,:,:],msk[:,2:3,:])
+    model.load_weights('./data/img/model/weights_exp.h5')
+    break """
+
+array_path = './data/img/numpy_arrays/first_mask/'
+mean = np.load(array_path + 'mean.npy')
+std = np.load(array_path + 'std.npy')
+a = np.load(array_path + 'a.npy')
+b = np.load(array_path + 'b.npy')
+
+EPOCHS = 150
 for epoch in range(EPOCHS):
-    
     for img, msk in zip(dataseti, datasetm):
-        train_step(img[:,0:2,:,:],msk[:,2:3,:])
+        train_step(img[:,0:2,:,:,:],msk[:,2:3,:])
     
     for imgv, mskv in zip(dataset_vali, dataset_valm):
-        test_step(imgv[:,0:2,:,:],mskv[:,2:3,:])
+        test_step(imgv[:,0:2,:,:,:],mskv[:,2:3,:])
     #print('k')
     template = 'Epoch {}, Loss: {}, Test Loss: {},'
     print(template.format(epoch+1,
@@ -282,10 +233,63 @@ for epoch in range(EPOCHS):
     test_loss.reset_states()
 
 	#train_accuracy.reset_states()
+    if epoch % 20 == 0 :
+        model.save_weights('./data/img/model/weights_exp.h5')
 
+model.save_weights('./data/img/model/weights_exp.h5')
 
-#model.save_weights('./data/img/model/weights.h5')
+line_1 = []
+line_2 = []
 
+left_coor = [679, 700, 652, 601, 582, 508, 452, 440]
+right_coor = [1034, 1011, 1010, 1027, 969, 925, 935, 903]
+
+coun = 0
 for img, msk in zip(dataset_vali, dataset_valm):
-    predict_step(img[:,0:2,:,:])
+    #print(coun)
+    result = model(img[:,0:2,:,:,:])
+    #print(result)
+    #print(asd)
+    result = tf.reshape(result,[2,256])
+    array_path = './data/img/numpy_arrays/first_mask/'
+    mean = np.load(array_path + 'mean.npy')
+    std = np.load(array_path + 'std.npy')
+    a = np.load(array_path + 'a.npy')
+    b = np.load(array_path + 'b.npy')
 
+    result = (((result-b)/a) * std ) + mean
+
+    line1 = result[0,:]
+    line2 = result[1,:]
+    
+    line_1.append(line1 + (left_coor[coun]-128))
+    line_2.append(line2 + (right_coor[coun]-128))
+
+    coun+=1
+    if coun == 8 :
+        coun = 0
+
+line_1 = [item for sublist in line_1 for item in sublist]
+line_2 = [item for sublist in line_2 for item in sublist]
+
+img1 = np.zeros((2048,1403))
+img2 = np.zeros((2048,1403))
+
+img1_left = line_1[0:2048]
+img1_right = line_2[0:2048]
+
+img2_left = line_1[2048:4096]
+img2_right = line_2[2048:4096]
+
+for i in range(img1.shape[0]):
+    for j in range(img2.shape[1]):
+        if j == int(img1_left[i]) or j == int(img1_right[i]):
+            img1[i,j] = 255
+
+for i in range(img2.shape[0]):
+    for j in range(img2.shape[1]):
+        if j == int(img2_left[i]) or j == int(img2_right[i]):
+            img2[i,j] = 255
+
+cv2.imwrite('./data/img/result/'+'label0'+'.png',img1)
+cv2.imwrite('./data/img/result/'+'label1'+'.png',img2)
