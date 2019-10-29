@@ -643,6 +643,18 @@ def write_img_data(img_path, msk_path, mode):
                 coun = 0
             new.append(global_lis[i])
             coun += 1 
+
+    if mode == 'train_28':   # taking first30 years data for all 16 patches
+        new = []
+        coun = 0
+        for i in range(len(global_lis)):
+            if coun==30 or coun==31 or coun==29 or coun==28:
+                coun += 1
+                continue
+            if coun == 32 :
+                coun = 0
+            new.append(global_lis[i])
+            coun += 1 
             
     if mode == 'val':
         new = []
@@ -650,6 +662,18 @@ def write_img_data(img_path, msk_path, mode):
         for i in range(len(global_lis)):
             #print(coun)
             if 28 <= coun <= 31 :
+                new.append(global_lis[i])
+            coun += 1 
+            if coun == 32:
+                coun = 0
+            continue
+    
+    if mode == 'val_28':
+        new = []
+        coun = 0
+        for i in range(len(global_lis)):
+            #print(coun)
+            if 26 <= coun <= 29 :
                 new.append(global_lis[i])
             coun += 1 
             if coun == 32:
@@ -700,7 +724,7 @@ def write_img_data(img_path, msk_path, mode):
 
 
 if __name__ == "__main__":
-    write_img_data('./data/img/final/','./data/img/final_ms/','val')
+    write_img_data('./data/img/final/','./data/img/final_ms/','val_28')
     #check_msk_dist('./data/img/final_ms/')
     #fill_img_blanks('./data/img/final/')
     #mean_img()

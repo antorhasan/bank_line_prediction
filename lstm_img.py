@@ -1,10 +1,13 @@
-import tensorflow as tf 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+import tensorflow as tf
+print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
 import numpy as np
 from tensorflow.keras.layers import Conv2D, Dense, MaxPool2D, ConvLSTM2D, Reshape, LSTM, Flatten
-#import cv2
+import cv2
 from datetime import datetime
 
-tf.enable_eager_execution()
+#tf.enable_eager_execution()
 
 
 def _parse_function_img(example_proto):
@@ -75,6 +78,8 @@ class Conv_layer(tf.keras.layers.Layer):
         x = self.max5(x)
         x = self.conv6(x)
         x = self.max6(x)
+        #print(x)
+        #print(asd)
         #x = self.conv7(x)
         #o = self.reshape2(x)
         return x
@@ -94,15 +99,15 @@ class MyModel(tf.keras.Model):
         super(MyModel, self).__init__()
         self.conv_layer = Conv_layer()
         #self.reshape = Reshape((1,2,3,3,256))
-        self.convlstm = ConvLSTM2D(256,(3,3), data_format='channels_last',padding='same',return_sequences=False)
+        self.convlstm = ConvLSTM2D(256,(3,3), data_format='channels_last',padding='valid',return_sequences=False)
         #self.lstm = LSTM(256,bias_initializer=tf.keras.initializers.constant(.01),activation='relu')
         #self.flat = Flatten()
         #self.reshape_d = Reshape((2,2,256))  #first dimension is batch size,second is 2 input images
         self.dense1 = Dense(256, activation='tanh',bias_initializer=tf.keras.initializers.constant(.01),kernel_initializer='he_normal')
-        self.reshape_output = Reshape((2,-1))   #it's running due to this.something is very off with the reshape
-        self.reshape_last = Reshape((2,1,256))
-        self.res = Reshape((2,-1,3,256))
-        self.conv7 = Conv2D(256,(3,3),padding='valid',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
+        #self.reshape_output = Reshape((2,-1))   #it's running due to this.something is very off with the reshape
+        #self.reshape_last = Reshape((2,1,256))
+        #self.res = Reshape((2,-1,3,256))
+        #self.conv7 = Conv2D(256,(3,3),padding='valid',bias_initializer=tf.keras.initializers.constant(.01),activation='relu',kernel_initializer='he_normal')
 
     def call(self, inputs):
         x = tf.map_fn(self.conv_layer, inputs) # input needs to be of shpae (sample,2,256,256,3)
@@ -110,19 +115,25 @@ class MyModel(tf.keras.Model):
         #x = self.reshape(x)
         #x = self.flat(x)
         #x = self.flat(x)
+        
         x = self.convlstm(x)
         #x = self.reshape_d(x)
-
+        #print(x)
+        #print(asd)
         #print(x)
         #x = self.res(x)
-        x = self.conv7(x)
+        #x = self.conv7(x)
         #x = self.lstm(x)
         #print(x)
         #print(x)
-        x = self.reshape_output(x)
+        x = tf.reshape(x, [2,256])
+        #x = self.reshape_output(x)
         x = self.dense1(x)
-        x = self.reshape_last(x)
-
+        #x = self.reshape_last(x)
+        #print(x)
+        #x = tf.reshape(x, [2,256])
+        #print(x)
+        #print(asd)
         return x
         
     def model(self):
@@ -133,6 +144,8 @@ class MyModel(tf.keras.Model):
 #model.model()
 
 def loss_object(labels, predictions):
+    labels = tf.reshape(labels, [2,256])
+    predictions = tf.reshape(predictions, [2,256])
     loss = tf.keras.losses.mse(labels, predictions)
     return loss
 
@@ -149,95 +162,59 @@ def train_step(images, labels):
 
 #@tf.function
 def test_step(images, labels):
-	predictions = model(images)
-	t_loss = loss_object(labels, predictions)
-
-	test_loss(labels, predictions)
-	#test_accuracy(labels, predictions)
+    predictions = model(images)
+    #t_loss = loss_object(labels, predictions)
+    test_loss(labels, predictions)
+    #test_accuracy(labels, predictions)
 
 
 def predict_step(images):
     result = model(images)
+    #print(result)
+    #print(asd)
+    result = tf.reshape(result,[2,256])
+    array_path = './data/img/numpy_arrays/first_mask/'
+    mean = np.load(array_path + 'mean.npy')
+    std = np.load(array_path + 'std.npy')
+    a = np.load(array_path + 'a.npy')
+    b = np.load(array_path + 'b.npy')
 
-    lef_mean = np.load('./data/numpy_arrays/left/mean.npy')
-    lef_std = np.load('./data/numpy_arrays/left/std.npy')
-    lef_a = np.load('./data/numpy_arrays/left/a.npy')
-    lef_b = np.load('./data/numpy_arrays/left/b.npy')
-    rg_mean = np.load('./data/numpy_arrays/right/mean.npy')
-    rg_std = np.load('./data/numpy_arrays/right/std.npy')
-    rg_a = np.load('./data/numpy_arrays/right/a.npy')
-    rg_b = np.load('./data/numpy_arrays/right/b.npy')
-    print(result.shape)
-    #coun = 0
-    result = np.asarray(result)
-    '''this part rescales and renormalizes output according to their
-    respective left and right means and stds(the following is for 2 stepsize'''
-    for j in range(5404):
-        #print(coun)
-        if j%4==0 or j%4==1:
-            stuff = (result[j] - lef_b) / lef_a
-            result[j] = (stuff*lef_std) + lef_mean
-        
-        if (j-2)%4 == 0 or (j-2)%4 == 1:
-            stuff = (result[j] - rg_b) / rg_a
-            result[j] = (stuff*rg_std) + rg_mean
+    result = (((result-b)/a) * std ) + mean
 
-    """ for j in range(5404):
-        #print(coun)
-        if j%2==0 :
-            stuff = (result[j] - lef_b) / lef_a
-            result[j] = (stuff*lef_std) + lef_mean
-        
-        if j%2 !=0 :
-            stuff = (result[j] - rg_b) / rg_a
-            result[j] = (stuff*rg_std) + rg_mean """
+    line1 = result[0,:]
+    line2 = result[1,:]
 
-        #print(stuff.shape)
-        #print(stuff)
-    """ print(result[0:30])
-    result = (result - b) / a 
-    result = (result * std) + mean
-    print(result) """
-    img1 = np.zeros((1351,1119))
-    img2 = np.zeros((1351,1119))
+    img1 = np.zeros((256,256))
+    img2 = np.zeros((256,256))
+
+    for i in range(img1.shape[0]):
+        for j in range(img2.shape[1]):
+            if j == int(line1[i]) :
+                img1[i,j] = 255
     
-    img_1 = cv2.imread('./data/exp1/201601.png',1)
-    img_2 = cv2.imread('./data/exp1/201701.png',1)    
-
-    for i in range(int(len(result)/4)):
-        for j in range(4):
-            img1[i,int(result[4*i+0])] = 255
-            img2[i,int(result[4*i+1])] = 255
-            img1[i,int(result[4*i+2])] = 255
-            img2[i,int(result[4*i+3])] = 255
-
-            img_1[i,int(result[4*i+0])] = [0,0,255]
-            img_2[i,int(result[4*i+1])] = [0,0,255]
-            img_1[i,int(result[4*i+2])] = [0,0,255]
-            img_2[i,int(result[4*i+3])] = [0,0,255]
+    for i in range(img2.shape[0]):
+        for j in range(img2.shape[1]):
+            if j == int(line2[i]) :
+                img2[i,j] = 255
+    
+    cv2.imwrite('./data/img/result/'+'label0'+'.png',img1)
+    cv2.imwrite('./data/img/result/'+'label1'+'.png',img2)
 
 
-    #cv2.imwrite('./data/resul_line/'+'year0'+'.png',img1)
-    #cv2.imwrite('./data/resul_line/'+'year1'+'.png',img2)
-
-    cv2.imwrite('./data/resul_line/'+'label0'+'.png',img_1)
-    cv2.imwrite('./data/resul_line/'+'label1'+'.png',img_2)
-
-
-dataseti = tf.data.TFRecordDataset('./data/img/record/first_img/train.tfrecords')
+dataseti = tf.data.TFRecordDataset('./data/img/record/first_img/train_28.tfrecords')
 dataseti = dataseti.map(_parse_function_img)
 #dataset = dataset.window(size=2, shift=2, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(2))
-dataseti = dataseti.window(size=30, shift=30, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(30))
+dataseti = dataseti.window(size=28, shift=28, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(28))
 dataseti = dataseti.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
 dataseti = dataseti.flat_map(lambda x: x.window(size=3, shift=3, stride=1,drop_remainder=True))
 dataseti = dataseti.flat_map(lambda x: x.batch(3))
 #dataset = dataset.shuffle(3000)
 dataseti = dataseti.batch(2)
 
-datasetm = tf.data.TFRecordDataset('./data/img/record/first_img/train.tfrecords')
+datasetm = tf.data.TFRecordDataset('./data/img/record/first_img/train_28.tfrecords')
 datasetm = datasetm.map(_parse_function_msk)
 #dataset = dataset.window(size=2, shift=2, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(2))
-datasetm = datasetm.window(size=30, shift=30, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(30))
+datasetm = datasetm.window(size=28, shift=28, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(28))
 datasetm = datasetm.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
 datasetm = datasetm.flat_map(lambda x: x.window(size=3, shift=3, stride=1,drop_remainder=True))
 datasetm = datasetm.flat_map(lambda x: x.batch(3))
@@ -245,7 +222,7 @@ datasetm = datasetm.flat_map(lambda x: x.batch(3))
 datasetm = datasetm.batch(2)
 
 
-dataset_vali = tf.data.TFRecordDataset('./data/img/record/first_img/val.tfrecords')
+dataset_vali = tf.data.TFRecordDataset('./data/img/record/first_img/val_28.tfrecords')
 dataset_vali = dataset_vali.map(_parse_function_img)
 #dataset_val = dataset_val.window(size=2, shift=2, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(2))
 dataset_vali = dataset_vali.window(size=4, shift=4, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(4))
@@ -256,7 +233,7 @@ dataset_vali = dataset_vali.flat_map(lambda x: x.batch(3))
 dataset_vali = dataset_vali.batch(2)
 
 
-dataset_valm = tf.data.TFRecordDataset('./data/img/record/first_img/val.tfrecords')
+dataset_valm = tf.data.TFRecordDataset('./data/img/record/first_img/val_28.tfrecords')
 dataset_valm = dataset_valm.map(_parse_function_msk)
 #dataset_val = dataset_val.window(size=2, shift=2, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(2))
 dataset_valm = dataset_valm.window(size=4, shift=4, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(4))
@@ -270,7 +247,7 @@ model = MyModel()
 
 #model.model()
 
-optimizer = tf.keras.optimizers.Adam(learning_rate=.0001)
+optimizer = tf.keras.optimizers.Adam(learning_rate=.001)
 
 
 train_loss = tf.keras.metrics.MeanSquaredError()
@@ -286,17 +263,15 @@ test_loss = tf.keras.metrics.MeanSquaredError()
 
 #model.evaluate(callbacks=callback)
 
-EPOCHS = 30
+EPOCHS = 2
 for epoch in range(EPOCHS):
-    #for img, msk in zip(dataseti, datasetm):
-    #    print(img[:,0:2,:,:],msk[:,2:3,:])
     
     for img, msk in zip(dataseti, datasetm):
         train_step(img[:,0:2,:,:],msk[:,2:3,:])
-
-    for img, msk in zip(dataset_vali, dataset_valm):
-        test_step(img[:,0:2,:,:],msk[:,2:3,:])
     
+    for imgv, mskv in zip(dataset_vali, dataset_valm):
+        test_step(imgv[:,0:2,:,:],mskv[:,2:3,:])
+    #print('k')
     template = 'Epoch {}, Loss: {}, Test Loss: {},'
     print(template.format(epoch+1,
                         train_loss.result(), test_loss.result() ))
@@ -308,5 +283,9 @@ for epoch in range(EPOCHS):
 
 	#train_accuracy.reset_states()
 
-#for data in test:
-#    predict_step(data[:, 0:27, :])
+
+#model.save_weights('./data/img/model/weights.h5')
+
+for img, msk in zip(dataset_vali, dataset_valm):
+    predict_step(img[:,0:2,:,:])
+
