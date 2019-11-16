@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.utils import check_array
 
 
@@ -48,15 +48,31 @@ def imgs_mse(path_org, path_pred) :
 
         return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
 
-    print(len(left_org),len(right_org))
-    print(len(left_pred),len(right_pred))
+    error_left = np.abs(np.asarray(left_org) - np.asarray(left_pred))
+    error_right = np.abs(np.asarray(right_org) - np.asarray(right_pred))
+    #print(error_left)
+    #print(error_right)
+    #print(len(left_org),len(right_org))
+    #print(len(left_pred),len(right_pred))
+    #print(left_pred) #left_pred,right_org,right_pred)
 
-    mse_left = mean_squared_error(left_pred, left_org)
+    cnv = 37.6
+
+    print('mae for left  ' + str(cnv*mean_absolute_error(left_org, left_pred)))
+    print('mae for right  ' + str(cnv*mean_absolute_error(right_org, right_pred)))
+
+    #print('lefter_mean  ' + str(np.mean(error_left)))
+    print('lefter_std  ' + str(cnv*np.std(error_left)))
+    #print('righter_mean  ' + str(np.mean(error_right)))
+    print('righter_std  ' + str(cnv*np.std(error_right)))
+
+
+    """ mse_left = mean_squared_error(left_pred, left_org)
     mse_right = mean_squared_error(right_pred, right_org)
     print(mse_left)
     print(mse_right)
     print(mean_absolute_percentage_error(left_org, left_pred))
-    print(mean_absolute_percentage_error(right_org, right_pred))
+    print(mean_absolute_percentage_error(right_org, right_pred)) """
     """ cv2.namedWindow('image', cv2.WINDOW_NORMAL)
     cv2.imshow('image',img_pred)
     cv2.waitKey(0)
