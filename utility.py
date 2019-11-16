@@ -673,7 +673,7 @@ def write_img_data(img_path, msk_path, mode):
         coun = 0
         for i in range(len(global_lis)):
             #print(coun)
-            if 26 <= coun <= 29 :
+            if 1 <= coun <= 29 :
                 new.append(global_lis[i])
             coun += 1 
             if coun == 32:
@@ -724,8 +724,8 @@ def write_img_data(img_path, msk_path, mode):
 
 
 if __name__ == "__main__":
-    #write_img_data('./data/img/final/','./data/img/final_ms/','val_28')
-    check_msk_dist('./data/img/final_ms/')
+    write_img_data('./data/img/final/','./data/img/final_ms/','val_28')
+    #check_msk_dist('./data/img/final_ms/')
     #fill_img_blanks('./data/img/final/')
     #mean_img()
     #read_tfrecord_norm()

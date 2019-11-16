@@ -106,13 +106,14 @@ class MyModel(tf.keras.Model):
         super(MyModel, self).__init__()
         self.conv_layer = Conv_layer()
         self.convlstm = ConvLSTM2D(512,(3,3), data_format='channels_last',padding='valid',return_sequences=False)
-        self.dense1 = Dense(256, activation=None,bias_initializer=tf.keras.initializers.constant(.01),kernel_initializer='he_normal')
+        self.dense1 = Dense(256, activation='tanh',bias_initializer=tf.keras.initializers.constant(.01),kernel_initializer='he_normal')
 
     def call(self, inputs):
         x = tf.map_fn(self.conv_layer, inputs) # input needs to be of shpae (sample,2,256,256,3)
         x = self.convlstm(x)
-        x = tf.reshape(x, [2,256])
+        x = tf.reshape(x, [2,512])
         x = self.dense1(x)
+        #print(x)
         return x
 
 #model = MyModel()
@@ -142,15 +143,15 @@ def test_step(images, labels):
     test_loss(labels, predictions)
     #test_accuracy(labels, predictions)
 
-
+time_step = 28
 
 dataseti = tf.data.TFRecordDataset('./data/img/record/first_img/train_28.tfrecords')
 dataseti = dataseti.map(_parse_function_img)
 #dataset = dataset.window(size=2, shift=2, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(2))
 dataseti = dataseti.window(size=28, shift=28, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(28))
 dataseti = dataseti.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-dataseti = dataseti.flat_map(lambda x: x.window(size=3, shift=3, stride=1,drop_remainder=True))
-dataseti = dataseti.flat_map(lambda x: x.batch(3))
+dataseti = dataseti.flat_map(lambda x: x.window(size=time_step, shift=time_step, stride=1,drop_remainder=True))
+dataseti = dataseti.flat_map(lambda x: x.batch(time_step))
 #dataset = dataset.shuffle(3000)
 dataseti = dataseti.batch(2)
 
@@ -159,19 +160,22 @@ datasetm = datasetm.map(_parse_function_msk)
 #dataset = dataset.window(size=2, shift=2, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(2))
 datasetm = datasetm.window(size=28, shift=28, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(28))
 datasetm = datasetm.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-datasetm = datasetm.flat_map(lambda x: x.window(size=3, shift=3, stride=1,drop_remainder=True))
-datasetm = datasetm.flat_map(lambda x: x.batch(3))
+datasetm = datasetm.flat_map(lambda x: x.window(size=time_step, shift=time_step, stride=1,drop_remainder=True))
+datasetm = datasetm.flat_map(lambda x: x.batch(time_step))
 #dataset = dataset.shuffle(3000)
 datasetm = datasetm.batch(2)
+
+dataset = tf.data.Dataset.zip((dataseti, datasetm))
+dataset = dataset.shuffle(600)
 
 
 dataset_vali = tf.data.TFRecordDataset('./data/img/record/first_img/val_28.tfrecords')
 dataset_vali = dataset_vali.map(_parse_function_img)
 #dataset_val = dataset_val.window(size=2, shift=2, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(2))
-dataset_vali = dataset_vali.window(size=4, shift=4, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(4))
+dataset_vali = dataset_vali.window(size=29, shift=29, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(29))
 dataset_vali = dataset_vali.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-dataset_vali = dataset_vali.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
-dataset_vali = dataset_vali.flat_map(lambda x: x.batch(3))
+dataset_vali = dataset_vali.flat_map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
+dataset_vali = dataset_vali.flat_map(lambda x: x.batch(time_step))
 #dataset = dataset.shuffle(3000)
 dataset_vali = dataset_vali.batch(2)
 
@@ -179,18 +183,22 @@ dataset_vali = dataset_vali.batch(2)
 dataset_valm = tf.data.TFRecordDataset('./data/img/record/first_img/val_28.tfrecords')
 dataset_valm = dataset_valm.map(_parse_function_msk)
 #dataset_val = dataset_val.window(size=2, shift=2, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(2))
-dataset_valm = dataset_valm.window(size=4, shift=4, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(4))
+dataset_valm = dataset_valm.window(size=29, shift=29, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(29))
 dataset_valm = dataset_valm.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-dataset_valm = dataset_valm.flat_map(lambda x: x.window(size=3, shift=1, stride=1,drop_remainder=True))
-dataset_valm = dataset_valm.flat_map(lambda x: x.batch(3))
+dataset_valm = dataset_valm.flat_map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
+dataset_valm = dataset_valm.flat_map(lambda x: x.batch(time_step))
 #dataset = dataset.shuffle(3000)
 dataset_valm = dataset_valm.batch(2)
+
+dataset_val = tf.data.Dataset.zip((dataset_vali, dataset_valm))
+#dataset_val = dataset_val.shuffle(600)
+
 
 model = MyModel()
 
 #model.model()
 
-optimizer = tf.keras.optimizers.Adam(learning_rate=.001)
+optimizer = tf.keras.optimizers.Adam(learning_rate=.0001)
 train_loss = tf.keras.metrics.MeanSquaredError()
 
 test_loss = tf.keras.metrics.MeanSquaredError()
@@ -204,10 +212,10 @@ test_loss = tf.keras.metrics.MeanSquaredError()
 
 #model.evaluate(callbacks=callback)
 
-""" for img, msk in zip(dataseti, datasetm):
-    train_step(img[:,0:2,:,:],msk[:,2:3,:])
-    model.load_weights('./data/img/model/weights_exp.h5')
-    break """
+for img, msk in dataset:
+    train_step(img[:,0:27,:,:,:],msk[:,27,:])
+    model.load_weights('./data/img/model/weights_final_tanh.h5')
+    break
 
 array_path = './data/img/numpy_arrays/first_mask/'
 mean = np.load(array_path + 'mean.npy')
@@ -217,11 +225,13 @@ b = np.load(array_path + 'b.npy')
 
 EPOCHS = 150
 for epoch in range(EPOCHS):
-    for img, msk in zip(dataseti, datasetm):
-        train_step(img[:,0:2,:,:,:],msk[:,2:3,:])
+    #for img, msk in zip(dataseti, datasetm):
+    for img, msk in dataset:
+        train_step(img[:,0:27,:,:,:],msk[:,27,:])
     
-    for imgv, mskv in zip(dataset_vali, dataset_valm):
-        test_step(imgv[:,0:2,:,:,:],mskv[:,2:3,:])
+    #for imgv, mskv in zip(dataset_vali, dataset_valm):
+    for imgv, mskv in dataset_val:
+        test_step(imgv[:,0:27,:,:,:],mskv[:,27,:])
     #print('k')
     template = 'Epoch {}, Loss: {}, Test Loss: {},'
     print(template.format(epoch+1,
@@ -234,9 +244,9 @@ for epoch in range(EPOCHS):
 
 	#train_accuracy.reset_states()
     if epoch % 20 == 0 :
-        model.save_weights('./data/img/model/weights_exp.h5')
+        model.save_weights('./data/img/model/weights_final_tanh.h5')
 
-model.save_weights('./data/img/model/weights_exp.h5')
+model.save_weights('./data/img/model/weights_final_tanh.h5')
 
 line_1 = []
 line_2 = []
@@ -245,12 +255,14 @@ left_coor = [679, 700, 652, 601, 582, 508, 452, 440]
 right_coor = [1034, 1011, 1010, 1027, 969, 925, 935, 903]
 
 coun = 0
-for img, msk in zip(dataset_vali, dataset_valm):
+for img, msk in dataset_val:
     #print(coun)
-    result = model(img[:,0:2,:,:,:])
+    result = model(img[:,0:27,:,:,:])
+    msk = msk[:,27,:]
     #print(result)
     #print(asd)
     result = tf.reshape(result,[2,256])
+    msk = tf.reshape(msk,[2,256])
     array_path = './data/img/numpy_arrays/first_mask/'
     mean = np.load(array_path + 'mean.npy')
     std = np.load(array_path + 'std.npy')
@@ -258,6 +270,28 @@ for img, msk in zip(dataset_vali, dataset_valm):
     b = np.load(array_path + 'b.npy')
 
     result = (((result-b)/a) * std ) + mean
+    msk = (((msk-b)/a) * std ) + mean
+    img1 = np.zeros((256,256))
+    img2 = np.zeros((256,256))
+
+    msk1 = np.zeros((256,256))
+    msk2 = np.zeros((256,256))
+    #print(msk)
+    for i in range(img1.shape[0]):
+        for j in range(img2.shape[1]):
+            if j == int(result[0,i]):
+                img1[i,j] = 255
+
+    for i in range(img2.shape[0]):
+        for j in range(img2.shape[1]):
+            if j == int(result[1,i]):
+                img2[i,j] = 255
+    
+    cv2.imwrite('./data/img/result/extra/'+'resh0'+'.png',img1)
+    cv2.imwrite('./data/img/result/extra/'+'resh1'+'.png',img2)
+
+    print(asd)
+
 
     line1 = result[0,:]
     line2 = result[1,:]
