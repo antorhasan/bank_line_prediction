@@ -2,23 +2,37 @@ import cv2
 import numpy as np 
 
 
-left_lis_147 = [20110100,20120100,20130100,20140100,20150100,20160100,20170100,20180100,20190100]
+""" left_lis_147 = [20110100,20120100,20130100,20140100,20150100,20160100,20170100,20180100,20190100]
 right_lis_208 = [20110101,20120101,20130101,20140101,20150101,20160101,20170101,20180101,20190101]
 right_lis = [201101,201201,201301,201401,201501,201601,201701,201801,201901]
 right_lis = [201801,201901]
-other = [19880161,19880171,19890171]
-""" 
+other = [19880161,19880171,19890171] """
+
 #img = cv2.imread('./data/img/lines/198801.png')
-img = cv2.imread('./data/finaljan/198901.png')
-ctrl = 860
-img = img[7*256:8*256,ctrl-128:ctrl+128]
+img = cv2.imread('./data/img/result_imgs/label1.png')
+#ctrl = 860
+#img = img[7*256:8*256,ctrl-128:ctrl+128]
+img = 255-img
+
+#img = np.asarray(img)
+
+#img = np.where(img==[0,255,255],[255,0,0],img)
+
+for i in range(img.shape[0]):
+    for j in range(img.shape[1]):
+        if img[i,j,0] == 255 and img[i,j,1] == 255 and img[i,j,2] == 0:
+            img[i,j,0] = 0
+            img[i,j,1] = 0
+            img[i,j,2] = 255
+
+#img = np.asarray(img, dtype=np.uint8)
 cv2.namedWindow('image', cv2.WINDOW_NORMAL)
 cv2.imshow('image', img)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
-cv2.imwrite('./data/img/msk_corrected/' + str(19890171) + '.png', img)
-    """
-
+cv2.imwrite('./data/img/result_imgs/color_17.png', img)
+   
+""" 
 for i in range(len(right_lis)):
 
     #print(right_lis_208[i])
@@ -26,7 +40,7 @@ for i in range(len(right_lis)):
     ctrl = 679
     img = img[0*256:1*256,ctrl-128:ctrl+128]
     img[0,147] = 255
-    cv2.imwrite('./data/img/msk_corrected/' + str(right_lis[i]) +'01'+ '.png', img)
+    cv2.imwrite('./data/img/msk_corrected/' + str(right_lis[i]) +'01'+ '.png', img) """
 
 
 
