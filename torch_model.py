@@ -64,16 +64,17 @@ class Model(nn.Module):
 
 
 
-batch_size = 1
-EPOCHS = 2
+batch_size = 4
+EPOCHS = 20
 lr_rate = .0001
 in_seq_num = 29
+
 
 
 dataset = tf.data.TFRecordDataset('./data/tfrecord/pix_img.tfrecords')
 dataset = dataset.map(_parse_function)
 #dataset = dataset.shuffle(100)
-dataset = dataset.batch(batch_size)
+dataset = dataset.batch(batch_size, drop_remainder=True)
 
 use_cuda = not False and torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
@@ -82,18 +83,35 @@ optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate)
 
 for epoch in range(EPOCHS):
     model.train()
+    counter = 0
+    epoch_loss = 0
     for img, msk in dataset:
+        #print(img.shape)
+        #print(msk.size())
+        #print(asd)
         img = np.reshape(img, (batch_size,32,745,3))
         msk = np.reshape(msk, (batch_size,32,2))
-        
+        #print(img.shape)
+        #print(msk.shape)
+        #print(asd)
+
         img = img[:,0:in_seq_num,:,:]
-        msk = img[:,0:30,:]
+        msk = msk[:,in_seq_num:in_seq_num+1,:]
+        
         img = torch.Tensor(img).cuda()
         msk = torch.Tensor(msk).cuda()
+        msk = torch.reshape(msk, (batch_size,-1))
 
         optimizer.zero_grad()
-        msk = model(img)
-        #loss = dice_loss(msk, mask)
-        #loss.backward()
-        #optimizer.step()
+        pred = model(img)
+        loss = F.mse_loss(pred, msk)
+        loss.backward()
+        optimizer.step()
 
+        epoch_loss = epoch_loss+loss
+        counter += 1
+        
+    avg_epoch_loss = epoch_loss / counter
+    template = 'Epoch {}, Train Loss: {}'
+    print(template.format(epoch+1,avg_epoch_loss))
+    #writer.add_scalar('Loss/train', run_t, epoch)
