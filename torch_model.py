@@ -9,6 +9,9 @@ from os import listdir
 from os.path import isfile, join
 import sys
 
+msk_mean = np.load('./data/np_arr/mean.npy')
+msk_std = np.load('./data/np_arr/std.npy')
+
 def _parse_function(example_proto):
 
     features = {
@@ -37,9 +40,9 @@ class Model(nn.Module):
         self.conv6 = nn.Conv2d(32,64,(1,3), padding=0) """
 
         self.lstm = nn.LSTM(745*3,20,num_layers=1,batch_first=True)
-        self.dropout1 = nn.Dropout(0.25)
+        self.dropout1 = nn.Dropout(0.2)
         self.fc1 = nn.Linear(20, 2)
-        self.dropout2 = nn.Dropout(0.5)
+        self.dropout2 = nn.Dropout(0.2)
 
     def forward(self, inputs):
         """ x = F.relu(self.conv1(inputs))
@@ -60,24 +63,23 @@ class Model(nn.Module):
         x = x[:,-1,:]
         #print(x.size())
         #print(asd)
-        #x = self.dropout1(x)
+        x = self.dropout1(x)
         x = self.fc1(x)
         #x = self.dropout2(x)
-        
         #print(x.size())
         #print(asd)
         return x
 
 
 
-batch_size = 4
-EPOCHS = 100
-lr_rate = .001
+
+batch_size = 1
+EPOCHS = 1000
+lr_rate = .0001
 in_seq_num = 29
-val_batch_size = 4
+val_batch_size = 1
 output_at = 10
-
-
+model_type = Model()
 
 dataset = tf.data.TFRecordDataset('./data/tfrecord/pix_img.tfrecords')
 dataset = dataset.map(_parse_function)
@@ -91,7 +93,7 @@ dataset_val = dataset_val.batch(val_batch_size, drop_remainder=True)
 
 use_cuda = not False and torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
-model = Model().to(device)
+model = model_type.to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate)
 
 writer = SummaryWriter(log_dir='./data/runs/')
@@ -119,6 +121,8 @@ for epoch in range(EPOCHS):
         img = img[:,0:in_seq_num,:,:]
         msk = msk[:,in_seq_num:in_seq_num+1,:]
         
+        msk = (msk - msk_mean) / msk_std
+
         img = torch.Tensor(img).cuda()
         msk = torch.Tensor(msk).cuda()
         msk = torch.reshape(msk, (batch_size,-1))
@@ -141,7 +145,7 @@ for epoch in range(EPOCHS):
         torch.save({
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict()
-                }, './data/model/shuffle_test.pt') """ 
+                }, './data/model/batch1.pt') """ 
 
 
     model.eval()
@@ -155,6 +159,8 @@ for epoch in range(EPOCHS):
             img = img[:,1:in_seq_num+1,:,:]
             msk = msk[:,in_seq_num+1:in_seq_num+2,:]
             
+            msk = (msk - msk_mean) / msk_std
+
             img = torch.Tensor(img).cuda()
             msk = torch.Tensor(msk).cuda()
             msk = torch.reshape(msk, (val_batch_size,-1))
@@ -163,9 +169,14 @@ for epoch in range(EPOCHS):
             loss = F.mse_loss(pred, msk)
             val_epoch_loss = val_epoch_loss + loss
             #print( epoch+1 % 3)
+            
             if (epoch+2) % output_at == 0:
                 msk = msk.cpu().detach().numpy()
                 pred = pred.cpu().detach().numpy()
+
+                pred = (msk_std * pred) + msk_mean
+                msk = (msk_std * msk) + msk_mean
+
                 line = np.zeros((val_batch_size,745,3))
                 for k in range(val_batch_size):
                     line[k,int(msk[k,0]),:] = [255,255,255]
@@ -175,8 +186,6 @@ for epoch in range(EPOCHS):
                     line[k,int(pred[k,1]),:] = [0,0,255]
             
                 test_list.append(line)
-
-            
             
             count += 1
 
