@@ -30,14 +30,6 @@ def _parse_function(example_proto):
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
-        """ self.conv1 = nn.Conv2d(3,8,(1,3), padding=0)
-        self.conv2 = nn.Conv2d(8,16,(1,3), padding=0)
-
-        self.conv3 = nn.Conv2d(16,16,(1,3), padding=0)
-        self.conv4 = nn.Conv2d(16,32,(1,3), padding=0)
-
-        self.conv5 = nn.Conv2d(32,32,(1,3), padding=0)
-        self.conv6 = nn.Conv2d(32,64,(1,3), padding=0) """
 
         self.lstm = nn.LSTM(745*3,20,num_layers=1,batch_first=True)
         self.dropout1 = nn.Dropout(0.2)
@@ -45,17 +37,6 @@ class Model(nn.Module):
         self.dropout2 = nn.Dropout(0.2)
 
     def forward(self, inputs):
-        """ x = F.relu(self.conv1(inputs))
-        x = F.relu(self.conv2(x))
-        x = F.max_pool2d(a, 2, 2)
-        
-        x = F.relu(self.conv3(x))
-        s = F.relu(self.conv4(x))
-        x = F.max_pool2d(s, 2, 2)
-        
-        x = F.relu(self.conv5(x))
-        d = F.relu(self.conv6(x))
-        x = F.max_pool2d(d, 2, 2) """
         x = torch.reshape(inputs, (batch_size,in_seq_num,-1))
         h0 = torch.zeros(1, batch_size, 20).cuda()
         c0 = torch.zeros(1, batch_size, 20).cuda()
@@ -70,16 +51,76 @@ class Model(nn.Module):
         #print(asd)
         return x
 
+class CNN_Model(nn.Module):
+    def __init__(self):
+        super(CNN_Model, self).__init__()
+        self.conv1 = nn.Conv2d(3,8,(1,3), padding=0)
+        self.conv2 = nn.Conv2d(8,16,(1,3), padding=0)
+    
+        self.conv3 = nn.Conv2d(16,16,(1,3), padding=0)
+        self.conv4 = nn.Conv2d(16,32,(1,3), padding=0)
 
+        self.conv5 = nn.Conv2d(32,32,(1,3), padding=0)
+        self.conv6 = nn.Conv2d(32,64,(1,3), padding=0)
+
+        self.conv7 = nn.Conv2d(64,64,(1,3), padding=0)
+        self.conv8 = nn.Conv2d(64,128,(1,3), padding=0)
+
+        self.conv9 = nn.Conv2d(128,128,(1,3), padding=0)
+        self.conv10 = nn.Conv2d(128,256,(1,3), padding=0)
+
+        self.lstm = nn.LSTM(256,20,num_layers=1,batch_first=True)
+        self.dropout1 = nn.Dropout(0.2)
+        self.fc1 = nn.Linear(20, 2)
+        self.dropout2 = nn.Dropout(0.2)
+
+    def forward(self, inputs):
+        inputs = torch.reshape(inputs, (29, 3, 1, 745))
+        x = F.relu(self.conv1(inputs))
+        x = F.relu(self.conv2(x))
+        x = F.max_pool2d(x, (1, 3))
+
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.conv4(x))
+        x = F.max_pool2d(x, (1, 3))
+        
+        x = F.relu(self.conv5(x))
+        x = F.relu(self.conv6(x))
+        x = F.max_pool2d(x, (1, 3))
+
+        x = F.relu(self.conv7(x))
+        x = F.relu(self.conv8(x))
+        x = F.max_pool2d(x, (1, 3))
+
+        x = F.relu(self.conv9(x))
+        x = F.relu(self.conv10(x))
+        x = F.max_pool2d(x, (1, 3))
+        
+        #print(x.size())
+        #print(asd)
+
+        x = torch.reshape(x, (batch_size,in_seq_num,-1))
+        h0 = torch.zeros(1, batch_size, 20).cuda()
+        c0 = torch.zeros(1, batch_size, 20).cuda()
+        x, (hn, cn) = self.lstm(x, (h0, c0))
+        x = x[:,-1,:]
+        #print(x.size())
+        #print(asd)
+        #x = self.dropout1(x)
+        x = self.fc1(x)
+        #x = self.dropout2(x)
+        #print(x.size())
+        #print(asd)
+        return x
 
 
 batch_size = 1
-EPOCHS = 1000
-lr_rate = .0001
+EPOCHS = 600
+lr_rate = .00001
 in_seq_num = 29
 val_batch_size = 1
 output_at = 10
-model_type = Model()
+model = CNN_Model()
 
 dataset = tf.data.TFRecordDataset('./data/tfrecord/pix_img.tfrecords')
 dataset = dataset.map(_parse_function)
@@ -93,16 +134,16 @@ dataset_val = dataset_val.batch(val_batch_size, drop_remainder=True)
 
 use_cuda = not False and torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
-model = model_type.to(device)
+model = model.to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate)
 
 writer = SummaryWriter(log_dir='./data/runs/')
 
 test_list = []
 
-#checkpoint = torch.load('./data/model/first.pt')
-#model.load_state_dict(checkpoint['model_state_dict'])
-#optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+checkpoint = torch.load('./data/model/cnn.pt')
+model.load_state_dict(checkpoint['model_state_dict'])
+optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 for epoch in range(EPOCHS):
     model.train()
@@ -141,11 +182,11 @@ for epoch in range(EPOCHS):
     print(template.format(epoch+1,avg_epoch_loss))
     writer.add_scalar('Loss/train', avg_epoch_loss, epoch+1)
 
-    """ if epoch % 20 == 0:
+    if epoch % 20 == 0:
         torch.save({
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict()
-                }, './data/model/batch1.pt') """ 
+                }, './data/model/cnn200.pt') 
 
 
     model.eval()

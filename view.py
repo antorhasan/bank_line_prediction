@@ -286,7 +286,19 @@ def view_data_1():
 
 
 if __name__ == "__main__" :
-    check_img_dist()
+    """ data = rasterio.open('/home/antor/Documents/work/drone/odm_dem/dsm.tif')
+    data = data.read()
+    img = rasterio.plot.reshape_as_image(data)
+    img_np = np.asarray(img)
+    img = np.uint8(img_np)
+
+    cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
+    cv2.imshow('image1',img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows() """
+
+    
+    #check_img_dist()
     #img.cv_write('./data/img/png/','new')
     #single_pix('./data/img/png/', './data/img/lines/')
     pass
