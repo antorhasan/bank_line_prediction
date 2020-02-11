@@ -37,7 +37,7 @@ pyodm==1.5.2b1
 pyOpenSSL==19.0.0
 pyparsing==2.4.2
 pyproj==2.2.1
-PyYAML==3.13
+PyYAML==5.1
 rasterio==1.0.24
 repoze.lru==0.7
 requests==2.21.0
