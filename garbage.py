@@ -9,28 +9,28 @@ right_lis = [201801,201901]
 other = [19880161,19880171,19890171] """
 
 #img = cv2.imread('./data/img/lines/198801.png')
-img = cv2.imread('./data/img/result_imgs/label1.png')
+img = cv2.imread('./data/img/CEGIS_bank.jpg')
 #ctrl = 860
 #img = img[7*256:8*256,ctrl-128:ctrl+128]
-img = 255-img
+#img = 255-img
 
 #img = np.asarray(img)
 
 #img = np.where(img==[0,255,255],[255,0,0],img)
 
-for i in range(img.shape[0]):
+""" for i in range(img.shape[0]):
     for j in range(img.shape[1]):
         if img[i,j,0] == 255 and img[i,j,1] == 255 and img[i,j,2] == 0:
             img[i,j,0] = 0
             img[i,j,1] = 0
-            img[i,j,2] = 255
+            img[i,j,2] = 255 """
 
 #img = np.asarray(img, dtype=np.uint8)
 cv2.namedWindow('image', cv2.WINDOW_NORMAL)
 cv2.imshow('image', img)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
-cv2.imwrite('./data/img/result_imgs/color_17.png', img)
+#cv2.imwrite('./data/img/result_imgs/color_17.png', img)
    
 """ 
 for i in range(len(right_lis)):

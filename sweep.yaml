@@ -1,0 +1,10 @@
+program: torch_model.py
+method: random
+metric:
+  name: Train Loss
+  goal: minimize
+parameters:
+  lr:
+    distribution: log_uniform
+    min: 0
+    max: 10

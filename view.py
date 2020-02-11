@@ -284,8 +284,62 @@ def view_data_1():
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
+def apply_signal_denoising():
+    from scipy.signal import savgol_filter
+    img = cv2.imread('./600.png',1)
+
+    height = img.shape[0]
+    width = img.shape[1]
+    """ cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
+    cv2.imshow('image1',img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    print(asd) """
+    arr_0 = []
+    arr_1 = []
+    coun_in = 0
+    for i in range(height):
+        for j in range(width):
+            #print(img[i,j,2])
+            
+            if img[i,j,0] == 0 and img[i,j,1] == 0 and img[i,j,2] == 255 :
+                if coun_in == 0 :
+                    arr_0.append(j)
+                    coun_in += 1
+                else:
+                    arr_1.append(j)
+
+        coun_in = 0
+    
+    print(len(arr_0))
+    print(len(arr_1))
+    window = 99
+    poly = 2
+    arr_0 = savgol_filter(arr_0, window, poly)
+    arr_1 = savgol_filter(arr_1, window, poly)
+
+    #print(arr_1)
+    #print(asd)
+    for i in range(height):
+        for j in range(width):
+            #print(int(arr_0[i]))
+            if j == int(arr_0[i]) or j == int(arr_1[i]) :
+                #print(j)
+                img[i,j,0] = 255
+                
+
+    cv2.imwrite('./denoised.png',img)
+    #print(img.shape)
+    #print(asd)
+    #height = img.()
 
 if __name__ == "__main__" :
+    #apply_signal_denoising()
+    img = cv2.imread('./CEGIS_bankn.jpg')
+    cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
+    cv2.imshow('image1',img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
     """ data = rasterio.open('/home/antor/Documents/work/drone/odm_dem/dsm.tif')
     data = data.read()
     img = rasterio.plot.reshape_as_image(data)
