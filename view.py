@@ -6,7 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from os import listdir
 from os.path import isfile, join
-
+import numpy as np
+from sklearn.metrics import mean_absolute_error
 #from preprocess import *
 import sys
 #from preprocess import path_sort
@@ -333,13 +334,57 @@ def apply_signal_denoising():
     #print(asd)
     #height = img.()
 
+def thinning(img):
+    img = img[3:-3,3:-3]
+    #img = np.where(img==255,1,255)
+    img = 255-img
+    img = np.where(img<10,1,img)
+    img = np.asarray(img, dtype=np.uint8)
+    kernel = np.ones((3,3),np.uint8)
+    img = cv2.erode(img,kernel,iterations = 1)
+    img = np.where(img!=1,255,img)
+
+
+
+    return img
+
+def custom_range(img):
+    org_vec = []
+    for i in range(628,1258,1):
+        for j in range(img.shape[1]):
+            if img[i,j] == 255:
+                org_vec.append(j)
+                break
+
+    for i in range(2794,3970,1):
+        for j in range(img.shape[1]):
+            if img[i,j] == 255:
+                org_vec.append(j)
+                break
+    return org_vec
+
 if __name__ == "__main__" :
     #apply_signal_denoising()
-    img = cv2.imread('./CEGIS_bankn.jpg')
-    cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
-    cv2.imshow('image1',img)
+    img_o = cv2.imread('./data/cegis/CEGIS_bank_existing_01.jpg',0)
+    img_p = cv2.imread('./data/cegis/CEGIS_bank_predicted_01.jpg',0)
+    
+    img_o = thinning(img_o)
+    img_p = thinning(img_p)
+
+    org_vec = custom_range(img_o)
+    pre_vec = custom_range(img_p)
+    #print(img.shape)
+    
+    print(len(org_vec),len(pre_vec))
+    print(org_vec)
+    print(pre_vec)
+    error = mean_absolute_error(org_vec, pre_vec)
+    print(error)
+
+    """ cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
+    cv2.imshow('image1',img_o)
     cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    cv2.destroyAllWindows() """
     """ data = rasterio.open('/home/antor/Documents/work/drone/odm_dem/dsm.tif')
     data = data.read()
     img = rasterio.plot.reshape_as_image(data)
