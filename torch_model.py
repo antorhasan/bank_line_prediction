@@ -29,21 +29,21 @@ def _parse_function(example_proto):
     
     return image, msk
 
-
+num_lstm_layers = 1
 num_channels = 6
-batch_size = 1
-EPOCHS = 61
-lr_rate = .00001
+batch_size = 8
+EPOCHS = 3010
+lr_rate = .0001
 in_seq_num = 29
-val_batch_size = 1
+#val_batch_size = 2
 output_at = 10
 model_type = 'CNN_Model'
-
+drop_rate = 0.2
 
 hyperparameter_defaults = dict(
-    dropout = 0.2,
+    dropout = drop_rate,
     num_channels = 6,
-    batch_size = 1,
+    batch_size = batch_size,
     learning_rate = lr_rate,
     epochs = EPOCHS,
     )
@@ -58,7 +58,7 @@ config = wandb.config          # Initialize config
 config.update({'dataset':'rgb+infra','model_type':model_type}) 
 
 """ config.batch_size = batch_size          # input batch size for training (default: 64)
-config.test_batch_size = val_batch_size    # input batch size for testing (default: 1000)
+config.test_batch_size = batch_size    # input batch size for testing (default: 1000)
 config.epochs = EPOCHS             # number of epochs to train (default: 10)
 config.lr = .01          # learning rate (default: 0.01)
 #config.momentum = 0.1          # SGD momentum (default: 0.5) 
@@ -68,16 +68,16 @@ config.update({'dataset':'rgb+infra','model_type':model_type})
 config.log_interval = output_at     # how many batches to wait before logging training status
 #config.update(allow_val_change=True)
  """
-model = CNN_Model()
+model = CNN_Model(num_channels, batch_size, in_seq_num, num_lstm_layers, drop_rate)
 
 dataset = tf.data.TFRecordDataset('./data/tfrecord/pix_img_all.tfrecords')
 dataset = dataset.map(_parse_function)
-dataset = dataset.shuffle(200)
+dataset = dataset.shuffle(2046)
 dataset = dataset.batch(batch_size, drop_remainder=True)
 
 dataset_val = tf.data.TFRecordDataset('./data/tfrecord/pix_img_all.tfrecords')
 dataset_val = dataset_val.map(_parse_function)
-dataset_val = dataset_val.batch(val_batch_size, drop_remainder=True)
+dataset_val = dataset_val.batch(batch_size, drop_remainder=True)
 
 
 use_cuda = not False and torch.cuda.is_available()
@@ -89,9 +89,9 @@ optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate)
 
 #test_list = []
 
-#checkpoint = torch.load('./data/model/cnn.pt')
-#model.load_state_dict(checkpoint['model_state_dict'])
-#optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+checkpoint = torch.load('./data/model/rgb_infra_1200.pt')
+model.load_state_dict(checkpoint['model_state_dict'])
+optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 wandb.watch(model, log="all")
 offset = 385
@@ -134,11 +134,11 @@ for epoch in range(EPOCHS):
     wandb.log({"Train Loss": avg_epoch_loss})
     #writer.add_scalar('Loss/train', avg_epoch_loss, epoch+1)
 
-    """ if epoch % 20 == 0:
+    if epoch % 50 == 0:
         torch.save({
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict()
-                }, './data/model/wandb.pt')  """
+                }, './data/model/rgb_infra_1200.pt') 
         
 
 
@@ -153,8 +153,8 @@ for epoch in range(EPOCHS):
             val_image = cv2.imread('./data/img/finaljan/201801.png', 1)
             val_image_counter = 1
         for img, msk in dataset_val:
-            img = np.reshape(img, (val_batch_size,32,745,num_channels))
-            msk = np.reshape(msk, (val_batch_size,32,2))
+            img = np.reshape(img, (batch_size,32,745,num_channels))
+            msk = np.reshape(msk, (batch_size,32,2))
             img = img[:,1:in_seq_num+1,:,:]
             msk = msk[:,in_seq_num+1:in_seq_num+2,:]
             
@@ -162,7 +162,7 @@ for epoch in range(EPOCHS):
 
             img = torch.Tensor(img).cuda()
             msk = torch.Tensor(msk).cuda()
-            msk = torch.reshape(msk, (val_batch_size,-1))
+            msk = torch.reshape(msk, (batch_size,-1))
 
             pred = model(img)
             loss = F.mse_loss(pred, msk)
@@ -176,8 +176,8 @@ for epoch in range(EPOCHS):
                 pred = (msk_std * pred) + msk_mean
                 msk = (msk_std * msk) + msk_mean
 
-                #line = np.zeros((val_batch_size,745,3))
-                for k in range(val_batch_size):
+                #line = np.zeros((batch_size,745,3))
+                for k in range(batch_size):
                     #line[k,int(msk[k,0]),:] = [255,255,255]
                     #line[k,int(msk[k,1]),:] = [255,255,255]
 
@@ -192,7 +192,7 @@ for epoch in range(EPOCHS):
                     val_image[val_image_counter,int(pred[k,1])+offset,:] = [0,0,255]
                     pred_list.append([int(pred[k,0])+offset,int(pred[k,1])+offset])
 
-                val_image_counter += 1
+                    val_image_counter += 1
                 #test_list.append(line)
             
             count += 1
@@ -201,7 +201,7 @@ for epoch in range(EPOCHS):
         #print(len(test_list))
         #output = np.asarray(test_list, dtype=np.uint8)   to produce binary output images
         #output = np.reshape(output, (-1,745,3))
-        #output = np.reshape(output, (len(test_list)*val_batch_size,745,3))
+        #output = np.reshape(output, (len(test_list)*batch_size,745,3))
         
         #cv2.imwrite('./data/output/' + str(epoch+1) +'.png',output)
         gt_list = np.asarray(gt_list)
@@ -223,7 +223,7 @@ for epoch in range(EPOCHS):
     wandb.log({"val_loss": avg_val_epoch_loss})
     #writer.add_scalar('Loss/Val', avg_val_epoch_loss, epoch+1)
 
-wandb.save('./data/model/wan_model.h5')
+wandb.save('wan_model.h5')
 
 
 
