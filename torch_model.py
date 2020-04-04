@@ -29,16 +29,45 @@ def _parse_function(example_proto):
     
     return image, msk
 
+def _parse_function_i(example_proto):
+
+    features = {
+            "image": tf.io.FixedLenFeature((), tf.string),
+            "msk": tf.io.FixedLenFeature((), tf.string)
+        }
+
+    parsed_features = tf.io.parse_single_example(example_proto, features)
+
+    image = tf.io.decode_raw(parsed_features["image"],  tf.float32)
+    #msk = tf.io.decode_raw(parsed_features["msk"],  tf.float32)
+    
+    return image
+
+def _parse_function_m(example_proto):
+
+    features = {
+            "image": tf.io.FixedLenFeature((), tf.string),
+            "msk": tf.io.FixedLenFeature((), tf.string)
+        }
+
+    parsed_features = tf.io.parse_single_example(example_proto, features)
+
+    #image = tf.io.decode_raw(parsed_features["image"],  tf.float32)
+    msk = tf.io.decode_raw(parsed_features["msk"],  tf.float32)
+    
+    return msk
+
 num_lstm_layers = 1
 num_channels = 6
-batch_size = 8
-EPOCHS = 3010
+batch_size = 400
+EPOCHS = 10020
 lr_rate = .0001
 in_seq_num = 29
 #val_batch_size = 2
 output_at = 10
-model_type = 'CNN_Model'
-drop_rate = 0.2
+model_type = 'CNN_Model_fix'
+drop_rate = 0.3
+time_step = 5
 
 hyperparameter_defaults = dict(
     dropout = drop_rate,
@@ -46,6 +75,7 @@ hyperparameter_defaults = dict(
     batch_size = batch_size,
     learning_rate = lr_rate,
     epochs = EPOCHS,
+    time_step = time_step
     )
 
 # WandB – Initialize a new run
@@ -68,15 +98,40 @@ config.update({'dataset':'rgb+infra','model_type':model_type})
 config.log_interval = output_at     # how many batches to wait before logging training status
 #config.update(allow_val_change=True)
  """
-model = CNN_Model(num_channels, batch_size, in_seq_num, num_lstm_layers, drop_rate)
 
-dataset = tf.data.TFRecordDataset('./data/tfrecord/pix_img_all.tfrecords')
-dataset = dataset.map(_parse_function)
-dataset = dataset.shuffle(2046)
-dataset = dataset.batch(batch_size, drop_remainder=True)
+model = CNN_Model(num_channels, batch_size, time_step, num_lstm_layers, drop_rate)
+
+dataseti = tf.data.TFRecordDataset('./data/tfrecord/pix_img_var.tfrecords')
+dataseti = dataseti.map(_parse_function_i)
+dataseti = dataseti.window(size=30, shift=32, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(30, drop_remainder=True))
+dataseti = dataseti.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+dataseti = dataseti.flat_map(lambda x: x.window(size=time_step, shift=time_step-1, stride=1,drop_remainder=True))
+dataseti = dataseti.flat_map(lambda x: x.batch(time_step, drop_remainder=True))
+#dataseti = dataseti.batch(batch_size)
+#dataseti = dataseti.map(lambda x: tf.data.Dataset.from_tensor_slices(x)) #.batch(batch_size)
+#dataset = dataset.map(_parse_function)
+
+#dataset = dataset.shuffle(2046)
+#dataset = dataset.batch(batch_size, drop_remainder=True)
+
+datasetm = tf.data.TFRecordDataset('./data/tfrecord/pix_img_var.tfrecords')
+datasetm = datasetm.map(_parse_function_m)
+datasetm = datasetm.window(size=30, shift=32, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(30, drop_remainder=True))
+datasetm = datasetm.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
+datasetm = datasetm.flat_map(lambda x: x.window(size=time_step, shift=time_step-1, stride=1,drop_remainder=True))
+datasetm = datasetm.flat_map(lambda x: x.batch(time_step, drop_remainder=True))
+#datasetm = datasetm.batch(batch_size)
+#datasetm = datasetm.map(lambda x: tf.data.Dataset.from_tensor_slices(x)) #.batch(batch_size)
+
+
+dataset = tf.data.Dataset.zip((dataseti, datasetm))
+dataset = dataset.shuffle(8000)
+dataset_train = dataset.batch(batch_size, drop_remainder=True)
+
 
 dataset_val = tf.data.TFRecordDataset('./data/tfrecord/pix_img_all.tfrecords')
 dataset_val = dataset_val.map(_parse_function)
+#dataset_val = dataset.batch(batch_size, drop_remainder=True)
 dataset_val = dataset_val.batch(batch_size, drop_remainder=True)
 
 
@@ -89,9 +144,9 @@ optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate)
 
 #test_list = []
 
-checkpoint = torch.load('./data/model/rgb_infra_1200.pt')
-model.load_state_dict(checkpoint['model_state_dict'])
-optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+#checkpoint = torch.load('./data/model/ts7_f.pt')
+#model.load_state_dict(checkpoint['model_state_dict'])
+#optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 wandb.watch(model, log="all")
 offset = 385
@@ -100,24 +155,26 @@ for epoch in range(EPOCHS):
     model.train()
     counter = 0
     epoch_loss = 0
-    for img, msk in dataset:
+    for img, msk in dataset_train:
         #print(img.shape)
         #print(msk.size())
         #print(asd)
-        img = np.reshape(img, (batch_size,32,745,num_channels))
-        msk = np.reshape(msk, (batch_size,32,2))
+        img = np.reshape(img, (batch_size,time_step,745,num_channels))
+        msk = np.reshape(msk, (batch_size,time_step,2))
         #print(img.shape)
         #print(msk.shape)
         #print(asd)
 
-        img = img[:,0:in_seq_num,:,:]
-        msk = msk[:,in_seq_num:in_seq_num+1,:]
+        img = img[:,0:time_step-1,:,:]
+        msk = msk[:,time_step-1:time_step,:]
         
         msk = (msk - msk_mean) / msk_std
 
         img = torch.Tensor(img).cuda()
         msk = torch.Tensor(msk).cuda()
         msk = torch.reshape(msk, (batch_size,-1))
+        #print(img.shape)
+        #print(msk.shape)
 
         optimizer.zero_grad()
         pred = model(img)
@@ -131,16 +188,16 @@ for epoch in range(EPOCHS):
     avg_epoch_loss = epoch_loss / counter
     template = 'Epoch {}, Train Loss: {}'
     print(template.format(epoch+1,avg_epoch_loss))
+    #print('asd')
     wandb.log({"Train Loss": avg_epoch_loss})
     #writer.add_scalar('Loss/train', avg_epoch_loss, epoch+1)
 
-    if epoch % 50 == 0:
+    """ if epoch % 200 == 0:
         torch.save({
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict()
-                }, './data/model/rgb_infra_1200.pt') 
+                }, './data/model/ts7_f.pt')  """
         
-
 
     model.eval()
     val_epoch_loss = 0
@@ -155,14 +212,16 @@ for epoch in range(EPOCHS):
         for img, msk in dataset_val:
             img = np.reshape(img, (batch_size,32,745,num_channels))
             msk = np.reshape(msk, (batch_size,32,2))
-            img = img[:,1:in_seq_num+1,:,:]
+            img = img[:,in_seq_num-(time_step-2):in_seq_num+1,:,:]
             msk = msk[:,in_seq_num+1:in_seq_num+2,:]
-            
+            #print(img.shape)
+            #print(msk.shape)
+            #print(asd)
             msk = (msk - msk_mean) / msk_std
 
             img = torch.Tensor(img).cuda()
             msk = torch.Tensor(msk).cuda()
-            msk = torch.reshape(msk, (batch_size,-1))
+            msk = torch.reshape(msk, (-1,2))
 
             pred = model(img)
             loss = F.mse_loss(pred, msk)
@@ -206,16 +265,24 @@ for epoch in range(EPOCHS):
         #cv2.imwrite('./data/output/' + str(epoch+1) +'.png',output)
         gt_list = np.asarray(gt_list)
         pred_list = np.asarray(pred_list)
+        gt_list_left = gt_list[:,0]
+        gt_list_right = gt_list[:,1]
+        pred_list_left = pred_list[:,0]
+        pred_list_right = pred_list[:,1]
 
-        mae = mean_absolute_error(gt_list,pred_list)
-        std = np.std(pred_list)
+        mae_left = mean_absolute_error(gt_list_left,pred_list_left)
+        mae_right = mean_absolute_error(gt_list_right,pred_list_right)
+        std = np.std(pred_list, axis=0)
 
 
         cv2.imwrite('./data/output/' + str(epoch+1) +'_tst.png',val_image)
-        wandb.log({"examples" : wandb.Image(val_image)})
-        wandb.log({"mean_abs_error": mae,"standard_deviation": std})
+        #wandb.log({"examples" : wandb.Image(val_image)})
+        wandb.log({"mae_left_error": mae_left,"mae_right_error": mae_right,"standard_deviation_left": std[0],"standard_deviation_right": std[1]})
         
         #test_list = []
+    if (epoch+1) % 1000 == 0:
+        wandb.log({"examples" : wandb.Image(val_image)})
+
 
     avg_val_epoch_loss = val_epoch_loss / count
     template = 'Epoch {}, Val Loss: {}'
@@ -223,7 +290,8 @@ for epoch in range(EPOCHS):
     wandb.log({"val_loss": avg_val_epoch_loss})
     #writer.add_scalar('Loss/Val', avg_val_epoch_loss, epoch+1)
 
-wandb.save('wan_model.h5')
+#wandb.log({"examples" : wandb.Image(val_image)})
+#wandb.save('wan_model.h5')
 
 
 

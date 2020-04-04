@@ -3,62 +3,66 @@ import torch.nn.functional as F
 import torch
 
 class CNN_Model(nn.Module):
-    def __init__(self, num_channels, batch_size, in_seq_num, num_lstm_layers, drop_out):
+    def __init__(self, num_channels, batch_size, time_step, num_lstm_layers, drop_out):
         super(CNN_Model, self).__init__()
 
         self.num_channels = num_channels
         self.batch_size = batch_size
-        self.in_seq = in_seq_num
+        self.time_step = time_step
         self.num_lstm_layers = num_lstm_layers
         self.drop_out = drop_out
+        self.lstm_output_size = 256
 
         self.conv1 = nn.Conv2d(num_channels,8,(1,3), padding=0)
         self.batch_norm10 = nn.BatchNorm2d(8)
-        self.drop1 = nn.Dropout2d(p=0.2)
+        self.drop1 = nn.Dropout2d(p=drop_out)
         self.conv2 = nn.Conv2d(8,16,(1,3), padding=0)
 
         self.batch_norm1 = nn.BatchNorm2d(16)
-        self.drop2 = nn.Dropout2d(p=0.2)
+        self.drop2 = nn.Dropout2d(p=drop_out)
     
         self.conv3 = nn.Conv2d(16,16,(1,3), padding=0)
         self.batch_norm20 = nn.BatchNorm2d(16)
-        self.drop3 = nn.Dropout2d(p=0.2)
+        self.drop3 = nn.Dropout2d(p=drop_out)
         self.conv4 = nn.Conv2d(16,32,(1,3), padding=0)
 
         self.batch_norm2 = nn.BatchNorm2d(32)
-        self.drop4 = nn.Dropout2d(p=0.2)
+        self.drop4 = nn.Dropout2d(p=drop_out)
 
         self.conv5 = nn.Conv2d(32,32,(1,3), padding=0)
         self.batch_norm30 = nn.BatchNorm2d(32)
-        self.drop5 = nn.Dropout2d(p=0.2)
+        self.drop5 = nn.Dropout2d(p=drop_out)
         self.conv6 = nn.Conv2d(32,64,(1,3), padding=0)
 
         self.batch_norm3 = nn.BatchNorm2d(64)
-        self.drop6 = nn.Dropout2d(p=0.2)
+        self.drop6 = nn.Dropout2d(p=drop_out)
 
         self.conv7 = nn.Conv2d(64,64,(1,3), padding=0)
         self.batch_norm40 = nn.BatchNorm2d(64)
-        self.drop7 = nn.Dropout2d(p=0.2)
+        self.drop7 = nn.Dropout2d(p=drop_out)
         self.conv8 = nn.Conv2d(64,128,(1,3), padding=0)
 
         self.batch_norm4 = nn.BatchNorm2d(128)
-        self.drop8 = nn.Dropout2d(p=0.2)
+        self.drop8 = nn.Dropout2d(p=drop_out)
 
         self.conv9 = nn.Conv2d(128,128,(1,3), padding=0)
         self.batch_norm50 = nn.BatchNorm2d(128)
-        self.drop9 = nn.Dropout2d(p=0.2)
+        self.drop9 = nn.Dropout2d(p=drop_out)
         self.conv10 = nn.Conv2d(128,256,(1,3), padding=0)
 
         self.batch_norm5 = nn.BatchNorm2d(256)
-        self.drop10 = nn.Dropout2d(p=0.2)
+        self.drop10 = nn.Dropout2d(p=drop_out)
 
-        self.lstm = nn.LSTM(256,20,num_layers=num_lstm_layers,batch_first=True)
+        self.lstm = nn.LSTM(self.lstm_output_size,self.lstm_output_size,num_layers=num_lstm_layers,batch_first=True)
         self.dropout1 = nn.Dropout(drop_out)
-        self.fc1 = nn.Linear(20, 2)
+        self.fc1 = nn.Linear(self.lstm_output_size, int(self.lstm_output_size/2))
         self.dropout2 = nn.Dropout(drop_out)
+        self.fc2 = nn.Linear(int(self.lstm_output_size/2), 2)
+        
 
     def forward(self, inputs):
-        inputs = torch.reshape(inputs, (self.in_seq*self.batch_size, self.num_channels, 1, 745))
+        #inputs = torch.reshape(inputs, ((self.time_step-1)*self.batch_size, self.num_channels, 1, 745))
+        inputs = torch.reshape(inputs, (-1, self.num_channels, 1, 745))
         x = F.relu(self.conv1(inputs))
         x = self.batch_norm10(x)
         x = self.drop1(x)
@@ -110,17 +114,21 @@ class CNN_Model(nn.Module):
         #print(x.size())
         #print(asd)
 
-        x = torch.reshape(x, (self.batch_size,self.in_seq,-1))
-        h0 = torch.zeros(self.num_lstm_layers, self.batch_size, 20).cuda()
-        c0 = torch.zeros(self.num_lstm_layers, self.batch_size, 20).cuda()
-        x, (hn, cn) = self.lstm(x, (h0, c0))
-        x = x[:,-1,:]
-        #print(x.size())
+        x = torch.reshape(x, (-1,(self.time_step-1),256))
+        #print(x.shape)
         #print(asd)
-        #x = self.dropout1(x)
+        h0 = torch.zeros(self.num_lstm_layers, self.batch_size, self.lstm_output_size).cuda()
+        c0 = torch.zeros(self.num_lstm_layers, self.batch_size, self.lstm_output_size).cuda()
+        x, (hn, cn) = self.lstm(x, (h0, c0))
+        #print(h0.shape)
+        x = x[:,-1,:]
+        #print(x.shape)
+        #print(asd)
+        x = self.dropout1(x)
         x = self.fc1(x)
 
-        #x = self.dropout2(x)
+        x = self.dropout2(x)
+        x = self.fc2(x)
         #print(x.size())
         #print(asd)
         return x

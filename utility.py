@@ -723,8 +723,11 @@ def write_img_data(img_path, msk_path, mode):
     sys.stdout.flush()
 
 
+
+
 if __name__ == "__main__":
-    write_img_data('./data/img/final/','./data/img/final_ms/','val_28')
+    
+    #write_img_data('./data/img/final/','./data/img/final_ms/','val_28')
     #check_msk_dist('./data/img/final_ms/')
     #fill_img_blanks('./data/img/final/')
     #mean_img()

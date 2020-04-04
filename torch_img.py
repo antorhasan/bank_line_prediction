@@ -37,7 +37,7 @@ def write_pix_img(mode):
         return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
     def write_data():
-        writer = tf.io.TFRecordWriter('./data/tfrecord/'+ 'pix_img_all' +'.tfrecords')
+        writer = tf.io.TFRecordWriter('./data/tfrecord/'+ 'pix_img_var' +'.tfrecords')
         for i in range(2047):
             print(i)
             seq_list = []
@@ -56,27 +56,28 @@ def write_pix_img(mode):
                 
                 img = np.concatenate((img,img_i), axis=1)
                 
-                seq_list.append(img)
+                #seq_list.append(img)
 
                 msk = cv2.imread('./data/img/lines/' + str(data_list[j]) + '.png', 0)
                 msk = msk[1:2048,offset_left:offset_right]
                 msk = msk[i,:]
                 indx = np.argwhere(msk==255)
                 indx = np.reshape(indx, (2,))
-                msk_list.append(indx)
+                #msk_list.append(indx)
                 #print(indx)
                 #print(asd)
 
-            seq_list = np.asarray(seq_list, dtype=np.float32)
-            msk_list = np.asarray(msk_list, dtype=np.float32)
+                seq_list = np.asarray(img, dtype=np.float32)
+                msk_list = np.asarray(indx, dtype=np.float32)
 
-            feature = {
-                'image': _bytes_feature(seq_list.tostring()),
-                'msk': _bytes_feature(msk_list.tostring())
-            }
-            example = tf.train.Example(
-                features=tf.train.Features(feature=feature))
-            writer.write(example.SerializeToString())
+                
+                feature = {
+                    'image': _bytes_feature(seq_list.tostring()),
+                    'msk': _bytes_feature(msk_list.tostring())
+                }
+                example = tf.train.Example(
+                    features=tf.train.Features(feature=feature))
+                writer.write(example.SerializeToString())
 
 
         writer.close()
