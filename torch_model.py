@@ -68,7 +68,7 @@ EPOCHS = 10020
 lr_rate = .0001
 in_seq_num = 29
 #val_batch_size = 2
-output_at = 10
+output_at = 5
 model_type = 'CNN_Model_fix'
 drop_rate = 0.3
 time_step = 5
@@ -148,6 +148,70 @@ if load_mod == True:
 wandb.watch(model, log="all")
 offset = 385
 
+def val_pass(img,msk):
+
+    #img = img[:,in_seq_num-(time_step-2):in_seq_num+1,:,:]
+    #msk = msk[:,in_seq_num+1:in_seq_num+2,:]
+    
+    img = np.where(img==0, norm_mean_line, img)
+    msk = (msk - msk_mean) / msk_std
+
+    img = torch.Tensor(img).cuda()
+    msk = torch.Tensor(msk).cuda()
+    msk = torch.reshape(msk, (-1,2))
+    pred = model(img)
+    loss = F.mse_loss(pred, msk)
+
+    return pred, loss
+
+def val_list_update(msk, pred, val_image, gt_list, pred_list, val_image_counter):
+    
+    #msk = msk.cpu().detach().numpy()
+    pred = pred.cpu().detach().numpy()
+    msk = np.asarray(msk)
+    msk = np.reshape(msk, (batch_size, -1))
+    pred = (msk_std * pred) + msk_mean
+    #msk = (msk_std * msk) + msk_mean
+    #print(msk.shape)
+    #print(msk)
+    
+    #print(int(msk[0,0]),int(msk[4,0]))
+    #line = np.zeros((batch_size,745,3))
+    for k in range(batch_size):
+
+        val_image[val_image_counter,int(msk[k,0])+offset,:] = [255,255,255]
+        val_image[val_image_counter,int(msk[k,1])+offset,:] = [255,255,255]
+        gt_list.append([int(msk[k,0])+offset,int(msk[k,1])+offset])
+
+        val_image[val_image_counter,int(pred[k,0])+offset,:] = [0,0,255]
+        val_image[val_image_counter,int(pred[k,1])+offset,:] = [0,0,255]
+        pred_list.append([int(pred[k,0])+offset,int(pred[k,1])+offset])
+
+        val_image_counter += 1
+
+    return gt_list, pred_list, val_image, val_image_counter
+
+def val_log(gt_list, pred_list):
+    
+    gt_list = np.asarray(gt_list)
+    pred_list = np.asarray(pred_list)
+    gt_list_left = gt_list[:,0]
+    gt_list_right = gt_list[:,1]
+    pred_list_left = pred_list[:,0]
+    pred_list_right = pred_list[:,1]
+
+    mae_left = mean_absolute_error(gt_list_left,pred_list_left)
+    mae_right = mean_absolute_error(gt_list_right,pred_list_right)
+
+    error_left = gt_list_left - pred_list_left
+    error_right = gt_list_right - pred_list_right
+
+    std_left = np.std(error_left)
+    std_right = np.std(error_right)
+
+
+    return mae_left, mae_right, std_left, std_right
+
 for epoch in range(EPOCHS):
     model.train()
     counter = 0
@@ -205,90 +269,55 @@ for epoch in range(EPOCHS):
     
     with torch.no_grad():
         if (epoch+2) % output_at == 0:
-            gt_list = []
-            pred_list = []
-            val_image = cv2.imread('./data/img/finaljan/201801.png', 1)
-            val_image_counter = 1
+            gt_list1 = []
+            pred_list1 = []
+            val_image1 = cv2.imread('./data/img/finaljan/201801.png', 1)
+            val_image_counter1 = 1
+
+            gt_list2 = []
+            pred_list2 = []
+            val_image2 = cv2.imread('./data/img/finaljan/201901.png', 1)
+            val_image_counter2 = 1
         for img, msk in dataset_val:
             img = np.reshape(img, (batch_size,32,745,num_channels))
-            msk = np.reshape(msk, (batch_size,32,2))
-            img = img[:,in_seq_num-(time_step-2):in_seq_num+1,:,:]
-            msk = msk[:,in_seq_num+1:in_seq_num+2,:]
-            #print(img.shape)
-            #print(msk.shape)
-            #print(asd)
-            img = np.where(img==0, norm_mean_line, img)
+            msk = np.reshape(msk, (batch_size,32,2)) 
 
-            msk = (msk - msk_mean) / msk_std
+            img1 = img[:,in_seq_num-(time_step-2):in_seq_num+1,:,:]
+            msk1 = msk[:,in_seq_num+1:in_seq_num+2,:]
 
-            img = torch.Tensor(img).cuda()
-            msk = torch.Tensor(msk).cuda()
-            msk = torch.reshape(msk, (-1,2))
-
-            pred = model(img)
-            loss = F.mse_loss(pred, msk)
-            val_epoch_loss = val_epoch_loss + loss
-            #print( epoch+1 % 3)
+            img2 = img[:,in_seq_num-(time_step-2)+1:in_seq_num+2,:,:]
+            msk2 = msk[:,in_seq_num+2:in_seq_num+3,:]
             
+            pred1, loss1 = val_pass(img1, msk1)
+            pred2, loss2 = val_pass(img2, msk2)
+            
+            val_epoch_loss = val_epoch_loss + ((loss1+loss2)/2)
+            #print( epoch+1 % 3)
+
             if (epoch+2) % output_at == 0:
-                msk = msk.cpu().detach().numpy()
-                pred = pred.cpu().detach().numpy()
-
-                pred = (msk_std * pred) + msk_mean
-                msk = (msk_std * msk) + msk_mean
-
-                #line = np.zeros((batch_size,745,3))
-                for k in range(batch_size):
-
-                    val_image[val_image_counter,int(msk[k,0])+offset,:] = [255,255,255]
-                    val_image[val_image_counter,int(msk[k,1])+offset,:] = [255,255,255]
-                    gt_list.append([int(msk[k,0])+offset,int(msk[k,1])+offset])
-
-                    val_image[val_image_counter,int(pred[k,0])+offset,:] = [0,0,255]
-                    val_image[val_image_counter,int(pred[k,1])+offset,:] = [0,0,255]
-                    pred_list.append([int(pred[k,0])+offset,int(pred[k,1])+offset])
-
-                    val_image_counter += 1
-                #test_list.append(line)
+                gt_list1, pred_list1, val_image1, val_image_counter1 = val_list_update(msk1, pred1, val_image1, gt_list1, pred_list1, val_image_counter1)
+                gt_list2, pred_list2, val_image2, val_image_counter2 = val_list_update(msk2, pred2, val_image2, gt_list2, pred_list2, val_image_counter2)
             
             count += 1
-
     if (epoch+1) % output_at == 0:
+        mae_left1, mae_right1, std_left1, std_right1 = val_log(gt_list1, pred_list1)
+        mae_left2, mae_right2, std_left2, std_right2 = val_log(gt_list2, pred_list2)
 
-        gt_list = np.asarray(gt_list)
-        pred_list = np.asarray(pred_list)
-        gt_list_left = gt_list[:,0]
-        gt_list_right = gt_list[:,1]
-        pred_list_left = pred_list[:,0]
-        pred_list_right = pred_list[:,1]
-
-        mae_left = mean_absolute_error(gt_list_left,pred_list_left)
-        mae_right = mean_absolute_error(gt_list_right,pred_list_right)
-
-        error_left = gt_list_left - pred_list_left
-        error_right = gt_list_right - pred_list_right
-
-        std_left = np.std(error_left)
-        std_right = np.std(error_right)
-
-
-        cv2.imwrite('./data/output/' + str(epoch+1) +'_tst.png',val_image)
-        #wandb.log({"examples" : wandb.Image(val_image)})
-        wandb.log({"mae_left_error": mae_left,"mae_right_error": mae_right,"standard_deviation_left": std_left,"standard_deviation_right": std_right})
-        
-        #test_list = []
+        cv2.imwrite('./data/output/' + str(epoch+1) +'_18.png',val_image1)
+        wandb.log({"mae_left_error_18": mae_left1,"mae_right_error_18": mae_right1,"standard_deviation_left_18": std_left1,"standard_deviation_right_18": std_right1})
+        cv2.imwrite('./data/output/' + str(epoch+1) +'_19.png',val_image2)
+        wandb.log({"mae_left_error_19": mae_left2,"mae_right_error_19": mae_right2,"standard_deviation_left_19": std_left2,"standard_deviation_right_19": std_right2})
+    
     if (epoch+1) % 1000 == 0:
-        wandb.log({"examples" : wandb.Image(val_image)})
+        wandb.log({"examples18" : wandb.Image(val_image1)})
+        wandb.log({"examples19" : wandb.Image(val_image2)})
 
 
     avg_val_epoch_loss = val_epoch_loss / count
     template = 'Epoch {}, Val Loss: {}'
     print(template.format(epoch+1,avg_val_epoch_loss))
     wandb.log({"val_loss": avg_val_epoch_loss})
-    #writer.add_scalar('Loss/Val', avg_val_epoch_loss, epoch+1)
-
-#wandb.log({"examples" : wandb.Image(val_image)})
-#wandb.save('wan_model.h5')
+    
 
 
 
