@@ -363,8 +363,7 @@ def custom_range(img):
                 break
     return org_vec
 
-if __name__ == "__main__" :
-    #apply_signal_denoising()
+def cegis():
     img_o = cv2.imread('./data/cegis/CEGIS_bank_existing_01.jpg',0)
     img_p = cv2.imread('./data/cegis/CEGIS_bank_predicted_01.jpg',0)
     
@@ -381,20 +380,26 @@ if __name__ == "__main__" :
     error = mean_absolute_error(org_vec, pre_vec)
     print(error)
 
+
+if __name__ == "__main__" :
+    #apply_signal_denoising()
+    
+
     """ cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
     cv2.imshow('image1',img_o)
     cv2.waitKey(0)
     cv2.destroyAllWindows() """
-    """ data = rasterio.open('/home/antor/Documents/work/drone/odm_dem/dsm.tif')
-    data = data.read()
-    img = rasterio.plot.reshape_as_image(data)
+    data = rasterio.open('./data/198801.tif')
+    img = data.read()
+    img = rasterio.plot.reshape_as_image(img)
     img_np = np.asarray(img)
-    img = np.uint8(img_np)
+    #img = np.where(img_np!=0,255,0)
+    img = np.uint8(img)
 
     cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
     cv2.imshow('image1',img)
     cv2.waitKey(0)
-    cv2.destroyAllWindows() """
+    cv2.destroyAllWindows()
 
     
     #check_img_dist()

@@ -57,7 +57,10 @@ def _parse_function_m(example_proto):
     
     return msk
 
-num_lstm_layers = 1
+load_mod = False
+save_mod = True
+#window_shft = 1
+num_lstm_layers = 2
 num_channels = 6
 batch_size = 400
 EPOCHS = 10020
@@ -75,7 +78,8 @@ hyperparameter_defaults = dict(
     batch_size = batch_size,
     learning_rate = lr_rate,
     epochs = EPOCHS,
-    time_step = time_step
+    time_step = time_step,
+    num_lstm_layers = num_lstm_layers
     )
 
 # WandB – Initialize a new run
@@ -105,7 +109,7 @@ dataseti = tf.data.TFRecordDataset('./data/tfrecord/pix_img_var.tfrecords')
 dataseti = dataseti.map(_parse_function_i)
 dataseti = dataseti.window(size=30, shift=32, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(30, drop_remainder=True))
 dataseti = dataseti.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-dataseti = dataseti.flat_map(lambda x: x.window(size=time_step, shift=time_step-1, stride=1,drop_remainder=True))
+dataseti = dataseti.flat_map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
 dataseti = dataseti.flat_map(lambda x: x.batch(time_step, drop_remainder=True))
 #dataseti = dataseti.batch(batch_size)
 #dataseti = dataseti.map(lambda x: tf.data.Dataset.from_tensor_slices(x)) #.batch(batch_size)
@@ -118,14 +122,14 @@ datasetm = tf.data.TFRecordDataset('./data/tfrecord/pix_img_var.tfrecords')
 datasetm = datasetm.map(_parse_function_m)
 datasetm = datasetm.window(size=30, shift=32, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(30, drop_remainder=True))
 datasetm = datasetm.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-datasetm = datasetm.flat_map(lambda x: x.window(size=time_step, shift=time_step-1, stride=1,drop_remainder=True))
+datasetm = datasetm.flat_map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
 datasetm = datasetm.flat_map(lambda x: x.batch(time_step, drop_remainder=True))
 #datasetm = datasetm.batch(batch_size)
 #datasetm = datasetm.map(lambda x: tf.data.Dataset.from_tensor_slices(x)) #.batch(batch_size)
 
 
 dataset = tf.data.Dataset.zip((dataseti, datasetm))
-dataset = dataset.shuffle(8000)
+dataset = dataset.shuffle(10000)
 dataset_train = dataset.batch(batch_size, drop_remainder=True)
 
 
@@ -144,9 +148,10 @@ optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate)
 
 #test_list = []
 
-#checkpoint = torch.load('./data/model/ts7_f.pt')
-#model.load_state_dict(checkpoint['model_state_dict'])
-#optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+if load_mod == True:
+    checkpoint = torch.load('./data/model/ts7_f.pt')
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 wandb.watch(model, log="all")
 offset = 385
@@ -192,11 +197,12 @@ for epoch in range(EPOCHS):
     wandb.log({"Train Loss": avg_epoch_loss})
     #writer.add_scalar('Loss/train', avg_epoch_loss, epoch+1)
 
-    """ if epoch % 200 == 0:
-        torch.save({
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict()
-                }, './data/model/ts7_f.pt')  """
+    if save_mod == True :
+        if epoch % 400 == 0:
+            torch.save({
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict()
+                    }, './data/model/ts7_f.pt')
         
 
     model.eval()
