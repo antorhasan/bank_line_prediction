@@ -14,6 +14,7 @@ from sklearn.metrics import mean_absolute_error
 
 msk_mean = np.load('./data/np_arr/mean.npy')
 msk_std = np.load('./data/np_arr/std.npy')
+norm_mean_line = np.load('./data/mean_img/mean_line.npy')
 
 def _parse_function(example_proto):
 
@@ -57,8 +58,8 @@ def _parse_function_m(example_proto):
     
     return msk
 
-load_mod = False
-save_mod = True
+load_mod = True
+save_mod = False
 #window_shft = 1
 num_lstm_layers = 2
 num_channels = 6
@@ -91,19 +92,10 @@ config = wandb.config          # Initialize config
 
 config.update({'dataset':'rgb+infra','model_type':model_type}) 
 
-""" config.batch_size = batch_size          # input batch size for training (default: 64)
-config.test_batch_size = batch_size    # input batch size for testing (default: 1000)
-config.epochs = EPOCHS             # number of epochs to train (default: 10)
-config.lr = .01          # learning rate (default: 0.01)
-#config.momentum = 0.1          # SGD momentum (default: 0.5) 
-#config.no_cuda = False         # disables CUDA training
-#config.seed = 42               # random seed (default: 42)
-config.update({'dataset':'rgb+infra','model_type':model_type}) 
-config.log_interval = output_at     # how many batches to wait before logging training status
-#config.update(allow_val_change=True)
- """
 
 model = CNN_Model(num_channels, batch_size, time_step, num_lstm_layers, drop_rate)
+
+norm_mean_line = np.tile(norm_mean_line,(batch_size, time_step-1, 1, 1))
 
 dataseti = tf.data.TFRecordDataset('./data/tfrecord/pix_img_var.tfrecords')
 dataseti = dataseti.map(_parse_function_i)
@@ -173,6 +165,8 @@ for epoch in range(EPOCHS):
         img = img[:,0:time_step-1,:,:]
         msk = msk[:,time_step-1:time_step,:]
         
+        img = np.where(img==0, norm_mean_line, img)
+
         msk = (msk - msk_mean) / msk_std
 
         img = torch.Tensor(img).cuda()
@@ -223,6 +217,8 @@ for epoch in range(EPOCHS):
             #print(img.shape)
             #print(msk.shape)
             #print(asd)
+            img = np.where(img==0, norm_mean_line, img)
+
             msk = (msk - msk_mean) / msk_std
 
             img = torch.Tensor(img).cuda()
@@ -243,11 +239,6 @@ for epoch in range(EPOCHS):
 
                 #line = np.zeros((batch_size,745,3))
                 for k in range(batch_size):
-                    #line[k,int(msk[k,0]),:] = [255,255,255]
-                    #line[k,int(msk[k,1]),:] = [255,255,255]
-
-                    #line[k,int(pred[k,0]),:] = [0,0,255]
-                    #line[k,int(pred[k,1]),:] = [0,0,255]
 
                     val_image[val_image_counter,int(msk[k,0])+offset,:] = [255,255,255]
                     val_image[val_image_counter,int(msk[k,1])+offset,:] = [255,255,255]
@@ -263,12 +254,7 @@ for epoch in range(EPOCHS):
             count += 1
 
     if (epoch+1) % output_at == 0:
-        #print(len(test_list))
-        #output = np.asarray(test_list, dtype=np.uint8)   to produce binary output images
-        #output = np.reshape(output, (-1,745,3))
-        #output = np.reshape(output, (len(test_list)*batch_size,745,3))
-        
-        #cv2.imwrite('./data/output/' + str(epoch+1) +'.png',output)
+
         gt_list = np.asarray(gt_list)
         pred_list = np.asarray(pred_list)
         gt_list_left = gt_list[:,0]
@@ -278,12 +264,17 @@ for epoch in range(EPOCHS):
 
         mae_left = mean_absolute_error(gt_list_left,pred_list_left)
         mae_right = mean_absolute_error(gt_list_right,pred_list_right)
-        std = np.std(pred_list, axis=0)
+
+        error_left = gt_list_left - pred_list_left
+        error_right = gt_list_right - pred_list_right
+
+        std_left = np.std(error_left)
+        std_right = np.std(error_right)
 
 
         cv2.imwrite('./data/output/' + str(epoch+1) +'_tst.png',val_image)
         #wandb.log({"examples" : wandb.Image(val_image)})
-        wandb.log({"mae_left_error": mae_left,"mae_right_error": mae_right,"standard_deviation_left": std[0],"standard_deviation_right": std[1]})
+        wandb.log({"mae_left_error": mae_left,"mae_right_error": mae_right,"standard_deviation_left": std_left,"standard_deviation_right": std_right})
         
         #test_list = []
     if (epoch+1) % 1000 == 0:

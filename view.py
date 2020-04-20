@@ -380,16 +380,59 @@ def cegis():
     error = mean_absolute_error(org_vec, pre_vec)
     print(error)
 
+def mean_tensor():
+    '''get mean tensor of the images'''
+    rgb_path = './data/img/finaljan/'
+    infra_path = './data/img/infra1/'
+
+    img_list = [f for f in listdir(rgb_path) if isfile(join(rgb_path, f))]
+    img_list.remove('201801.png')
+    img_list.remove('201901.png')
+
+    #print(len(img_list))
+    mean_img = np.zeros((2048,745,6))
+
+    for i in range(len(img_list)):
+        rgb_img = cv2.imread(rgb_path+img_list[i],1)
+        rgb_img = rgb_img[0:2048,386:386+745,:]
+
+        infra_img = cv2.imread(infra_path+img_list[i],1)
+        infra_img = infra_img[0:2048,386:386+745,:]
+
+        comb_img = np.concatenate((rgb_img,infra_img),axis = 2)
+        mean_img = mean_img + (comb_img/len(img_list))
+
+        null_list = np.argwhere(rgb_img[:,:,0]==0)
+        print(img_list[i] + '  ' + str(len(null_list)))
+    norm_mean_img = mean_img/255
+    np.save('./data/mean_img/norm_mean_img.npy', norm_mean_img)
+    cv2.imwrite('./data/mean_img/mean_img.png',mean_img[:,:,0:3])
+
+    mean_line = np.zeros((745,6))
+    print(norm_mean_img.shape[0])
+    for i in range(norm_mean_img.shape[0]):
+        mean_line = mean_line + (norm_mean_img[i,:,:]/norm_mean_img.shape[0])
+    
+    np.save('./data/mean_img/mean_line.npy', mean_line)
+    
+
 
 if __name__ == "__main__" :
     #apply_signal_denoising()
-    
+    #mean_tensor()
+    mean_line = np.load('./data/mean_img/mean_line.npy')
+    print(mean_line.shape)
+    print(mean_line)
+    line = np.tile(mean_line,(12,5,1,1))
+    print(line.shape)
+    print(line[0,0,:,:])
+
 
     """ cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
     cv2.imshow('image1',img_o)
     cv2.waitKey(0)
     cv2.destroyAllWindows() """
-    data = rasterio.open('./data/198801.tif')
+    """ data = rasterio.open('./data/198801.tif')
     img = data.read()
     img = rasterio.plot.reshape_as_image(img)
     img_np = np.asarray(img)
@@ -399,7 +442,7 @@ if __name__ == "__main__" :
     cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
     cv2.imshow('image1',img)
     cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    cv2.destroyAllWindows() """
 
     
     #check_img_dist()
