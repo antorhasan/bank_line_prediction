@@ -11,7 +11,10 @@ from sklearn.metrics import mean_absolute_error
 #from preprocess import *
 import sys
 #from preprocess import path_sort
-from utility import single_pix
+#from utility import single_pix
+import matplotlib.pyplot as plt
+import fiona
+
 
 class viz():
     '''read tif image and get relevant properties
@@ -414,18 +417,156 @@ def mean_tensor():
         mean_line = mean_line + (norm_mean_img[i,:,:]/norm_mean_img.shape[0])
     
     np.save('./data/mean_img/mean_line.npy', mean_line)
+
+import rasterio.mask    
+from rasterio.features import sieve
+
+def shp_mask_tif():
+    shp_path = "./data/img/shape_01/1988/198801.shp"
+    with fiona.open(shp_path, "r") as shapefile:
+        shapes = [feature["geometry"] for feature in shapefile]
+
+    tif_path = "./data/img/finaltif/198801.tif"
+    with rasterio.open(tif_path) as src:
+        out_image, out_transform = rasterio.mask.mask(src, shapes)
+        out_meta = src.meta
+    """ print(type(out_image))
+    out_image = np.asarray(out_image, dtype=np.uint8)
+    plt.imshow(np.resize(out_image[0:3,:,:],(2638,1403,3)))
+    plt.show() """
+    out_meta.update({"driver": "GTiff",
+                 "height": out_image.shape[1],
+                 "width": out_image.shape[2],
+                 "transform": out_transform})
+    
+    
+    #img = out_image.read()
+    img = rasterio.plot.reshape_as_image(out_image)
+    img = np.asarray(img, dtype = np.uint8)
+    #out_image = sieve(out_image, size=800)
+    
+    img1 = np.where(img[:,:,1] == 0, 0, 255)
+    img1 = np.asarray(img1, dtype = np.uint8)
+    img1 = np.resize(img1,(img1.shape[0],img1.shape[1],1))
+    
+    img2 = np.where(img[:,:,2] == 0, 0, 255)
+    img2 = np.asarray(img2, dtype = np.uint8)
+    img2 = np.resize(img2,(img2.shape[0],img2.shape[1],1))
+
+    img3 = np.where(img[:,:,3] == 0, 0, 255)
+    img3 = np.asarray(img3, dtype = np.uint8)
+    img3 = np.resize(img3,(img3.shape[0],img3.shape[1],1))
+
+    img = np.concatenate((img1,img2,img3),axis=2)
+    #img = np.where(img[:,:].all() == 0, 0, 255)
+    img = np.asarray(img, dtype = np.uint8)
     
 
+    new_img = np.zeros((img.shape[0],img.shape[1]))
+
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            if img[i,j,0] == 0 and img[i,j,1]==0 and img[i,j,2]==0:
+                new_img[i,j] = 0
+            else :
+                new_img[i,j] = 255
+
+    img = np.asarray(new_img, dtype=np.uint8)
+    
+    cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
+    cv2.imshow('image1',img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    #print(asd)
+
+    cv2.imwrite('./data/img/png/198801.png', img)    
+
+    left_lis = [0]*img.shape[0]
+    right_lis = [0]*img.shape[0]
+
+    for i in range(img.shape[0]):
+        low = 0
+        high = img.shape[1] - 1 
+
+        left_flag = True
+        right_flag = True
+
+        while low < high and (left_flag==True or right_flag==True):
+            #print(low,high)
+            if left_flag :
+                if img[i,low] == 0 :
+                    #print(low)
+                    low += 1
+                else :
+                    left_lis[i] = low
+                    left_flag = False
+                    #print(low)
+
+            if right_flag :
+                if img[i,high] == 0 :
+                    #print(high)
+                    high -= 1
+                else :
+                    right_lis[i] = high
+                    right_flag = False
+                    #print(high)
+            
+    #print(asd)
+    #print(left_lis)
+    jan_tif_path = './data/img/finaltif/198801.tif'
+
+    """ tif_img = rasterio.open(jan_tif_path) 
+    tif_img = tif_img.read()
+    tif_img = rasterio.plot.reshape_as_image(tif_img)
+    tif_img = np.asarray(tif_img, dtype = np.uint8)
+    tif_img = tif_img[:,:,3] """
+
+    tif_img = viz(jan_tif_path)
+    tif_img.get_image('rgb',True)
+    tif_img.cv_view()
+    tif_sav = tif_img.get_array()
+
+    tif_img = tif_sav
+    cv2.imwrite('./data/img/final_rgb/198801.png', tif_sav)
+    #tif_sav = tif_img
+    print(tif_img.shape)
+    print(len(left_lis),len(right_lis))
+    #print(left_lis)
+    #print(right_lis)
+    for i in range(tif_img.shape[0]):
+
+        if left_lis[i] != 0 and right_lis[i] != 0:
+            #print("shit")
+            tif_img[i,left_lis[i],0] = 255
+            tif_img[i,left_lis[i],1] = 255
+            tif_img[i,left_lis[i],2] = 255
+            tif_img[i,right_lis[i],0] = 255
+            tif_img[i,right_lis[i],1] = 255
+            tif_img[i,right_lis[i],2] = 255
+
+    #cv2.imwrite('./data/img/shp_mask/198801_1.png',img)
+    cv2.imwrite('./data/img/shp_mask/198801.png', tif_img)
+    
+
+    """ with rasterio.open("./data/img/shp_mask/198801.tif", "w", **out_meta) as dest:
+        dest.write(out_image) """
 
 if __name__ == "__main__" :
+    shp_mask_tif()
+    """ img = rasterio.open("./data/img/shp_mask/198801.tif")
+    img = img.read()
+    img = rasterio.plot.reshape_as_image(img)
+    img = np.asarray(img, dtype = np.uint8)
+    print(img.shape)
+    cv2.imwrite('./data/img/shp_mask/198801.png',img[:,:,3]) """
     #apply_signal_denoising()
     #mean_tensor()
-    mean_line = np.load('./data/mean_img/mean_line.npy')
+    """ mean_line = np.load('./data/mean_img/mean_line.npy')
     print(mean_line.shape)
     print(mean_line)
     line = np.tile(mean_line,(12,5,1,1))
     print(line.shape)
-    print(line[0,0,:,:])
+    print(line[0,0,:,:]) """
 
 
     """ cv2.namedWindow('image1', cv2.WINDOW_NORMAL)

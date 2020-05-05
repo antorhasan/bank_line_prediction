@@ -58,29 +58,31 @@ def _parse_function_m(example_proto):
     
     return msk
 
-load_mod = True
-save_mod = False
+load_mod = False
+save_mod = True
 #window_shft = 1
+total_window = 30
 num_lstm_layers = 2
-num_channels = 6
-batch_size = 400
+num_channels = 7
+batch_size = 200
 EPOCHS = 10020
 lr_rate = .0001
 in_seq_num = 29
 #val_batch_size = 2
-output_at = 5
+output_at = 30
 model_type = 'CNN_Model_fix'
 drop_rate = 0.3
 time_step = 5
 
 hyperparameter_defaults = dict(
     dropout = drop_rate,
-    num_channels = 6,
+    num_channels = num_channels,
     batch_size = batch_size,
     learning_rate = lr_rate,
     epochs = EPOCHS,
     time_step = time_step,
-    num_lstm_layers = num_lstm_layers
+    num_lstm_layers = num_lstm_layers,
+    total_window = total_window
     )
 
 # WandB – Initialize a new run
@@ -97,9 +99,9 @@ model = CNN_Model(num_channels, batch_size, time_step, num_lstm_layers, drop_rat
 
 norm_mean_line = np.tile(norm_mean_line,(batch_size, time_step-1, 1, 1))
 
-dataseti = tf.data.TFRecordDataset('./data/tfrecord/pix_img_var.tfrecords')
+dataseti = tf.data.TFRecordDataset('./data/tfrecord/pix_img_var_msk.tfrecords')
 dataseti = dataseti.map(_parse_function_i)
-dataseti = dataseti.window(size=30, shift=32, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(30, drop_remainder=True))
+dataseti = dataseti.window(size=total_window, shift=32, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(total_window, drop_remainder=True))
 dataseti = dataseti.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
 dataseti = dataseti.flat_map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
 dataseti = dataseti.flat_map(lambda x: x.batch(time_step, drop_remainder=True))
@@ -110,9 +112,9 @@ dataseti = dataseti.flat_map(lambda x: x.batch(time_step, drop_remainder=True))
 #dataset = dataset.shuffle(2046)
 #dataset = dataset.batch(batch_size, drop_remainder=True)
 
-datasetm = tf.data.TFRecordDataset('./data/tfrecord/pix_img_var.tfrecords')
+datasetm = tf.data.TFRecordDataset('./data/tfrecord/pix_img_var_msk.tfrecords')
 datasetm = datasetm.map(_parse_function_m)
-datasetm = datasetm.window(size=30, shift=32, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(30, drop_remainder=True))
+datasetm = datasetm.window(size=total_window, shift=32, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(total_window, drop_remainder=True))
 datasetm = datasetm.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
 datasetm = datasetm.flat_map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
 datasetm = datasetm.flat_map(lambda x: x.batch(time_step, drop_remainder=True))
@@ -153,9 +155,8 @@ def val_pass(img,msk):
     #img = img[:,in_seq_num-(time_step-2):in_seq_num+1,:,:]
     #msk = msk[:,in_seq_num+1:in_seq_num+2,:]
     
-    img = np.where(img==0, norm_mean_line, img)
+    
     msk = (msk - msk_mean) / msk_std
-
     img = torch.Tensor(img).cuda()
     msk = torch.Tensor(msk).cuda()
     msk = torch.reshape(msk, (-1,2))
@@ -229,7 +230,7 @@ for epoch in range(EPOCHS):
         img = img[:,0:time_step-1,:,:]
         msk = msk[:,time_step-1:time_step,:]
         
-        img = np.where(img==0, norm_mean_line, img)
+        #img[:,:,:,0:6] = np.where(img[:,:,:,0:6]==0, norm_mean_line, img[:,:,:,0:6])
 
         msk = (msk - msk_mean) / msk_std
 
@@ -260,7 +261,7 @@ for epoch in range(EPOCHS):
             torch.save({
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict()
-                    }, './data/model/ts7_f.pt')
+                    }, './data/model/new_temp.pt')
         
 
     model.eval()
@@ -278,27 +279,41 @@ for epoch in range(EPOCHS):
             pred_list2 = []
             val_image2 = cv2.imread('./data/img/finaljan/201901.png', 1)
             val_image_counter2 = 1
-        for img, msk in dataset_val:
-            img = np.reshape(img, (batch_size,32,745,num_channels))
-            msk = np.reshape(msk, (batch_size,32,2)) 
 
-            img1 = img[:,in_seq_num-(time_step-2):in_seq_num+1,:,:]
-            msk1 = msk[:,in_seq_num+1:in_seq_num+2,:]
+            
+            for img, msk in dataset_val:
+                img = np.reshape(img, (batch_size,32,745,6))
+                msk = np.reshape(msk, (batch_size,32,2)) 
+                
+                msk_add = np.zeros((batch_size, 32, 745))
 
-            img2 = img[:,in_seq_num-(time_step-2)+1:in_seq_num+2,:,:]
-            msk2 = msk[:,in_seq_num+2:in_seq_num+3,:]
-            
-            pred1, loss1 = val_pass(img1, msk1)
-            pred2, loss2 = val_pass(img2, msk2)
-            
-            val_epoch_loss = val_epoch_loss + ((loss1+loss2)/2)
-            #print( epoch+1 % 3)
+                for i in range(batch_size):
+                    for k in range(32):
+                        for j in range(745):
+                            if msk[i,k,0] < j < msk[i,k,1]:
+                                msk_add[i,k,j] = 1
+                msk_add = np.reshape(msk_add, (batch_size, 32, 745,1))
+                img = np.concatenate((img,msk_add), axis=3)
+                #print(img.shape)
+                #print(asd)
 
-            if (epoch+2) % output_at == 0:
-                gt_list1, pred_list1, val_image1, val_image_counter1 = val_list_update(msk1, pred1, val_image1, gt_list1, pred_list1, val_image_counter1)
-                gt_list2, pred_list2, val_image2, val_image_counter2 = val_list_update(msk2, pred2, val_image2, gt_list2, pred_list2, val_image_counter2)
-            
-            count += 1
+                img1 = img[:,in_seq_num-(time_step-2):in_seq_num+1,:,:]
+                msk1 = msk[:,in_seq_num+1:in_seq_num+2,:]
+
+                img2 = img[:,in_seq_num-(time_step-2)+1:in_seq_num+2,:,:]
+                msk2 = msk[:,in_seq_num+2:in_seq_num+3,:]
+                
+                pred1, loss1 = val_pass(img1, msk1)
+                pred2, loss2 = val_pass(img2, msk2)
+                
+                val_epoch_loss = val_epoch_loss + ((loss1+loss2)/2)
+                #print( epoch+1 % 3)
+
+                if (epoch+2) % output_at == 0:
+                    gt_list1, pred_list1, val_image1, val_image_counter1 = val_list_update(msk1, pred1, val_image1, gt_list1, pred_list1, val_image_counter1)
+                    gt_list2, pred_list2, val_image2, val_image_counter2 = val_list_update(msk2, pred2, val_image2, gt_list2, pred_list2, val_image_counter2)
+                
+                count += 1
     if (epoch+1) % output_at == 0:
         mae_left1, mae_right1, std_left1, std_right1 = val_log(gt_list1, pred_list1)
         mae_left2, mae_right2, std_left2, std_right2 = val_log(gt_list2, pred_list2)
@@ -312,11 +327,13 @@ for epoch in range(EPOCHS):
         wandb.log({"examples18" : wandb.Image(val_image1)})
         wandb.log({"examples19" : wandb.Image(val_image2)})
 
+    if (epoch+2) % output_at == 0:
+        avg_val_epoch_loss = val_epoch_loss / count
+        template = 'Epoch {}, Val Loss: {}'
+        print(template.format(epoch+1,avg_val_epoch_loss))
+        wandb.log({"val_loss": avg_val_epoch_loss})
 
-    avg_val_epoch_loss = val_epoch_loss / count
-    template = 'Epoch {}, Val Loss: {}'
-    print(template.format(epoch+1,avg_val_epoch_loss))
-    wandb.log({"val_loss": avg_val_epoch_loss})
+    
     
 
 
