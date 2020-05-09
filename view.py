@@ -14,7 +14,7 @@ import sys
 #from utility import single_pix
 import matplotlib.pyplot as plt
 import fiona
-
+import tensorflow as tf
 
 class viz():
     '''read tif image and get relevant properties
@@ -383,104 +383,111 @@ def cegis():
     error = mean_absolute_error(org_vec, pre_vec)
     print(error)
 
-def mean_tensor():
+def mean_tensor(elemt_rmv):
     '''get mean tensor of the images'''
-    rgb_path = './data/img/finaljan/'
-    infra_path = './data/img/infra1/'
+    rgb_path = './data/img/final_rgb/'
+    infra_path = './data/img/infra/'
 
     img_list = [f for f in listdir(rgb_path) if isfile(join(rgb_path, f))]
-    img_list.remove('201801.png')
-    img_list.remove('201901.png')
+    img_list = [int(f.split('.')[0]) for f in img_list]
+    img_list.sort()
+    img_list = [str(f) for f in img_list]
+    #img_list.remove('201801.png')
+    for i in range(elemt_rmv):
+        img_list.pop()
+    
+    print('calculating mean from ......')
+    print(img_list)
 
-    #print(len(img_list))
-    mean_img = np.zeros((2048,745,6))
+    img = cv2.imread(rgb_path+"198801.png",1)
+    mean_img = np.zeros((img.shape[0],img.shape[1],6))
 
+    print('frequency of null values for rgb or infra ....')
     for i in range(len(img_list)):
-        rgb_img = cv2.imread(rgb_path+img_list[i],1)
-        rgb_img = rgb_img[0:2048,386:386+745,:]
+        rgb_img = cv2.imread(rgb_path+img_list[i]+'.png',1)
+        #print(rgb_img.shape)
 
-        infra_img = cv2.imread(infra_path+img_list[i],1)
-        infra_img = infra_img[0:2048,386:386+745,:]
+        infra_img = cv2.imread(infra_path+img_list[i]+'.png',1)
+        #print(infra_img.shape)
 
         comb_img = np.concatenate((rgb_img,infra_img),axis = 2)
         mean_img = mean_img + (comb_img/len(img_list))
 
-        null_list = np.argwhere(rgb_img[:,:,0]==0)
+        null_list = np.argwhere(infra_img[:,:,1]==0)
         print(img_list[i] + '  ' + str(len(null_list)))
+
+    print("shape of mean tensor ", mean_img.shape)
+    ###save mean tensor 
+    np.save('./data/mean_img/mean_tensor.npy', mean_img)
     norm_mean_img = mean_img/255
+    ###save normalized mean tensor
     np.save('./data/mean_img/norm_mean_img.npy', norm_mean_img)
+    ###save mean image in rgb to view
     cv2.imwrite('./data/mean_img/mean_img.png',mean_img[:,:,0:3])
 
-    mean_line = np.zeros((745,6))
+    """ mean_line = np.zeros((745,6))
     print(norm_mean_img.shape[0])
     for i in range(norm_mean_img.shape[0]):
         mean_line = mean_line + (norm_mean_img[i,:,:]/norm_mean_img.shape[0])
     
-    np.save('./data/mean_img/mean_line.npy', mean_line)
+    np.save('./data/mean_img/mean_line.npy', mean_line) """
 
 import rasterio.mask    
 from rasterio.features import sieve
 
-def shp_mask_tif():
-    shp_path = "./data/img/shape_01/1988/198801.shp"
-    with fiona.open(shp_path, "r") as shapefile:
-        shapes = [feature["geometry"] for feature in shapefile]
+def wrt_temp_blank_tif():
+    '''takes a reference tif to extract crs and transform info and
+    wrtie a blank tif with the same geo properties'''
+    img = rasterio.open("./data/img/finaltif/198801.tif")
+    temp_arr = np.full((img.height,img.width), 255)
+    temp_arr = np.asarray(temp_arr, dtype=np.uint8)
 
-    tif_path = "./data/img/finaltif/198801.tif"
-    with rasterio.open(tif_path) as src:
-        out_image, out_transform = rasterio.mask.mask(src, shapes)
-        out_meta = src.meta
-    """ print(type(out_image))
-    out_image = np.asarray(out_image, dtype=np.uint8)
-    plt.imshow(np.resize(out_image[0:3,:,:],(2638,1403,3)))
-    plt.show() """
-    out_meta.update({"driver": "GTiff",
-                 "height": out_image.shape[1],
-                 "width": out_image.shape[2],
-                 "transform": out_transform})
-    
-    
-    #img = out_image.read()
-    img = rasterio.plot.reshape_as_image(out_image)
+    with rasterio.open(
+        './data/img/temp.tif',
+        'w',
+        driver='GTiff',
+        height=img.height,
+        width=img.width,
+        count=1,
+        dtype=temp_arr.dtype,
+        crs=img.crs,
+        transform=img.transform,
+    ) as dst:
+        dst.write(temp_arr, 1)
+
+
+def wrt_bin_mask(img, file_id):
+    '''use 255 filled georeferenced tif to write binary mask
+    input : output mask from rasterio.mask.mask function
+    output : 2d binary mask
+    '''
+    offset = 385
+    img = rasterio.plot.reshape_as_image(img)
     img = np.asarray(img, dtype = np.uint8)
-    #out_image = sieve(out_image, size=800)
-    
-    img1 = np.where(img[:,:,1] == 0, 0, 255)
-    img1 = np.asarray(img1, dtype = np.uint8)
-    img1 = np.resize(img1,(img1.shape[0],img1.shape[1],1))
-    
-    img2 = np.where(img[:,:,2] == 0, 0, 255)
-    img2 = np.asarray(img2, dtype = np.uint8)
-    img2 = np.resize(img2,(img2.shape[0],img2.shape[1],1))
+    img = img[:,offset:offset+745]
+    print("writing binary mask.......")
+    cv2.imwrite('./data/img/png/'+file_id+'.png', img)
 
-    img3 = np.where(img[:,:,3] == 0, 0, 255)
-    img3 = np.asarray(img3, dtype = np.uint8)
-    img3 = np.resize(img3,(img3.shape[0],img3.shape[1],1))
+    return img
 
-    img = np.concatenate((img1,img2,img3),axis=2)
-    #img = np.where(img[:,:].all() == 0, 0, 255)
-    img = np.asarray(img, dtype = np.uint8)
-    
+def save_img_from_tif(tif_path,img_type,norm,file_id):
+    '''write rgb or ifra channel data as image data from tif file'''
+    offset = 385
+    jan_tif_path = tif_path
+    tif_img = viz(jan_tif_path)
+    tif_img.get_image(img_type=img_type,norm=norm)
+    #tif_img.cv_view()
+    tif_sav = tif_img.get_array()
+    tif_sav = tif_sav[:,offset:offset+745,:]
+    print('writing colored image file.......')
+    if img_type == 'rgb':
+        cv2.imwrite('./data/img/final_rgb/'+file_id+'.png', tif_sav)
+    elif img_type == 'infra':
+        cv2.imwrite('./data/img/infra/'+file_id+'.png', tif_sav)
+    return tif_sav
 
-    new_img = np.zeros((img.shape[0],img.shape[1]))
-
-    for i in range(img.shape[0]):
-        for j in range(img.shape[1]):
-            if img[i,j,0] == 0 and img[i,j,1]==0 and img[i,j,2]==0:
-                new_img[i,j] = 0
-            else :
-                new_img[i,j] = 255
-
-    img = np.asarray(new_img, dtype=np.uint8)
-    
-    cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
-    cv2.imshow('image1',img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    #print(asd)
-
-    cv2.imwrite('./data/img/png/198801.png', img)    
-
+def mask_to_bnk_list(img):
+    '''generate left and right bankline list from a binary mask'''
     left_lis = [0]*img.shape[0]
     right_lis = [0]*img.shape[0]
 
@@ -492,51 +499,45 @@ def shp_mask_tif():
         right_flag = True
 
         while low < high and (left_flag==True or right_flag==True):
-            #print(low,high)
             if left_flag :
                 if img[i,low] == 0 :
-                    #print(low)
                     low += 1
                 else :
                     left_lis[i] = low
                     left_flag = False
-                    #print(low)
 
             if right_flag :
                 if img[i,high] == 0 :
-                    #print(high)
                     high -= 1
                 else :
                     right_lis[i] = high
                     right_flag = False
-                    #print(high)
-            
+
+    print('''generated left and right bankline list........''')
+    return left_lis, right_lis
+
+def shp_mask_tif(shp_path, tif_path):
+    file_id = tif_path.split('/')[-1].split('.')[0]
+    print(file_id)
     #print(asd)
-    #print(left_lis)
-    jan_tif_path = './data/img/finaltif/198801.tif'
 
-    """ tif_img = rasterio.open(jan_tif_path) 
-    tif_img = tif_img.read()
-    tif_img = rasterio.plot.reshape_as_image(tif_img)
-    tif_img = np.asarray(tif_img, dtype = np.uint8)
-    tif_img = tif_img[:,:,3] """
+    with fiona.open(shp_path, "r") as shapefile:
+        shapes = [feature["geometry"] for feature in shapefile]
 
-    tif_img = viz(jan_tif_path)
-    tif_img.get_image('rgb',True)
-    tif_img.cv_view()
-    tif_sav = tif_img.get_array()
+    temp_tif_path = './data/img/temp.tif'
+    with rasterio.open(temp_tif_path) as src:
+        out_image, out_transform = rasterio.mask.mask(src, shapes)
+    
+    img = wrt_bin_mask(out_image, file_id)
 
-    tif_img = tif_sav
-    cv2.imwrite('./data/img/final_rgb/198801.png', tif_sav)
-    #tif_sav = tif_img
-    print(tif_img.shape)
-    print(len(left_lis),len(right_lis))
-    #print(left_lis)
-    #print(right_lis)
+    left_lis, right_lis = mask_to_bnk_list(img)
+
+    save_infra = save_img_from_tif(tif_path, 'infra',True, file_id)
+
+    tif_img = save_img_from_tif(tif_path, 'rgb',True, file_id)
+
     for i in range(tif_img.shape[0]):
-
         if left_lis[i] != 0 and right_lis[i] != 0:
-            #print("shit")
             tif_img[i,left_lis[i],0] = 255
             tif_img[i,left_lis[i],1] = 255
             tif_img[i,left_lis[i],2] = 255
@@ -544,15 +545,216 @@ def shp_mask_tif():
             tif_img[i,right_lis[i],1] = 255
             tif_img[i,right_lis[i],2] = 255
 
-    #cv2.imwrite('./data/img/shp_mask/198801_1.png',img)
-    cv2.imwrite('./data/img/shp_mask/198801.png', tif_img)
+    print('''writing rgb with lines images ......''')
+    cv2.imwrite('./data/img/shp_mask/'+file_id+'.png', tif_img)
+
+    lines_raster = np.zeros((tif_img.shape[0],tif_img.shape[1]))
+    for i in range(lines_raster.shape[0]):
+        lines_raster[i,left_lis[i]] = 255
+        lines_raster[i,right_lis[i]] = 255
+    
+    lines_raster = np.asarray(lines_raster[0:2048,:], dtype=np.uint8)
+    print('writing binary lines ......')
+    cv2.imwrite('./data/img/lines/'+file_id+'.png', lines_raster)
+
+    left_lis = np.resize(left_lis,(len(left_lis),1))
+    right_lis = np.resize(right_lis,(len(right_lis),1))
+    line_lis = np.concatenate((left_lis,right_lis),axis=1)
+    print('writing numpy array.....')
+    np.save('./data/img/line_npy/'+file_id+'.npy', line_lis)
+
+def batch_shp_to_data(tif_path):
+    '''using tif file path batch process shp and tif into 
+    rgb, infra, binary_mask, bin_lines, line_numpy and rgb_with_lines'''
+
+    tif_lis = [f for f in listdir(tif_path) if isfile(join(tif_path, f))]
+    tif_lis = [int(f.split('.')[0]) for f in tif_lis]
+    tif_lis.sort()
+    tif_lis = [str(f) for f in tif_lis]
+    print(tif_lis)
+
+    shp_path = "./data/img/shape_files/"
+    for i in range(len(tif_lis)):
+        shp_file = shp_path+tif_lis[i][0:-2]+'/'+tif_lis[i]+'.shp'
+        shp_mask_tif(shp_file,tif_path+tif_lis[i]+'.tif')
+
+
+def up_rgb_infra(inter_val):
+    rgb_path  = './data/img/final_rgb/'
+    infra_path = './data/img/infra/'
+
+    img_list = [f for f in listdir(rgb_path) if isfile(join(rgb_path, f))]
+    img_list = [int(f.split('.')[0]) for f in img_list]
+    img_list.sort()
+    img_list = [str(f) for f in img_list]
+
+    mean_img = np.load('./data/mean_img/mean_tensor.npy')
+    print('updating......')
+    for i in range(len(img_list)):
+        print(img_list[i])
+        img = cv2.imread(rgb_path+img_list[i]+'.png')
+        img1 = np.resize(np.where(img[:,:,0]==0,mean_img[:,:,0],img[:,:,0]),(img.shape[0],img.shape[1],1))
+        img2 = np.resize(np.where(img[:,:,1]==0,mean_img[:,:,1],img[:,:,1]),(img.shape[0],img.shape[1],1))
+        img3 = np.resize(np.where(img[:,:,2]==0,mean_img[:,:,2],img[:,:,2]),(img.shape[0],img.shape[1],1))
+        img = np.concatenate((img1,img2,img3), axis=2)
+        cv2.imwrite('./data/img/up_rgb/'+img_list[i]+'.png',img[inter_val[0]:inter_val[1],:,:])
+
+        img = cv2.imread(infra_path+img_list[i]+'.png')
+        img1 = np.resize(np.where(img[:,:,0]==0,mean_img[:,:,3],img[:,:,0]),(img.shape[0],img.shape[1],1))
+        img2 = np.resize(np.where(img[:,:,1]==0,mean_img[:,:,4],img[:,:,1]),(img.shape[0],img.shape[1],1))
+        img3 = np.resize(np.where(img[:,:,2]==0,mean_img[:,:,5],img[:,:,2]),(img.shape[0],img.shape[1],1))
+        img = np.concatenate((img1,img2,img3), axis=2)
+        cv2.imwrite('./data/img/up_infra/'+img_list[i]+'.png',img[inter_val[0]:inter_val[1],:,:])
+        #print(asd)
+
+def mean_line_npy(elemt_rmv,inter_val):
+    '''calculate mean numpy array from a dir of numpy array of banklines'''
+    inter_val = [10,2232]
+    elemt_rmv = 2
+    npy_path = './data/img/line_npy/'
+    npy_list = [f for f in listdir(npy_path) if isfile(join(npy_path, f))]
+    npy_list = [int(f.split('.')[0]) for f in npy_list]
+    npy_list.sort()
+    npy_list = [str(f) for f in npy_list]
+    print('reading data from .......')
+    print(npy_list)
+    for i in range(elemt_rmv):
+        line_npy = np.load(npy_path+npy_list[-(i+1)]+'.npy')
+        line_npy = line_npy[inter_val[0]:inter_val[1],:]
+        np.save('./data/img/up_npy/'+npy_list[-(i+1)]+'.npy',line_npy)
+
+    for i in range(elemt_rmv):
+        npy_list.pop()
+
+    line_npy = np.load(npy_path+npy_list[i]+'.npy')
+    #coor_mean = np.zeros((1,line_npy.shape[1]))
+    coor_mean = []
+    for i in range(len(npy_list)):
+        line_npy = np.load(npy_path+npy_list[i]+'.npy')
+        line_npy = line_npy[inter_val[0]:inter_val[1],:]
+        np.save('./data/img/up_npy/'+npy_list[i]+'.npy',line_npy)
+        coor_mean.append(line_npy)
+    
+    arr = np.resize(np.asarray(coor_mean),(-1,2))
+    coor_mean = np.mean(arr,axis=0)
+    coor_std = np.std(arr,axis=0)
+    print('writing mean and std numpy arrays .......')
+    np.save('./data/mean_img/line_mean.npy',coor_mean)
+    np.save('./data/mean_img/line_std.npy',coor_std)
+    print(coor_mean,coor_std)
+
+def update_bin_mask(inter_val):
+
+    msk_path = './data/img/png/'
+    msk_list = [f for f in listdir(msk_path) if isfile(join(msk_path, f))]
+    msk_list = [int(f.split('.')[0]) for f in msk_list]
+    msk_list.sort()
+    msk_list = [str(f) for f in msk_list]
+
+    print('writing msk .....')
+    for i in range(len(msk_list)):
+        msk_img = cv2.imread(msk_path+msk_list[i]+'.png',0)
+        cv2.imwrite('./data/img/up_msk/'+msk_list[i]+'.png',msk_img[inter_val[0]:inter_val[1],:])
+
+def comp_to_tfrec():
     
 
-    """ with rasterio.open("./data/img/shp_mask/198801.tif", "w", **out_meta) as dest:
-        dest.write(out_image) """
+    def _bytes_feature(value):
+        return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+    def _float_feature(value):
+        """Returns a float_list from a float / double."""
+        return tf.train.Feature(float_list=tf.train.FloatList(value=[value]))
+                
+    def write_data():
+        writer = tf.io.TFRecordWriter('./data/tfrecord/'+ 'comp_tf' +'.tfrecords')
+
+        rgb_path = './data/img/up_rgb/'
+        rgb_list = [f for f in listdir(rgb_path) if isfile(join(rgb_path, f))]
+        rgb_list = [int(f.split('.')[0]) for f in rgb_list]
+        rgb_list.sort()
+        rgb_list = [str(f) for f in rgb_list]
+
+        infra_path = './data/img/up_infra/'
+        msk_path = './data/img/up_msk/'
+        npy_path = './data/img/up_npy/'
+
+        mean_coor = np.load('./data/mean_img/line_mean.npy')
+        std_coor = np.load('./data/mean_img/line_std.npy')
+
+        print('reading data from .....')
+        print(rgb_list)
+
+        temp_img = cv2.imread(rgb_path+rgb_list[0]+'.png')
+
+        for i in range(temp_img.shape[0]):
+            print(i)
+            for j in range(len(rgb_list)):
+                #print(rgb_list[j])
+                rgb_img = cv2.imread(rgb_path+rgb_list[j]+'.png')
+                rgb_img = rgb_img[i,:,:]
+                rgb_img = rgb_img/255
+
+                infra_img = cv2.imread(infra_path+rgb_list[j]+'.png')
+                infra_img = infra_img[i,:,:]
+                infra_img = infra_img/255
+
+                msk_img = cv2.imread(msk_path+rgb_list[j]+'.png',0)
+                msk_img = msk_img[i,:]
+                msk_img = np.resize(msk_img,(745,1)) 
+                msk_img = msk_img/255  
+
+                input_img = np.concatenate((rgb_img,infra_img,msk_img),axis=1)
+
+                line_npy = np.load(npy_path+rgb_list[j]+'.npy')
+                line_npy = line_npy[i,:]
+
+                if j == 0 :
+                    prev_npy = line_npy
+                    bin_npy = np.asarray([0,0])
+                else :
+                    bin_npy = np.where(prev_npy == line_npy, 0, 1)
+                    prev_npy = line_npy
+                
+                line_npy = (line_npy-mean_coor)/std_coor
+
+                #print(input_img.astype(float).type)
+                input_img = np.asarray(input_img,dtype = np.float32)
+                line_npy = np.asarray(line_npy,dtype =  np.float32)
+                bin_npy = np.asarray(bin_npy,dtype =  np.float32)
+                year_id = np.asarray(int(rgb_list[j]),dtype =  np.float32)
+
+                feature = {
+                            'input_tensor': _bytes_feature(input_img.tostring()),
+                            'reg_coor': _bytes_feature(line_npy.tostring()),
+                            'bin_label': _bytes_feature(bin_npy.tostring()),
+                            'year_id' : _bytes_feature(year_id.tostring())
+                            }
+
+                example = tf.train.Example(features=tf.train.Features(feature=feature))
+
+                writer.write(example.SerializeToString())
+
+        writer.close()
+        sys.stdout.flush()   
+
+    write_data() 
+    
 
 if __name__ == "__main__" :
-    shp_mask_tif()
+    comp_to_tfrec()
+    #update_bin_mask([10,2232])
+    #mean_line_npy(2,[10,2232])
+    #up_rgb_infra([10,2232])
+    
+    #mean_tensor(2)
+    #tif_path = './data/img/finaltif/'
+    #batch_shp_to_data(tif_path)
+    #wrt_temp_blank_tif()
+    #shp_mask_tif("./data/img/shape_files/2008/200801.shp",'./data/img/finaltif/200801.tif')
+
+    
+
     """ img = rasterio.open("./data/img/shp_mask/198801.tif")
     img = img.read()
     img = rasterio.plot.reshape_as_image(img)
@@ -567,10 +769,10 @@ if __name__ == "__main__" :
     line = np.tile(mean_line,(12,5,1,1))
     print(line.shape)
     print(line[0,0,:,:]) """
+    """ img = cv2.imread('./data/img/png/200201.png')
 
-
-    """ cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
-    cv2.imshow('image1',img_o)
+    cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
+    cv2.imshow('image1',img)
     cv2.waitKey(0)
     cv2.destroyAllWindows() """
     """ data = rasterio.open('./data/198801.tif')
