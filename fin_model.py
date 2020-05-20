@@ -75,36 +75,12 @@ dataset_f = dataset_f.map(_parse_function_).batch(time_step)
 dataset_f = dataset_f.shuffle(10000)
 dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
 
-
 dataseti1 = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
-dataseti1 = dataseti1.map(_parse_function_i)
-dataseti1 = dataseti1.window(size=33, shift=33, stride=1, drop_remainder=False).flat_map(lambda x: x.batch(33, drop_remainder=False))
-#dataseti1 = dataseti1.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-""" dataseti1 = dataseti1.flat_map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
-dataseti1 = dataseti1.flat_map(lambda x: x.batch(time_step, drop_remainder=True)) """
-
-datasetm1 = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
-datasetm1 = datasetm1.map(_parse_function_m)
-datasetm1 = datasetm1.window(size=33, shift=33, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(33, drop_remainder=True))
-#datasetm1 = datasetm1.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-""" datasetm1 = datasetm1.flat_map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
-datasetm1 = datasetm1.flat_map(lambda x: x.batch(time_step, drop_remainder=True)) """
-
-datasety1 = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
-datasety1 = datasety1.map(_parse_function_y)
-datasety1 = datasety1.window(size=33, shift=33, stride=1, drop_remainder=True).flat_map(lambda x: x.batch(33, drop_remainder=True))
-#datasety1 = datasety1.map(lambda x: tf.data.Dataset.from_tensor_slices(x))
-""" datasety1 = datasety1.flat_map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
-datasety1 = datasety1.flat_map(lambda x: x.batch(time_step, drop_remainder=True)) """
-
-dataset1 = tf.data.Dataset.zip((dataseti1, datasetm1, datasety1))
-dataset_val = dataset1.batch(val_batch_size, drop_remainder=True)
-
-""" dataset_val = tf.data.TFRecordDataset('./data/tfrecord/pix_img_all.tfrecords')
-dataset_val = dataset_val.map(_parse_function)
-#dataset_val = dataset.batch(batch_size, drop_remainder=True)
-dataset_val = dataset_val.batch(batch_size, drop_remainder=True) """
-
+dataseti1 = dataseti1.window(size=33, shift=33, stride=1, drop_remainder=False)
+dataseti1 = dataseti1.map(lambda x: x.skip(33-(time_step+1)).window(size=time_step, shift=1, stride=1,drop_remainder=True))
+dataseti1 = dataseti1.flat_map(lambda x: x.flat_map(lambda x: x))
+dataseti1 = dataseti1.map(_parse_function_).batch(time_step)
+dataseti1 = dataseti1.batch(val_batch_size, drop_remainder=True)
 
 model = CNN_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate)
 
