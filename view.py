@@ -290,7 +290,7 @@ def view_data_1():
 
 def apply_signal_denoising():
     from scipy.signal import savgol_filter
-    img = cv2.imread('./600.png',1)
+    img = cv2.imread('./data/output/10_18.png',1)
 
     height = img.shape[0]
     width = img.shape[1]
@@ -332,7 +332,7 @@ def apply_signal_denoising():
                 img[i,j,0] = 255
                 
 
-    cv2.imwrite('./denoised.png',img)
+    cv2.imwrite('./data/denoised.png',img)
     #print(img.shape)
     #print(asd)
     #height = img.()
@@ -464,6 +464,7 @@ def wrt_bin_mask(img, file_id):
     offset = 385
     img = rasterio.plot.reshape_as_image(img)
     img = np.asarray(img, dtype = np.uint8)
+
     img = img[:,offset:offset+745]
     print("writing binary mask.......")
     cv2.imwrite('./data/img/png/'+file_id+'.png', img)
@@ -740,9 +741,44 @@ def comp_to_tfrec():
 
     write_data() 
     
+def for_cegis():
+    with fiona.open('./data/cegis_19/CEGIS_2019_5.shp', "r") as shapefile:
+        #with fiona.open('./data/img/shape_files/2019/201901.shp', "r") as shapefile:
+        #print(type(shapefile))
+        #print(asd)
+        shapes = [feature["geometry"] for feature in shapefile]
+        #print(shapes)
+
+    temp_tif_path = './data/img/temp.tif'
+    with rasterio.open(temp_tif_path) as src:
+        temp_t = src.read()
+        #print(temp_t)
+        out_image, out_transform = rasterio.mask.mask(src, shapes)
+        #print(out_image)
+    
+    img = wrt_bin_mask(out_image, 'cegis_19')
+
+    left_lis, right_lis = mask_to_bnk_list(img)
+
+    #save_infra = save_img_from_tif(tif_path, 'infra',True, file_id)
+
+    tif_img = save_img_from_tif('./data/img/finaltif/201901.tif', 'rgb',True, 'cegis_19')
+
+    for i in range(tif_img.shape[0]):
+        if left_lis[i] != 0 and right_lis[i] != 0:
+            tif_img[i,left_lis[i],0] = 255
+            tif_img[i,left_lis[i],1] = 255
+            tif_img[i,left_lis[i],2] = 255
+            tif_img[i,right_lis[i],0] = 255
+            tif_img[i,right_lis[i],1] = 255
+            tif_img[i,right_lis[i],2] = 255
+
+    print('''writing rgb with lines images ......''')
+    cv2.imwrite('./data/img/shp_mask/'+'cegis_19'+'.png', tif_img)
 
 if __name__ == "__main__" :
-    comp_to_tfrec()
+    for_cegis()
+    #comp_to_tfrec()
     #update_bin_mask([10,2232])
     #mean_line_npy(2,[10,2232])
     #up_rgb_infra([10,2232])
@@ -751,7 +787,7 @@ if __name__ == "__main__" :
     #tif_path = './data/img/finaltif/'
     #batch_shp_to_data(tif_path)
     #wrt_temp_blank_tif()
-    #shp_mask_tif("./data/img/shape_files/2008/200801.shp",'./data/img/finaltif/200801.tif')
+    #shp_mask_tif("./data/img/shape_files/2019/201901.shp",'./data/img/finaltif/201901.tif')
 
     
 

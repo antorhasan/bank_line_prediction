@@ -2,12 +2,32 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
+class EncoderRNN(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super(EncoderRNN, self).__init__()
+        self.hidden_size = hidden_size
+
+        self.embedding = nn.Embedding(input_size, hidden_size)
+        self.gru = nn.GRU(hidden_size, hidden_size)
+
+    def forward(self, input, hidden):
+        embedded = self.embedding(input).view(1, 1, -1)
+        output = embedded
+        output, hidden = self.gru(output, hidden)
+        return output, hidden
+
+    def initHidden(self):
+        return torch.zeros(1, 1, self.hidden_size, device=device)
+
+
+
 class CNN_Model(nn.Module):
-    def __init__(self, num_channels, batch_size, time_step, num_lstm_layers, drop_out):
+    def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out):
         super(CNN_Model, self).__init__()
 
         self.num_channels = num_channels
         self.batch_size = batch_size
+        self.val_batch_size = val_batch_size
         self.time_step = time_step
         self.num_lstm_layers = num_lstm_layers
         self.drop_out = drop_out
@@ -117,14 +137,33 @@ class CNN_Model(nn.Module):
         x = torch.reshape(x, (-1,(self.time_step-1),256))
         #print(x.shape)
         #print(asd)
-        h0 = torch.zeros(self.num_lstm_layers, self.batch_size, self.lstm_output_size).cuda()
-        c0 = torch.zeros(self.num_lstm_layers, self.batch_size, self.lstm_output_size).cuda()
-        x, (hn, cn) = self.lstm(x, (h0, c0))
-        #print(h0.shape)
-        x = x[:,-1,:]
+        
+            
+        if self.training:
+            h0 = torch.zeros(self.num_lstm_layers, self.batch_size, self.lstm_output_size).cuda()
+            c0 = torch.zeros(self.num_lstm_layers, self.batch_size, self.lstm_output_size).cuda()
+        else:
+            h0 = torch.zeros(self.num_lstm_layers, self.val_batch_size, self.lstm_output_size).cuda()
+            c0 = torch.zeros(self.num_lstm_layers, self.val_batch_size, self.lstm_output_size).cuda()
+
+        
+        output, (hn, cn) = self.lstm(x, (h0, c0))
+        #print(output[:,-1,:])
+        #print(hn)
+        #print(output[:,-1,:].size())
+        #print(hn.size())
+        #print(asd)
+        #print(x.shape)
+        #print(hn.shape)
+        #print(asd)
+        if self.training:
+            hn = torch.reshape(hn, (self.batch_size,256))
+        else:
+            hn = torch.reshape(hn, (self.val_batch_size,256))
+        #x = x[:,-1,:]
         #print(x.shape)
         #print(asd)
-        x = self.dropout1(x)
+        x = self.dropout1(hn)
         x = self.fc1(x)
 
         x = self.dropout2(x)

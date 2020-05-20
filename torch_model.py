@@ -154,8 +154,7 @@ def val_pass(img,msk):
 
     #img = img[:,in_seq_num-(time_step-2):in_seq_num+1,:,:]
     #msk = msk[:,in_seq_num+1:in_seq_num+2,:]
-    
-    
+
     msk = (msk - msk_mean) / msk_std
     img = torch.Tensor(img).cuda()
     msk = torch.Tensor(msk).cuda()
