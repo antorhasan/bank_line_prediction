@@ -32,13 +32,13 @@ def _parse_function_(example_proto):
 
 
 
-load_mod = True
+load_mod = False
 save_mod = False
 total_window = 30
 num_lstm_layers = 1
 num_channels = 7
 batch_size = 100
-EPOCHS = 12000
+EPOCHS = 2
 lr_rate = .0001
 in_seq_num = 30
 output_at = 10
@@ -46,6 +46,8 @@ model_type = 'CNN_Model_fix'
 drop_rate = 0.3
 time_step = 5
 val_batch_size = 1
+total_time_step = 33
+data_div_step = 31
 
 hyperparameter_defaults = dict(
     dropout = drop_rate,
@@ -68,7 +70,7 @@ config = wandb.config          # Initialize config
 config.update({'dataset':'7_chann','model_type':model_type})
 
 dataset_f = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
-dataset_f = dataset_f.window(size=31, shift=33, stride=1, drop_remainder=False)
+dataset_f = dataset_f.window(size=data_div_step, shift=total_time_step, stride=1, drop_remainder=False)
 dataset_f = dataset_f.map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
 dataset_f = dataset_f.flat_map(lambda x: x.flat_map(lambda x: x))
 dataset_f = dataset_f.map(_parse_function_).batch(time_step)
@@ -76,8 +78,8 @@ dataset_f = dataset_f.shuffle(10000)
 dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
 
 dataseti1 = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
-dataseti1 = dataseti1.window(size=33, shift=33, stride=1, drop_remainder=False)
-dataseti1 = dataseti1.map(lambda x: x.skip(33-(time_step+1)).window(size=time_step, shift=1, stride=1,drop_remainder=True))
+dataseti1 = dataseti1.window(size=total_time_step, shift=total_time_step, stride=1, drop_remainder=False)
+dataseti1 = dataseti1.map(lambda x: x.skip(total_time_step-(time_step+1)).window(size=time_step, shift=1, stride=1,drop_remainder=True))
 dataseti1 = dataseti1.flat_map(lambda x: x.flat_map(lambda x: x))
 dataseti1 = dataseti1.map(_parse_function_).batch(time_step)
 dataseti1 = dataseti1.batch(val_batch_size, drop_remainder=True)
@@ -178,7 +180,9 @@ for epoch in range(EPOCHS):
         
         optimizer.zero_grad()
         pred = model(input_tensor)
-        loss = F.mse_loss(pred, reg_coor)
+        loss = F.mse_loss(pred, reg_coor,reduction='mean')
+        print(loss)
+        print(asd)
         loss.backward()
         optimizer.step()
 
