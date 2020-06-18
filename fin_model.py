@@ -11,7 +11,7 @@ import os
 import sys
 import wandb
 from models import CNN_Model
-from sklearn.metrics import mean_absolute_error, precision_score, confusion_matrix
+from sklearn.metrics import mean_absolute_error, precision_score, recall_score, confusion_matrix, f1_score
 from sklearn.preprocessing import OneHotEncoder
 import matplotlib.pyplot as plt
 import itertools
@@ -114,31 +114,32 @@ wandb.watch(model, log="all")
 msk_mean = np.load('./data/mean_img/line_mean.npy')
 msk_std = np.load('./data/mean_img/line_std.npy')
 
-def plt_conf_mat(conf_mat, title, iter_num):
-    normalize = False
-    plt.figure(iter_num, clear=True)
+def plt_conf_mat(conf_mat, title):
+    normalize = True
+    plt.figure(clear=True)
     cmap = plt.get_cmap('Blues')
     plt.imshow(conf_mat, interpolation='nearest', cmap=cmap)
     plt.title(title)
     plt.colorbar()
 
-    target_names = ['erosion', 'non-erosion']
+    target_names = ['non-erosion', 'erosion']
     if target_names is not None:
         tick_marks = np.arange(len(target_names))
         plt.xticks(tick_marks, target_names, rotation=45)
         plt.yticks(tick_marks, target_names)
 
-    thresh = conf_mat.max() / 1.5 if normalize else conf_mat.max() / 2
+    if normalize:
+        conf_mat = conf_mat.astype('float') / conf_mat.sum(axis=1)[:, np.newaxis]
 
     for i, j in itertools.product(range(conf_mat.shape[0]), range(conf_mat.shape[1])):
         if normalize:
             plt.text(j, i, "{:0.4f}".format(conf_mat[i, j]),
                      horizontalalignment="center",
-                     color="white" if conf_mat[i, j] > thresh else "black")
+                     color="orange")
         else:
             plt.text(j, i, "{:,}".format(conf_mat[i, j]),
                      horizontalalignment="center",
-                     color="white" if conf_mat[i, j] > thresh else "black")
+                     color="orange")
 
     plt.tight_layout()
     plt.ylabel('True label')
@@ -146,7 +147,31 @@ def plt_conf_mat(conf_mat, title, iter_num):
     
     wandb.log({title: plt})
 
+def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side):
+    temp_arr = pred_reg - act_reg
+    if side == 'left' :
+        temp_arr = temp_arr
+    elif side == 'right' :
+        temp_arr = -temp_arr
+    counter_pos = 0
+    counter_neg = 0 
+    pos_deviation = 0
+    neg_deviation = 0
+    for i in range(act_err_bin.shape[0]):
+        if act_err_bin[i] == 1 and temp_arr[i]>=0 :
+            pos_deviation = pos_deviation + temp_arr[i]
+            counter_pos += 1
+        elif act_err_bin[i] == 1 and temp_arr[i]<0 :
+            neg_deviation = neg_deviation + (-temp_arr[i])
+            counter_neg += 1
 
+    mean_pos_dev = pos_deviation/counter_pos
+    mean_neg_dev = neg_deviation/counter_neg
+
+    wandb.log({'mean_abs_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]):mean_pos_dev, 
+                'mean_abs_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]):mean_neg_dev})
+
+    return mean_pos_dev
 
 def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list):
     act_left = actual_list[:,iter_num,0]
@@ -158,26 +183,40 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list):
     pred_left = pred_list[:, iter_num, 0]
     pred_right = pred_list[:, iter_num, 1]
 
-    onehot_encoder = OneHotEncoder(sparse=False)
-
     actual_ers_lft = np.reshape(np.where(act_left<prev_left, 1, 0),(act_left.shape[0],1))
-    actual_ers_rht = np.where(act_right>prev_right, 1, 0)
+    actual_ers_rht = np.reshape(np.where(act_right>prev_right, 1, 0),(act_right.shape[0],1))
     
+    left_mae = regress_erro(actual_ers_lft, act_left, pred_left, iter_num, 'left')
+    right_mae = regress_erro(actual_ers_rht, act_right, pred_right, iter_num, 'right')
+
+    avg_mae = (left_mae + right_mae)/2
+    wandb.log({'pos_mae_for_actual_erosion'+str(val_img_ids[iter_num]) : avg_mae})
 
     pred_ers_lft = np.reshape(np.where(pred_left<prev_left, 1, 0),(pred_left.shape[0],1))
-    pred_erosion_lft = pred_ers_lft
-    pred_ers_lft = onehot_encoder.fit_transform(pred_ers_lft)
-    pred_ers_rht = np.where(pred_right>prev_left, 1, 0)
-    print(actual_ers_lft.shape)
-    print(pred_ers_lft.shape)
-    classes = ['non-erosion', 'erosion']
+    pred_ers_rht = np.reshape(np.where(pred_right>prev_right, 1, 0),(pred_right.shape[0],1))
 
-    #wandb.log({'pr_'+str(iter_num): wandb.plots.precision_recall(actual_ers_lft, pred_ers_lft, classes)})
-    #if iter_num == 0 :
-    #wandb.log({'conf_mat'+str(iter_num):wandb.Image(wandb.sklearn.plot_confusion_matrix(actual_ers_lft, pred_erosion_lft, classes))})
-    conf_mat = confusion_matrix(actual_ers_lft, pred_erosion_lft)
-    print(conf_mat)
-    plt_conf_mat(conf_mat, 'conf_mat'+str(iter_num), iter_num)
+    conf_mat_lft = confusion_matrix(actual_ers_lft, pred_ers_lft)
+    conf_mat_rht = confusion_matrix(actual_ers_rht, pred_ers_rht)
+    combined_conf = conf_mat_lft + conf_mat_rht
+
+    plt_conf_mat(conf_mat_lft, str(val_img_ids[iter_num])+'_conf_mat_left')
+    plt_conf_mat(conf_mat_rht, str(val_img_ids[iter_num])+'_conf_mat_right')
+    plt_conf_mat(combined_conf, str(val_img_ids[iter_num])+'_combined_conf_mat')
+
+    y_true = np.concatenate((actual_ers_lft,actual_ers_rht), axis = 0)
+    y_pred = np.concatenate((pred_ers_lft,pred_ers_rht), axis = 0)
+
+    precision_comb = precision_score(y_true, y_pred, average='binary')
+    recall_comb = recall_score(y_true, y_pred, average='binary')
+    f1_comb = f1_score(y_true, y_pred, average='binary')
+    
+    wandb.log({'precision_'+ str(val_img_ids[iter_num]) : precision_comb})
+    wandb.log({'recall_'+ str(val_img_ids[iter_num]) : recall_comb})
+    wandb.log({'f1_score_'+ str(val_img_ids[iter_num]) : f1_comb})
+
+    return combined_conf, precision_comb, recall_comb, f1_comb
+
+
 
 def wrt_img(iter_num, actual_list, prev_actual_list, pred_list):
         num_rows = int(pred_list.shape[0])
@@ -263,8 +302,7 @@ for epoch in range(EPOCHS):
             reg_coor = np.reshape(reg_coor, (batch_size,time_step,2))
 
             input_tensor = input_tensor[:,0:time_step-1,:,:]
-            if True:
-                prev_time_step = reg_coor[:,time_step-2:time_step-1,:]
+            prev_time_step = reg_coor[:,time_step-2:time_step-1,:]
             reg_coor = reg_coor[:,time_step-1:time_step,:]
             
             input_tensor = torch.Tensor(input_tensor).cuda()
@@ -278,7 +316,8 @@ for epoch in range(EPOCHS):
             val_epoch_loss = val_epoch_loss+loss
             counter_val += 1
             
-            if True:
+            if epoch % 20 == 19:
+                print('logging performance metrics......')
                 prev_actual_list.append(prev_time_step)
                 reg_coor = reg_coor.cpu()
                 actual_list.append(reg_coor.numpy())
@@ -291,14 +330,26 @@ for epoch in range(EPOCHS):
 
         wandb.log({"Val Loss": avg_val_epoch_loss})
 
-        if True :
+        ###logging performance metrics
+        if epoch % 20 == 19 :
             pred_list = process_val(pred_list)
             actual_list = process_val(actual_list)
             prev_actual_list = process_val(prev_actual_list)
 
-            #pred_list = np.reshape(pred_list,())
             for i in range(num_val_img):
                 wrt_img(i, actual_list, prev_actual_list, pred_list)
-                calc_fscore(i, actual_list, prev_actual_list, pred_list)
-                
+                temp_conf,precision_comb,recall_comb,f1_comb = calc_fscore(i, actual_list, prev_actual_list, pred_list)
+                if i == 0 :
+                    final_conf = temp_conf
+                    final_prec = precision_comb
+                    final_recall = recall_comb
+                    final_f1 = f1_comb
+                else :
+                    final_conf = final_conf + temp_conf
+                    final_prec = final_prec + precision_comb
+                    final_recall = final_recall + recall_comb
+                    final_f1 = final_f1 + f1_comb
 
+            plt_conf_mat(final_conf, 'total_test_confusion_matrix')
+            wandb.log({"test_set_precision":final_prec/num_val_img, "test_set_recall":final_recall/num_val_img,
+                        "test_set_f1_score":final_f1/num_val_img})
