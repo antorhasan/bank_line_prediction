@@ -15,9 +15,15 @@ from sklearn.metrics import mean_absolute_error, precision_score, recall_score, 
 from sklearn.preprocessing import OneHotEncoder
 import matplotlib.pyplot as plt
 import itertools
+from scipy.signal import savgol_filter
 
-os.environ["WANDB_API_KEY"] = 'local-1479f9a9f8553920b500edc5cba063a6efb261f0'
-os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
+
+#os.environ["WANDB_API_KEY"] = 'local-1479f9a9f8553920b500edc5cba063a6efb261f0'
+#os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
+
+os.environ["WANDB_API_KEY"] = 'd74313ef4600d2878ab52142cfcea8d314610c67'
+os.environ["WANDB_BASE_URL"] = "https://api.wandb.ai"
+
 
 def _parse_function_(example_proto):
 
@@ -39,7 +45,7 @@ def _parse_function_(example_proto):
 
 
 
-load_mod = False
+load_mod = True
 save_mod = False
 total_window = 30
 num_lstm_layers = 1
@@ -47,15 +53,18 @@ num_channels = 7
 batch_size = 100
 EPOCHS = 2
 lr_rate = .0001
-in_seq_num = 30
+in_seq_num = 20
 output_at = 10
 model_type = 'CNN_Model_fix'
-drop_rate = 0.3
+drop_rate = 0.25
 time_step = 5
 val_batch_size = batch_size
 total_time_step = 33
 data_div_step = 31
 num_val_img = 2
+log_performance = 15    ###number of epochs after which performance metrics are calculated
+model_save_at = 50     ###number of epochs after which to save model
+early_stop_thresh = 30
 val_img_ids = [201901, 202001]
 
 hyperparameter_defaults = dict(
@@ -73,7 +82,7 @@ hyperparameter_defaults = dict(
 
 # WandB – Initialize a new run
 #wandb.init(entity="antor", project="bank_line", config=hyperparameter_defaults)
-wandb.init(entity="antor_1",project="bank_line", config=hyperparameter_defaults)
+wandb.init(entity="antor",project="bank_final", config=hyperparameter_defaults)
 
 
 # WandB – Config is a variable that holds and saves hyperparameters and inputs
@@ -146,6 +155,7 @@ def plt_conf_mat(conf_mat, title):
     plt.xlabel('Predicted label')
     
     wandb.log({title: plt})
+    plt.close()
 
 def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side):
     temp_arr = pred_reg - act_reg
@@ -221,6 +231,11 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list):
 def wrt_img(iter_num, actual_list, prev_actual_list, pred_list):
         num_rows = int(pred_list.shape[0])
 
+        window = 99
+        poly = 2
+        pred_left = savgol_filter(pred_left[:,iter_num,0], window, poly)
+        pred_right = savgol_filter(pred_right[:,iter_num,1], window, poly)
+
         img = cv2.imread('./data/img/up_rgb/'+str(val_img_ids[iter_num])+'.png', 1)
         for i in range(num_rows):
             img[i,int(actual_list[i,iter_num,0]),:] = [255,255,255]
@@ -243,6 +258,40 @@ def process_val(arr_list):
 
     return arr_list
 
+def model_save():
+    print('saving model....')
+    torch.save({
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict()
+            }, './data/model/ser_mod.pt')
+
+def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img):
+    print('logging performance metrics........')
+    pred_list = process_val(pred_list)
+    actual_list = process_val(actual_list)
+    prev_actual_list = process_val(prev_actual_list)
+
+    for i in range(num_val_img):
+        wrt_img(i, actual_list, prev_actual_list, pred_list)
+        temp_conf,precision_comb,recall_comb,f1_comb = calc_fscore(i, actual_list, prev_actual_list, pred_list)
+        if i == 0 :
+            final_conf = temp_conf
+            final_prec = precision_comb
+            final_recall = recall_comb
+            final_f1 = f1_comb
+        else :
+            final_conf = final_conf + temp_conf
+            final_prec = final_prec + precision_comb
+            final_recall = final_recall + recall_comb
+            final_f1 = final_f1 + f1_comb
+
+    plt_conf_mat(final_conf, 'total_test_confusion_matrix')
+    wandb.log({"test_set_precision":final_prec/num_val_img, "test_set_recall":final_recall/num_val_img,
+                "test_set_f1_score":final_f1/num_val_img})
+
+
+early_stop_counter = 0
+
 for epoch in range(EPOCHS):
 
     model.train()
@@ -263,6 +312,8 @@ for epoch in range(EPOCHS):
         
         optimizer.zero_grad()
         pred = model(input_tensor)
+        #print(pred.size())
+        #print(reg_coor.size())
         loss = F.mse_loss(pred, reg_coor,reduction='mean')
         loss.backward()
         optimizer.step()
@@ -278,12 +329,9 @@ for epoch in range(EPOCHS):
     #writer.add_scalar('Loss/train', avg_epoch_loss, epoch+1)
 
     if save_mod == True :
-        if epoch % 100 == 0:
-            print('saving model....')
-            torch.save({
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict()
-                    }, './data/model/f_temp.pt')
+        if epoch % model_save_at == 0:
+            model_save()
+        
     model.eval()
 
     val_epoch_loss = 0
@@ -316,8 +364,7 @@ for epoch in range(EPOCHS):
             val_epoch_loss = val_epoch_loss+loss
             counter_val += 1
             
-            if epoch % 20 == 19:
-                print('logging performance metrics......')
+            if epoch % log_performance == log_performance-1:
                 prev_actual_list.append(prev_time_step)
                 reg_coor = reg_coor.cpu()
                 actual_list.append(reg_coor.numpy())
@@ -325,31 +372,26 @@ for epoch in range(EPOCHS):
                 pred_list.append(pred_np.numpy())
 
         avg_val_epoch_loss = val_epoch_loss / counter_val
-        template = 'Epoch {}, Val Loss: {}'
+        template = 'Epoch {}, Val_Loss: {}'
         print(template.format(epoch+1,avg_val_epoch_loss))
 
-        wandb.log({"Val Loss": avg_val_epoch_loss})
+        wandb.log({"Val_Loss": avg_val_epoch_loss})
+
+        if epoch == 0 :
+            best_val_loss = avg_val_epoch_loss
+        else :
+            if avg_val_epoch_loss < best_val_loss :
+                best_val_loss = avg_val_epoch_loss
+                early_stop_counter = 0
+            else :
+                early_stop_counter += 1
+
 
         ###logging performance metrics
-        if epoch % 20 == 19 :
-            pred_list = process_val(pred_list)
-            actual_list = process_val(actual_list)
-            prev_actual_list = process_val(prev_actual_list)
-
-            for i in range(num_val_img):
-                wrt_img(i, actual_list, prev_actual_list, pred_list)
-                temp_conf,precision_comb,recall_comb,f1_comb = calc_fscore(i, actual_list, prev_actual_list, pred_list)
-                if i == 0 :
-                    final_conf = temp_conf
-                    final_prec = precision_comb
-                    final_recall = recall_comb
-                    final_f1 = f1_comb
-                else :
-                    final_conf = final_conf + temp_conf
-                    final_prec = final_prec + precision_comb
-                    final_recall = final_recall + recall_comb
-                    final_f1 = final_f1 + f1_comb
-
-            plt_conf_mat(final_conf, 'total_test_confusion_matrix')
-            wandb.log({"test_set_precision":final_prec/num_val_img, "test_set_recall":final_recall/num_val_img,
-                        "test_set_f1_score":final_f1/num_val_img})
+        if epoch % log_performance == log_performance-1 :
+            log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img)
+            
+    if early_stop_counter > early_stop_thresh :
+        print('early stopping as val loss is not improving ........')
+        model_save()
+        break
