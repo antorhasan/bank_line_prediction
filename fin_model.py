@@ -18,11 +18,11 @@ import itertools
 from scipy.signal import savgol_filter
 
 
-#os.environ["WANDB_API_KEY"] = 'local-1479f9a9f8553920b500edc5cba063a6efb261f0'
-#os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
+os.environ["WANDB_API_KEY"] = 'local-1479f9a9f8553920b500edc5cba063a6efb261f0'
+os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
 
-os.environ["WANDB_API_KEY"] = 'd74313ef4600d2878ab52142cfcea8d314610c67'
-os.environ["WANDB_BASE_URL"] = "https://api.wandb.ai"
+#os.environ["WANDB_API_KEY"] = 'd74313ef4600d2878ab52142cfcea8d314610c67'
+#os.environ["WANDB_BASE_URL"] = "https://api.wandb.ai"
 
 
 def _parse_function_(example_proto):
@@ -231,10 +231,11 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list):
 def wrt_img(iter_num, actual_list, prev_actual_list, pred_list):
         num_rows = int(pred_list.shape[0])
 
+        denoising = True
         window = 99
         poly = 2
-        pred_left = savgol_filter(pred_left[:,iter_num,0], window, poly)
-        pred_right = savgol_filter(pred_right[:,iter_num,1], window, poly)
+        pred_left = savgol_filter(pred_list[:,iter_num,0], window, poly)
+        pred_right = savgol_filter(pred_list[:,iter_num,1], window, poly)
 
         img = cv2.imread('./data/img/up_rgb/'+str(val_img_ids[iter_num])+'.png', 1)
         for i in range(num_rows):
@@ -244,8 +245,12 @@ def wrt_img(iter_num, actual_list, prev_actual_list, pred_list):
             img[i,int(prev_actual_list[i,iter_num,0]),:] = [255,0,0]
             img[i,int(prev_actual_list[i,iter_num,1]),:] = [255,0,0]
 
-            img[i,int(pred_list[i,iter_num,0]),:] = [0,0,255]
-            img[i,int(pred_list[i,iter_num,1]),:] = [0,0,255]
+            if denoising:
+                img[i,int(pred_left[i]),:] = [0,0,255]
+                img[i,int(pred_right[i]),:] = [0,0,255]
+            else :
+                img[i,int(pred_list[i,iter_num,0]),:] = [0,0,255]
+                img[i,int(pred_list[i,iter_num,1]),:] = [0,0,255]
         
         cv2.imwrite('./data/output/'+str(val_img_ids[iter_num])+'_ot.png', img)
 

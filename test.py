@@ -143,7 +143,7 @@ with torch.no_grad():
     #print(asd)
     #num_rows = int(pred_list.shape[0])
 
-    img = cv2.imread('./data/img/up_rgb/'+str(int(input_str)-1)+'01.png', 1)
+    img = cv2.imread(os.path.join('./data/img/up_rgb/'+str(int(input_str)-1)+'01.png'), 1)
     #print(img.shape)
     for i in range(total_smpls):
         #img[i,int(actual_list[i,iter_num,0]),:] = [255,255,255]
@@ -157,4 +157,4 @@ with torch.no_grad():
         if pred_ers_rht[i] == 1 :
             img[i,int(pred_right[i]),:] = [0,0,255]
     
-    cv2.imwrite('./data/test/'+str(int(input_str)-1)+'_pred.png', img)
+    cv2.imwrite(os.path.join('./data/test/'+str(int(input_str)-1)+'_pred.png'), img)
