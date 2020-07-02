@@ -9,17 +9,18 @@ from os import listdir
 from os.path import isfile, join
 import os
 import sys
-import wandb
+#import wandb
+from torch.utils.tensorboard import SummaryWriter
 from models import CNN_Model
 from sklearn.metrics import mean_absolute_error, precision_score, recall_score, confusion_matrix, f1_score
 from sklearn.preprocessing import OneHotEncoder
 import matplotlib.pyplot as plt
 import itertools
 from scipy.signal import savgol_filter
+import optuna
 
-
-os.environ["WANDB_API_KEY"] = 'local-1479f9a9f8553920b500edc5cba063a6efb261f0'
-os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
+#os.environ["WANDB_API_KEY"] = 'local-1479f9a9f8553920b500edc5cba063a6efb261f0'
+#os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
 
 #os.environ["WANDB_API_KEY"] = 'd74313ef4600d2878ab52142cfcea8d314610c67'
 #os.environ["WANDB_BASE_URL"] = "https://api.wandb.ai"
@@ -43,85 +44,6 @@ def _parse_function_(example_proto):
     
     return input_tensor, reg_coor, bin_label, year_id
 
-
-
-load_mod = True
-save_mod = False
-total_window = 30
-num_lstm_layers = 1
-num_channels = 7
-batch_size = 100
-EPOCHS = 2
-lr_rate = .0001
-in_seq_num = 20
-output_at = 10
-model_type = 'CNN_Model_fix'
-drop_rate = 0.25
-time_step = 5
-val_batch_size = batch_size
-total_time_step = 33
-data_div_step = 31
-num_val_img = 2
-log_performance = 15    ###number of epochs after which performance metrics are calculated
-model_save_at = 50     ###number of epochs after which to save model
-early_stop_thresh = 30
-val_img_ids = [201901, 202001]
-
-hyperparameter_defaults = dict(
-    dropout = drop_rate,
-    num_channels = num_channels,
-    batch_size = batch_size,
-    learning_rate = lr_rate,
-    epochs = EPOCHS,
-    time_step = time_step,
-    num_lstm_layers = num_lstm_layers,
-    total_window = total_window,
-    dataset='7_chann',
-    model_type=model_type
-    )
-
-# WandB – Initialize a new run
-#wandb.init(entity="antor", project="bank_line", config=hyperparameter_defaults)
-wandb.init(entity="antor",project="bank_final", config=hyperparameter_defaults)
-
-
-# WandB – Config is a variable that holds and saves hyperparameters and inputs
-#config = wandb.config          # Initialize config
-
-#config.update({'dataset':'7_chann','model_type':model_type})
-
-dataset_f = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
-dataset_f = dataset_f.window(size=data_div_step, shift=total_time_step, stride=1, drop_remainder=False)
-dataset_f = dataset_f.map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
-dataset_f = dataset_f.flat_map(lambda x: x.flat_map(lambda x: x))
-dataset_f = dataset_f.map(_parse_function_).batch(time_step)
-dataset_f = dataset_f.shuffle(10000)
-dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
-
-dataseti1 = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
-dataseti1 = dataseti1.window(size=total_time_step, shift=total_time_step, stride=1, drop_remainder=False)
-dataseti1 = dataseti1.map(lambda x: x.skip(total_time_step-(time_step+1)).window(size=time_step, shift=1, stride=1,drop_remainder=True))
-dataseti1 = dataseti1.flat_map(lambda x: x.flat_map(lambda x: x))
-dataseti1 = dataseti1.map(_parse_function_).batch(time_step)
-dataseti1 = dataseti1.batch(val_batch_size, drop_remainder=True)
-
-model = CNN_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate)
-
-#use_cuda = not False and torch.cuda.is_available()
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-print(device)
-model = model.to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate)
-
-if load_mod == True:
-    checkpoint = torch.load('./data/model/f_temp.pt')
-    model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-
-wandb.watch(model, log="all")
-
-msk_mean = np.load('./data/mean_img/line_mean.npy')
-msk_std = np.load('./data/mean_img/line_std.npy')
 
 def plt_conf_mat(conf_mat, title):
     normalize = True
@@ -154,10 +76,10 @@ def plt_conf_mat(conf_mat, title):
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     
-    wandb.log({title: plt})
+    #wandb.log({title: plt})
     plt.close()
 
-def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side):
+def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side,writer, val_img_ids,epoch):
     temp_arr = pred_reg - act_reg
     if side == 'left' :
         temp_arr = temp_arr
@@ -178,12 +100,14 @@ def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side):
     mean_pos_dev = pos_deviation/counter_pos
     mean_neg_dev = neg_deviation/counter_neg
 
-    wandb.log({'mean_abs_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]):mean_pos_dev, 
-                'mean_abs_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]):mean_neg_dev})
+    #wandb.log({'mean_abs_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]):mean_pos_dev, 
+    #            'mean_abs_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]):mean_neg_dev})
+    writer.add_scalar('mean_abs_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), mean_pos_dev, epoch+1)
+    writer.add_scalar('mean_abs_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), mean_neg_dev, epoch+1)
 
     return mean_pos_dev
 
-def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list):
+def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer,val_img_ids):
     act_left = actual_list[:,iter_num,0]
     act_right = actual_list[:,iter_num,1]
 
@@ -196,11 +120,12 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list):
     actual_ers_lft = np.reshape(np.where(act_left<prev_left, 1, 0),(act_left.shape[0],1))
     actual_ers_rht = np.reshape(np.where(act_right>prev_right, 1, 0),(act_right.shape[0],1))
     
-    left_mae = regress_erro(actual_ers_lft, act_left, pred_left, iter_num, 'left')
-    right_mae = regress_erro(actual_ers_rht, act_right, pred_right, iter_num, 'right')
+    left_mae = regress_erro(actual_ers_lft, act_left, pred_left, iter_num, 'left',writer,val_img_ids,epoch)
+    right_mae = regress_erro(actual_ers_rht, act_right, pred_right, iter_num, 'right',writer,val_img_ids,epoch)
 
     avg_mae = (left_mae + right_mae)/2
-    wandb.log({'pos_mae_for_actual_erosion'+str(val_img_ids[iter_num]) : avg_mae})
+    #wandb.log({'pos_mae_for_actual_erosion'+str(val_img_ids[iter_num]) : avg_mae})
+    writer.add_scalar('pos_mae_for_actual_erosion'+str(val_img_ids[iter_num]), avg_mae, epoch+1)
 
     pred_ers_lft = np.reshape(np.where(pred_left<prev_left, 1, 0),(pred_left.shape[0],1))
     pred_ers_rht = np.reshape(np.where(pred_right>prev_right, 1, 0),(pred_right.shape[0],1))
@@ -209,9 +134,9 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list):
     conf_mat_rht = confusion_matrix(actual_ers_rht, pred_ers_rht)
     combined_conf = conf_mat_lft + conf_mat_rht
 
-    plt_conf_mat(conf_mat_lft, str(val_img_ids[iter_num])+'_conf_mat_left')
-    plt_conf_mat(conf_mat_rht, str(val_img_ids[iter_num])+'_conf_mat_right')
-    plt_conf_mat(combined_conf, str(val_img_ids[iter_num])+'_combined_conf_mat')
+    #plt_conf_mat(conf_mat_lft, str(val_img_ids[iter_num])+'_conf_mat_left')
+    #plt_conf_mat(conf_mat_rht, str(val_img_ids[iter_num])+'_conf_mat_right')
+    #plt_conf_mat(combined_conf, str(val_img_ids[iter_num])+'_combined_conf_mat')
 
     y_true = np.concatenate((actual_ers_lft,actual_ers_rht), axis = 0)
     y_pred = np.concatenate((pred_ers_lft,pred_ers_rht), axis = 0)
@@ -220,41 +145,56 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list):
     recall_comb = recall_score(y_true, y_pred, average='binary')
     f1_comb = f1_score(y_true, y_pred, average='binary')
     
-    wandb.log({'precision_'+ str(val_img_ids[iter_num]) : precision_comb})
-    wandb.log({'recall_'+ str(val_img_ids[iter_num]) : recall_comb})
-    wandb.log({'f1_score_'+ str(val_img_ids[iter_num]) : f1_comb})
+    #wandb.log({'precision_'+ str(val_img_ids[iter_num]) : precision_comb})
+    #wandb.log({'recall_'+ str(val_img_ids[iter_num]) : recall_comb})
+    #wandb.log({'f1_score_'+ str(val_img_ids[iter_num]) : f1_comb})
+    writer.add_scalar('precision_'+ str(val_img_ids[iter_num]), precision_comb, epoch+1)
+    writer.add_scalar('recall_'+ str(val_img_ids[iter_num]), recall_comb, epoch+1)
+    writer.add_scalar('f1_score_'+ str(val_img_ids[iter_num]), f1_comb, epoch+1)
 
     return combined_conf, precision_comb, recall_comb, f1_comb
 
 
 
-def wrt_img(iter_num, actual_list, prev_actual_list, pred_list):
-        num_rows = int(pred_list.shape[0])
+def wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids):
+    #pred_list = process_val(pred_list)
+    #actual_list = process_val(actual_list)
+    #prev_actual_list = process_val(prev_actual_list)
+    
+    num_rows = int(pred_list.shape[0])
 
-        denoising = True
-        window = 99
-        poly = 2
-        pred_left = savgol_filter(pred_list[:,iter_num,0], window, poly)
-        pred_right = savgol_filter(pred_list[:,iter_num,1], window, poly)
+    denoising = True
+    window = 99
+    poly = 2
+    pred_left = savgol_filter(pred_list[:,iter_num,0], window, poly)
+    pred_right = savgol_filter(pred_list[:,iter_num,1], window, poly)
 
-        img = cv2.imread('./data/img/up_rgb/'+str(val_img_ids[iter_num])+'.png', 1)
-        for i in range(num_rows):
-            img[i,int(actual_list[i,iter_num,0]),:] = [255,255,255]
-            img[i,int(actual_list[i,iter_num,1]),:] = [255,255,255]
+    img = cv2.imread('./data/img/up_rgb/'+str(val_img_ids[iter_num])+'.png', 1)
+    for i in range(num_rows):
+        if 0<=int(pred_left[i])<=745 or 0<=int(pred_right[i])<=745 :
+            pass
+        else :
+            pred_left[i] = 0
+            pred
 
-            img[i,int(prev_actual_list[i,iter_num,0]),:] = [255,0,0]
-            img[i,int(prev_actual_list[i,iter_num,1]),:] = [255,0,0]
+        img[i,int(actual_list[i,iter_num,0]),:] = [255,255,255]
+        img[i,int(actual_list[i,iter_num,1]),:] = [255,255,255]
 
-            if denoising:
-                img[i,int(pred_left[i]),:] = [0,0,255]
-                img[i,int(pred_right[i]),:] = [0,0,255]
-            else :
-                img[i,int(pred_list[i,iter_num,0]),:] = [0,0,255]
-                img[i,int(pred_list[i,iter_num,1]),:] = [0,0,255]
-        
-        cv2.imwrite('./data/output/'+str(val_img_ids[iter_num])+'_ot.png', img)
+        img[i,int(prev_actual_list[i,iter_num,0]),:] = [255,0,0]
+        img[i,int(prev_actual_list[i,iter_num,1]),:] = [255,0,0]
 
-def process_val(arr_list):
+        if denoising:
+            img[i,int(pred_left[i]),:] = [0,0,255]
+            img[i,int(pred_right[i]),:] = [0,0,255]
+        else :
+            img[i,int(pred_list[i,iter_num,0]),:] = [0,0,255]
+            img[i,int(pred_list[i,iter_num,1]),:] = [0,0,255]
+    
+    #cv2.imwrite('./data/output/'+str(val_img_ids[iter_num])+'_ot.png', img)
+    #print(img.shape)
+    writer.add_image(str(val_img_ids[iter_num]), img, dataformats='HWC')
+
+def process_val(arr_list, num_val_img, msk_mean, msk_std):
     arr_list = np.asarray(arr_list)
     total_smpls = int(arr_list.shape[0])*int(arr_list.shape[1])
     val_num_rows = int(total_smpls/num_val_img)
@@ -270,15 +210,15 @@ def model_save():
             'optimizer_state_dict': optimizer.state_dict()
             }, './data/model/ser_mod.pt')
 
-def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img):
+def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, epoch, msk_mean, msk_std, val_img_ids,writer):
     print('logging performance metrics........')
-    pred_list = process_val(pred_list)
-    actual_list = process_val(actual_list)
-    prev_actual_list = process_val(prev_actual_list)
+    pred_list = process_val(pred_list,num_val_img, msk_mean, msk_std)
+    actual_list = process_val(actual_list,num_val_img, msk_mean, msk_std)
+    prev_actual_list = process_val(prev_actual_list,num_val_img, msk_mean, msk_std)
 
     for i in range(num_val_img):
-        wrt_img(i, actual_list, prev_actual_list, pred_list)
-        temp_conf,precision_comb,recall_comb,f1_comb = calc_fscore(i, actual_list, prev_actual_list, pred_list)
+        #wrt_img(i, actual_list, prev_actual_list, pred_list, val_img_ids)
+        temp_conf,precision_comb,recall_comb,f1_comb = calc_fscore(i, actual_list, prev_actual_list, pred_list, epoch,writer,val_img_ids)
         if i == 0 :
             final_conf = temp_conf
             final_prec = precision_comb
@@ -291,112 +231,222 @@ def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img):
             final_f1 = final_f1 + f1_comb
 
     plt_conf_mat(final_conf, 'total_test_confusion_matrix')
-    wandb.log({"test_set_precision":final_prec/num_val_img, "test_set_recall":final_recall/num_val_img,
-                "test_set_f1_score":final_f1/num_val_img})
+    #wandb.log({"test_set_precision":final_prec/num_val_img, "test_set_recall":final_recall/num_val_img,
+    #            "test_set_f1_score":final_f1/num_val_img})
+    writer.add_scalar("test_set_precision", final_prec/num_val_img, epoch+1)
+    writer.add_scalar("test_set_recall", final_recall/num_val_img, epoch+1)
+    writer.add_scalar("test_set_f1_score", final_f1/num_val_img, epoch+1)
 
 
-early_stop_counter = 0
+def objective(trial):
+    load_mod = False
+    save_mod = False
+    total_window = 30
+    num_lstm_layers = 1
+    num_channels = 7
+    batch_size = 100
+    EPOCHS = 12
+    lr_rate = trial.suggest_loguniform('lr_rate', 1e-5, 1e2)                       #.0001
+    in_seq_num = 20
+    output_at = 10
+    model_type = 'CNN_Model_fix'
+    drop_rate = 0.25
+    time_step = 5
+    val_batch_size = batch_size
+    total_time_step = 33
+    data_div_step = 31
 
-for epoch in range(EPOCHS):
+    log_performance = 10   ###number of epochs after which performance metrics are calculated
+    model_save_at = 50     ###number of epochs after which to save model
+    early_stop_thresh = 30
+    val_img_ids = [201901, 202001]
+    num_val_img = len(val_img_ids)
+    log_hist = 10
 
-    model.train()
-    counter = 0
-    epoch_loss = 0
+    hyperparameter_defaults = dict(
+        dropout = str(drop_rate),
+        num_channels = num_channels,
+        batch_size = batch_size,
+        learning_rate = lr_rate,
+        epochs = EPOCHS,
+        time_step = time_step,
+        num_lstm_layers = num_lstm_layers,
+        total_window = total_window,
+        dataset='7_chann',
+        model_type=model_type
+        )
 
-    for input_tensor, reg_coor, _ , year_id in dataset_f:
+    # WandB – Initialize a new run
+    #wandb.init(entity="antor", project="bank_line", config=hyperparameter_defaults)
+    #wandb.init(entity="antor",project="bank_final", config=hyperparameter_defaults)
+    writer = SummaryWriter(log_dir='./runs/lr_rate/')
 
-        input_tensor = np.reshape(input_tensor, (batch_size,time_step,745,num_channels))
-        reg_coor = np.reshape(reg_coor, (batch_size,time_step,2))
 
-        input_tensor = input_tensor[:,0:time_step-1,:,:]
-        reg_coor = reg_coor[:,time_step-1:time_step,:]
-        
-        input_tensor = torch.Tensor(input_tensor).cuda()
-        reg_coor = torch.Tensor(reg_coor).cuda()
-        reg_coor = torch.reshape(reg_coor, (batch_size,-1))
-        
-        optimizer.zero_grad()
-        pred = model(input_tensor)
-        #print(pred.size())
-        #print(reg_coor.size())
-        loss = F.mse_loss(pred, reg_coor,reduction='mean')
-        loss.backward()
-        optimizer.step()
+    # WandB – Config is a variable that holds and saves hyperparameters and inputs
+    #config = wandb.config          # Initialize config
 
-        epoch_loss = epoch_loss+loss
-        counter += 1
-            
-    avg_epoch_loss = epoch_loss / counter
-    template = 'Epoch {}, Train Loss: {}'
-    print(template.format(epoch+1,avg_epoch_loss))
+    #config.update({'dataset':'7_chann','model_type':model_type})
 
-    wandb.log({"Train Loss": avg_epoch_loss})
-    #writer.add_scalar('Loss/train', avg_epoch_loss, epoch+1)
+    dataset_f = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
+    dataset_f = dataset_f.window(size=data_div_step, shift=total_time_step, stride=1, drop_remainder=False)
+    dataset_f = dataset_f.map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
+    dataset_f = dataset_f.flat_map(lambda x: x.flat_map(lambda x: x))
+    dataset_f = dataset_f.map(_parse_function_).batch(time_step)
+    dataset_f = dataset_f.shuffle(10000)
+    dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
 
-    if save_mod == True :
-        if epoch % model_save_at == 0:
-            model_save()
-        
-    model.eval()
+    dataseti1 = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
+    dataseti1 = dataseti1.window(size=total_time_step, shift=total_time_step, stride=1, drop_remainder=False)
+    dataseti1 = dataseti1.map(lambda x: x.skip(total_time_step-(time_step+1)).window(size=time_step, shift=1, stride=1,drop_remainder=True))
+    dataseti1 = dataseti1.flat_map(lambda x: x.flat_map(lambda x: x))
+    dataseti1 = dataseti1.map(_parse_function_).batch(time_step)
+    dataseti1 = dataseti1.batch(val_batch_size, drop_remainder=True)
 
-    val_epoch_loss = 0
-    counter_val = 0
-    
-    with torch.no_grad():
+    model = CNN_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate)
 
-        pred_list = []
-        actual_list = []
-        prev_actual_list = []
+    #use_cuda = not False and torch.cuda.is_available()
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print(device)
+    model = model.to(device)
 
-        for input_tensor, reg_coor, _ , year_id in dataseti1:
-            #print(year_id)
-            #print(asd)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate)
+
+    if load_mod == True:
+        checkpoint = torch.load('./data/model/f_temp.pt')
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+    #wandb.watch(model, log="all")
+
+    msk_mean = np.load('./data/mean_img/line_mean.npy')
+    msk_std = np.load('./data/mean_img/line_std.npy')
+
+    early_stop_counter = 0
+    global_train_counter = 0
+    for epoch in range(EPOCHS):
+
+        model.train()
+        counter = 0
+        epoch_loss = 0
+
+        for input_tensor, reg_coor, _ , year_id in dataset_f:
+
             input_tensor = np.reshape(input_tensor, (batch_size,time_step,745,num_channels))
             reg_coor = np.reshape(reg_coor, (batch_size,time_step,2))
 
             input_tensor = input_tensor[:,0:time_step-1,:,:]
-            prev_time_step = reg_coor[:,time_step-2:time_step-1,:]
             reg_coor = reg_coor[:,time_step-1:time_step,:]
             
             input_tensor = torch.Tensor(input_tensor).cuda()
             reg_coor = torch.Tensor(reg_coor).cuda()
             reg_coor = torch.reshape(reg_coor, (batch_size,-1))
-
+            
+            optimizer.zero_grad()
             pred = model(input_tensor)
-            
+
             loss = F.mse_loss(pred, reg_coor,reduction='mean')
+            loss.backward()
+            optimizer.step()
 
-            val_epoch_loss = val_epoch_loss+loss
-            counter_val += 1
-            
-            if epoch % log_performance == log_performance-1:
-                prev_actual_list.append(prev_time_step)
-                reg_coor = reg_coor.cpu()
-                actual_list.append(reg_coor.numpy())
-                pred_np = pred.cpu()
-                pred_list.append(pred_np.numpy())
+            epoch_loss = epoch_loss+loss
+            counter += 1
+            global_train_counter += 1
 
-        avg_val_epoch_loss = val_epoch_loss / counter_val
-        template = 'Epoch {}, Val_Loss: {}'
-        print(template.format(epoch+1,avg_val_epoch_loss))
+        avg_epoch_loss = epoch_loss / counter
+        template = 'Epoch {}, Train Loss: {}'
+        print(template.format(epoch+1,avg_epoch_loss))
 
-        wandb.log({"Val_Loss": avg_val_epoch_loss})
+        #wandb.log({"Train Loss": avg_epoch_loss})
+        writer.add_scalar('Loss/train', avg_epoch_loss, epoch+1)
 
         if epoch == 0 :
-            best_val_loss = avg_val_epoch_loss
-        else :
-            if avg_val_epoch_loss < best_val_loss :
-                best_val_loss = avg_val_epoch_loss
-                early_stop_counter = 0
-            else :
-                early_stop_counter += 1
+            writer.add_graph(model, input_tensor)
 
+        if epoch % log_hist == log_hist-1:
+            for name, param in model.named_parameters():
+                if param.requires_grad:
+                    writer.add_histogram('parameters_'+str(name), param.data, epoch + 1)
+                    writer.add_histogram('gradients'+str(name), param.grad, epoch + 1)
 
-        ###logging performance metrics
-        if epoch % log_performance == log_performance-1 :
-            log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img)
+        if save_mod == True :
+            if epoch % model_save_at == 0:
+                model_save()
             
-    if early_stop_counter > early_stop_thresh :
-        print('early stopping as val loss is not improving ........')
-        model_save()
-        break
+        model.eval()
+
+        val_epoch_loss = 0
+        counter_val = 0
+        
+        with torch.no_grad():
+
+            pred_list = []
+            actual_list = []
+            prev_actual_list = []
+
+            for input_tensor, reg_coor, _ , year_id in dataseti1:
+                #print(year_id)
+                #print(asd)
+                input_tensor = np.reshape(input_tensor, (batch_size,time_step,745,num_channels))
+                reg_coor = np.reshape(reg_coor, (batch_size,time_step,2))
+
+                input_tensor = input_tensor[:,0:time_step-1,:,:]
+                prev_time_step = reg_coor[:,time_step-2:time_step-1,:]
+                reg_coor = reg_coor[:,time_step-1:time_step,:]
+                
+                input_tensor = torch.Tensor(input_tensor).cuda()
+                reg_coor = torch.Tensor(reg_coor).cuda()
+                reg_coor = torch.reshape(reg_coor, (batch_size,-1))
+
+                pred = model(input_tensor)
+                
+                loss = F.mse_loss(pred, reg_coor,reduction='mean')
+
+                val_epoch_loss = val_epoch_loss+loss
+                counter_val += 1
+                
+                if epoch % log_performance == log_performance-1:
+                    prev_actual_list.append(prev_time_step)
+                    reg_coor = reg_coor.cpu()
+                    actual_list.append(reg_coor.numpy())
+                    pred_np = pred.cpu()
+                    pred_list.append(pred_np.numpy())
+
+            avg_val_epoch_loss = val_epoch_loss / counter_val
+            template = 'Epoch {}, Val_Loss: {}'
+            print(template.format(epoch+1,avg_val_epoch_loss))
+
+            #wandb.log({"Val_Loss": avg_val_epoch_loss})
+            writer.add_scalar('Loss/Val', avg_val_epoch_loss, epoch+1)
+
+            if epoch == 0 :
+                best_val_loss = avg_val_epoch_loss
+            else :
+                if avg_val_epoch_loss < best_val_loss :
+                    best_val_loss = avg_val_epoch_loss
+                    early_stop_counter = 0
+                else :
+                    early_stop_counter += 1
+
+
+            ###logging performance metrics
+            if epoch % log_performance == log_performance-1 :
+                log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, epoch, msk_mean, msk_std, val_img_ids,writer)
+                
+        if early_stop_counter > early_stop_thresh :
+            print('early stopping as val loss is not improving ........')
+            model_save()
+            break
+
+    #for i in range(num_val_img):
+    #    wrt_img(i, actual_list, prev_actual_list, pred_list, val_img_ids)
+
+    writer.add_hparams(hyperparameter_defaults,{'hparam/train_loss':avg_epoch_loss,'hparam/val_loss':avg_val_epoch_loss})
+    writer.close()
+
+    return avg_val_epoch_loss
+
+
+if __name__ == "__main__":
+    study = optuna.create_study()
+    study.optimize(objective, n_trials=4) 
+    pass

@@ -2,8 +2,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
-
-
 class CNN_Model(nn.Module):
     def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out):
         super(CNN_Model, self).__init__()
@@ -47,20 +45,20 @@ class CNN_Model(nn.Module):
         self.conv8 = nn.Conv2d(64,128,(1,3), padding=0)
 
         self.batch_norm4 = nn.BatchNorm2d(128)
-        self.drop8 = nn.Dropout2d(p=drop_out)
+        #self.drop8 = nn.Dropout2d(p=drop_out)
 
         self.conv9 = nn.Conv2d(128,128,(1,3), padding=0)
         self.batch_norm50 = nn.BatchNorm2d(128)
-        self.drop9 = nn.Dropout2d(p=drop_out)
+        #self.drop9 = nn.Dropout2d(p=drop_out)
         self.conv10 = nn.Conv2d(128,256,(1,3), padding=0)
 
         self.batch_norm5 = nn.BatchNorm2d(256)
-        self.drop10 = nn.Dropout2d(p=drop_out)
+        #self.drop10 = nn.Dropout2d(p=drop_out)
 
         self.lstm = nn.LSTM(self.lstm_output_size,self.lstm_output_size,num_layers=num_lstm_layers,batch_first=True)
-        self.dropout1 = nn.Dropout(drop_out)
+        #self.dropout1 = nn.Dropout(drop_out)
         self.fc1 = nn.Linear(self.lstm_output_size, int(self.lstm_output_size/2))
-        self.dropout2 = nn.Dropout(drop_out)
+        #self.dropout2 = nn.Dropout(drop_out)
         self.fc2 = nn.Linear(int(self.lstm_output_size/2), 2)
         
 
@@ -102,17 +100,17 @@ class CNN_Model(nn.Module):
         x = F.relu(self.conv8(x))
 
         x = self.batch_norm4(x)
-        x = self.drop8(x)
+        #x = self.drop8(x)
 
         x = F.max_pool2d(x, (1, 3))
 
         x = F.relu(self.conv9(x))
         x = self.batch_norm50(x)
-        x = self.drop9(x)
+        #x = self.drop9(x)
         x = F.relu(self.conv10(x))
 
         x = self.batch_norm5(x)
-        x = self.drop10(x)
+        #x = self.drop10(x)
         x = F.max_pool2d(x, (1, 3))
 
         x = torch.reshape(x, (-1,(self.time_step-1),256))
@@ -133,10 +131,10 @@ class CNN_Model(nn.Module):
         else:
             hn = torch.reshape(hn, (self.val_batch_size,256))
         
-        x = self.dropout1(hn)
-        x = self.fc1(x)
+        #x = self.dropout1(hn)
+        x = self.fc1(hn)
 
-        x = self.dropout2(x)
+        #x = self.dropout2(x)
         x = self.fc2(x)
         
         return x

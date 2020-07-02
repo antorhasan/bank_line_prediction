@@ -11,6 +11,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 wandb/
+runs/
 *.png
 # C extensions
 *.so
