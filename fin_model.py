@@ -319,7 +319,6 @@ def objective(trial):
         num_channels = num_channels,
         batch_size = batch_size,
         learning_rate = lr_rate,
-        epochs = EPOCHS,
         time_step = time_step,
         num_lstm_layers = num_lstm_layers,
         total_window = total_window,
@@ -486,6 +485,7 @@ def objective(trial):
             final_conf = final_conf + temp_conf
         
     plt_conf_mat(final_conf, 'total_test_confusion_matrix', writer)
+    hyperparameter_defaults.update('epochs'=epoch+1)
     writer.add_hparams(hyperparameter_defaults,{'hparam/train_loss':avg_epoch_loss,'hparam/val_loss':avg_val_epoch_loss,
         'hparam/pos_mae':test_pos_mae, 'hparam/precision':test_prec,'hparam/recall':test_recall,'hparam/f1_score':test_f1_score,
         'hparam/pos_std':test_pos_std, 'hparam/neg_mae':test_neg_mae,'hparam/neg_std':test_neg_std})
