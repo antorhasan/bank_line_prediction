@@ -240,12 +240,12 @@ def process_val(arr_list, num_val_img, msk_mean, msk_std):
 
     return arr_list
 
-def model_save():
+def model_save(model, optimizer, model_name):
     print('saving model....')
     torch.save({
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict()
-            }, './data/model/ser_mod.pt')
+            }, './data/model/'+model_name.split('/')[-1]+'.pt')
 
 def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, epoch, msk_mean, msk_std, val_img_ids,writer):
     print('logging performance metrics........')
@@ -297,8 +297,7 @@ def objective(trial):
     batch_size = 100
     EPOCHS = 53
     lr_rate = trial.suggest_loguniform('lr_rate', .0000001, 1)                       #.0001
-    #in_seq_num = 20
-    #output_at = 10
+    vertical_image_window = 1
     model_type = 'CNN_Model_vanilla'
     drop_rate = 0
     time_step = 5
@@ -311,7 +310,8 @@ def objective(trial):
     num_val_img = len(val_img_ids)
     data_div_step = total_time_step - num_val_img
     log_hist = 5
-    writer = SummaryWriter(log_dir='./runs/lr_rate/')
+    writer = SummaryWriter()
+    model_name = writer.log_dir
 
     hyperparameter_defaults = dict(
         dropout = str(drop_rate),
@@ -324,13 +324,13 @@ def objective(trial):
         total_window = total_window,
         dataset='7_chann',
         model_type=model_type,
-        vertical_image_window = 1
+        vertical_image_window = vertical_image_window
         )
 
     dataset_f = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
     dataset_f = dataset_f.window(size=data_div_step, shift=total_time_step, stride=1, drop_remainder=False)
     dataset_f = dataset_f.map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
-    dataset_f = dataset_f.flat_map(lambda x: x.flat_map(lambda x: x))
+    dataset_f = dataset_f.flat_map(lambda x2: x2.flat_map(lambda x1: x1))
     dataset_f = dataset_f.map(_parse_function_).batch(time_step)
     dataset_f = dataset_f.shuffle(10000)
     dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
@@ -338,7 +338,7 @@ def objective(trial):
     dataseti1 = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
     dataseti1 = dataseti1.window(size=total_time_step, shift=total_time_step, stride=1, drop_remainder=False)
     dataseti1 = dataseti1.map(lambda x: x.skip(total_time_step-(time_step+(num_val_img-1))).window(size=time_step, shift=1, stride=1,drop_remainder=True))
-    dataseti1 = dataseti1.flat_map(lambda x: x.flat_map(lambda x: x))
+    dataseti1 = dataseti1.flat_map(lambda x2: x2.flat_map(lambda x1: x1))
     dataseti1 = dataseti1.map(_parse_function_).batch(time_step)
     dataseti1 = dataseti1.batch(val_batch_size, drop_remainder=True)
 
@@ -407,7 +407,7 @@ def objective(trial):
 
         if save_mod == True :
             if epoch % model_save_at == 0:
-                model_save()
+                model_save(model, optimizer, model_name)
             
         model.eval()
 
@@ -473,7 +473,7 @@ def objective(trial):
                 
         if early_stop_counter > early_stop_thresh :
             print('early stopping as val loss is not improving ........')
-            model_save()
+            model_save(model, optimizer, model_name)
             break
 
     for iter_num in range(num_val_img):
@@ -489,6 +489,7 @@ def objective(trial):
         'hparam/pos_mae':test_pos_mae, 'hparam/precision':test_prec,'hparam/recall':test_recall,'hparam/f1_score':test_f1_score,
         'hparam/pos_std':test_pos_std, 'hparam/neg_mae':test_neg_mae,'hparam/neg_std':test_neg_std})
     writer.close()
+    model_save(model, optimizer, model_name)
 
     return avg_val_epoch_loss
 
