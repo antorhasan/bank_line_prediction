@@ -69,7 +69,6 @@ def plt_conf_mat(conf_mat, title, writer):
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     
-    #wandb.log({title: plt})
     writer.add_figure(title, mat_fig)
     plt.close()
 
@@ -83,23 +82,39 @@ def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side,writer, val_img_
     counter_neg = 0 
     pos_deviation = 0
     neg_deviation = 0
+
+    pos_list = []
+    neg_list = []
+
     for i in range(act_err_bin.shape[0]):
         if act_err_bin[i] == 1 and temp_arr[i]>=0 :
+            pos_list.append(temp_arr[i])
             pos_deviation = pos_deviation + temp_arr[i]
             counter_pos += 1
         elif act_err_bin[i] == 1 and temp_arr[i]<0 :
+            neg_list.append(-temp_arr[i])
             neg_deviation = neg_deviation + (-temp_arr[i])
             counter_neg += 1
+
+    pos_std = np.std(np.asarray(pos_list))
+    neg_std = np.std(np.asarray(neg_list))
+
+    pos_max = np.amax(np.asarray(pos_list))
+    neg_max = np.amax(np.asarray(neg_list))
 
     mean_pos_dev = pos_deviation/counter_pos
     mean_neg_dev = neg_deviation/counter_neg
 
-    #wandb.log({'mean_abs_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]):mean_pos_dev, 
-    #            'mean_abs_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]):mean_neg_dev})
     writer.add_scalar('mean_abs_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), mean_pos_dev, epoch+1)
     writer.add_scalar('mean_abs_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), mean_neg_dev, epoch+1)
 
-    return mean_pos_dev
+    writer.add_scalar('std_of_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), pos_std, epoch+1)
+    writer.add_scalar('std_of_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), neg_std, epoch+1)
+
+    writer.add_scalar('max_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), pos_max, epoch+1)
+    writer.add_scalar('max_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), neg_max, epoch+1)
+
+    return mean_pos_dev, pos_std, mean_neg_dev, neg_std
 
 def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer,val_img_ids):
     act_left = actual_list[:,iter_num,0]
@@ -114,11 +129,18 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     actual_ers_lft = np.reshape(np.where(act_left<prev_left, 1, 0),(act_left.shape[0],1))
     actual_ers_rht = np.reshape(np.where(act_right>prev_right, 1, 0),(act_right.shape[0],1))
     
-    left_mae = regress_erro(actual_ers_lft, act_left, pred_left, iter_num, 'left',writer,val_img_ids,epoch)
-    right_mae = regress_erro(actual_ers_rht, act_right, pred_right, iter_num, 'right',writer,val_img_ids,epoch)
+    left_mae_pos,left_std_pos,left_mae_neg,left_std_neg = regress_erro(actual_ers_lft, act_left, pred_left, iter_num, 'left',writer,val_img_ids,epoch)
+    right_mae_pos,right_std_pos,right_mae_neg,right_std_neg = regress_erro(actual_ers_rht, act_right, pred_right, iter_num, 'right',writer,val_img_ids,epoch)
 
-    avg_mae = (left_mae + right_mae)/2
-    writer.add_scalar('pos_mae_for_actual_erosion'+str(val_img_ids[iter_num]), avg_mae, epoch+1)
+    avg_mae_pos = (left_mae_pos + right_mae_pos)/2
+    writer.add_scalar('pos_mae_for_actual_erosion'+str(val_img_ids[iter_num]), avg_mae_pos, epoch+1)
+    avg_std_pos = (left_std_pos + right_std_pos)/2
+    writer.add_scalar('pos_std_for_actual_erosion'+str(val_img_ids[iter_num]), avg_std_pos, epoch+1)
+
+    avg_mae_neg = (left_mae_neg + right_mae_neg)/2
+    writer.add_scalar('neg_mae_for_actual_erosion'+str(val_img_ids[iter_num]), avg_mae_neg, epoch+1)
+    avg_std_neg = (left_std_neg + right_std_neg)/2
+    writer.add_scalar('neg_std_for_actual_erosion'+str(val_img_ids[iter_num]), avg_std_neg, epoch+1)
 
     pred_ers_lft = np.reshape(np.where(pred_left<prev_left, 1, 0),(pred_left.shape[0],1))
     pred_ers_rht = np.reshape(np.where(pred_right>prev_right, 1, 0),(pred_right.shape[0],1))
@@ -138,7 +160,7 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     writer.add_scalar('recall_'+ str(val_img_ids[iter_num]), recall_comb, epoch+1)
     writer.add_scalar('f1_score_'+ str(val_img_ids[iter_num]), f1_comb, epoch+1)
 
-    return avg_mae, precision_comb, recall_comb, f1_comb
+    return avg_mae_pos, avg_std_pos, avg_mae_neg, avg_std_neg, precision_comb, recall_comb, f1_comb
 
 
 
@@ -178,11 +200,19 @@ def wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids,writ
             pass
         else :
             pred_list[i,iter_num,0] = 0
+        if 0<=int(pred_left_den[i])<=745 :
+            pass
+        else :
+            pred_left_den[i] = 0 
         
         if 0<=int(pred_list[i,iter_num,1])<=745 :
             pass
         else :
-            pred_list[i,iter_num,1] = 745
+            pred_list[i,iter_num,1] = 744
+        if 0<=int(pred_right_den[i])<=745 : 
+            pass
+        else :
+            pred_right_den[i] = 0
 
 
         if actual_ers_lft[i] == 1 :
@@ -221,29 +251,41 @@ def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, 
     print('logging performance metrics........')
     
     for i in range(num_val_img):
-        pos_mae, precision_comb,recall_comb,f1_comb = calc_fscore(i, actual_list, prev_actual_list, pred_list, epoch,writer,val_img_ids)
+        pos_mae, pos_std,neg_mae,neg_std, precision_comb,recall_comb,f1_comb = calc_fscore(i, actual_list, prev_actual_list, pred_list, epoch,writer,val_img_ids)
         if i == 0 :
             test_pos_mae = pos_mae
+            test_pos_std = pos_std
+            test_neg_mae = neg_mae
+            test_neg_std = neg_std
             final_prec = precision_comb
             final_recall = recall_comb
             final_f1 = f1_comb
         else :
             test_pos_mae = test_pos_mae + pos_mae
+            test_pos_std = test_pos_std + pos_std
+            test_neg_mae = test_neg_mae + neg_mae
+            test_neg_std = test_neg_std + neg_std
             final_prec = final_prec + precision_comb
             final_recall = final_recall + recall_comb
             final_f1 = final_f1 + f1_comb
 
     test_pos_mae = test_pos_mae/num_val_img
+    test_pos_std = test_pos_std/num_val_img
+    test_neg_mae = test_neg_mae/num_val_img
+    test_neg_std = test_neg_std/num_val_img
     test_prec = final_prec/num_val_img
     test_recall = final_recall/num_val_img
     test_f1_score = final_f1/num_val_img
 
     writer.add_scalar("test_set_pos_mae", test_pos_mae, epoch+1)
+    writer.add_scalar("test_set_pos_std", test_pos_std, epoch+1)
+    writer.add_scalar("test_set_neg_mae", test_neg_mae, epoch+1)
+    writer.add_scalar("test_set_neg_std", test_neg_std, epoch+1)
     writer.add_scalar("test_set_precision", test_prec, epoch+1)
     writer.add_scalar("test_set_recall", test_recall, epoch+1)
     writer.add_scalar("test_set_f1_score", test_f1_score, epoch+1)
 
-    return test_pos_mae, test_prec, test_recall, test_f1_score
+    return test_pos_mae, test_pos_std,test_neg_mae,test_neg_std, test_prec, test_recall, test_f1_score
 
 
 def objective(trial):
@@ -253,23 +295,23 @@ def objective(trial):
     num_lstm_layers = 1
     num_channels = 7
     batch_size = 100
-    EPOCHS = 16
-    lr_rate = trial.suggest_loguniform('lr_rate', 1e-5, 1e2)                       #.0001
+    EPOCHS = 53
+    lr_rate = trial.suggest_loguniform('lr_rate', .0000001, 1)                       #.0001
     #in_seq_num = 20
     #output_at = 10
     model_type = 'CNN_Model_vanilla'
-    drop_rate = 0.25
+    drop_rate = 0
     time_step = 5
     val_batch_size = batch_size
     total_time_step = 33
-    data_div_step = 31
-
-    log_performance = 4 ###number of epochs after which performance metrics are calculated
+    log_performance = 5 ###number of epochs after which performance metrics are calculated
     model_save_at = 50     ###number of epochs after which to save model
     early_stop_thresh = 30
-    val_img_ids = [201901, 202001]
+    val_img_ids = [201701, 201801, 201901, 202001]
     num_val_img = len(val_img_ids)
+    data_div_step = total_time_step - num_val_img
     log_hist = 5
+    writer = SummaryWriter(log_dir='./runs/lr_rate/')
 
     hyperparameter_defaults = dict(
         dropout = str(drop_rate),
@@ -285,9 +327,6 @@ def objective(trial):
         vertical_image_window = 1
         )
 
-    writer = SummaryWriter(log_dir='./runs/lr_rate/')
-
-
     dataset_f = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
     dataset_f = dataset_f.window(size=data_div_step, shift=total_time_step, stride=1, drop_remainder=False)
     dataset_f = dataset_f.map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
@@ -298,7 +337,7 @@ def objective(trial):
 
     dataseti1 = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
     dataseti1 = dataseti1.window(size=total_time_step, shift=total_time_step, stride=1, drop_remainder=False)
-    dataseti1 = dataseti1.map(lambda x: x.skip(total_time_step-(time_step+1)).window(size=time_step, shift=1, stride=1,drop_remainder=True))
+    dataseti1 = dataseti1.map(lambda x: x.skip(total_time_step-(time_step+(num_val_img-1))).window(size=time_step, shift=1, stride=1,drop_remainder=True))
     dataseti1 = dataseti1.flat_map(lambda x: x.flat_map(lambda x: x))
     dataseti1 = dataseti1.map(_parse_function_).batch(time_step)
     dataseti1 = dataseti1.batch(val_batch_size, drop_remainder=True)
@@ -429,7 +468,7 @@ def objective(trial):
                 pred_list = process_val(pred_list,num_val_img, msk_mean, msk_std)
                 actual_list = process_val(actual_list,num_val_img, msk_mean, msk_std)
                 prev_actual_list = process_val(prev_actual_list,num_val_img, msk_mean, msk_std)
-                test_pos_mae, test_prec, test_recall, test_f1_score = log_performance_metrics(pred_list,actual_list,prev_actual_list,
+                test_pos_mae, test_pos_std,test_neg_mae,test_neg_std, test_prec, test_recall, test_f1_score = log_performance_metrics(pred_list,actual_list,prev_actual_list,
                                                     num_val_img, epoch, msk_mean, msk_std, val_img_ids,writer)
                 
         if early_stop_counter > early_stop_thresh :
@@ -447,13 +486,14 @@ def objective(trial):
         
     plt_conf_mat(final_conf, 'total_test_confusion_matrix', writer)
     writer.add_hparams(hyperparameter_defaults,{'hparam/train_loss':avg_epoch_loss,'hparam/val_loss':avg_val_epoch_loss,
-    'hparam/pos_mae':test_pos_mae, 'hparam/precision':test_prec,'hparam/recall':test_recall,'hparam/f1_score':test_f1_score})
+        'hparam/pos_mae':test_pos_mae, 'hparam/precision':test_prec,'hparam/recall':test_recall,'hparam/f1_score':test_f1_score,
+        'hparam/pos_std':test_pos_std, 'hparam/neg_mae':test_neg_mae,'hparam/neg_std':test_neg_std})
     writer.close()
 
     return avg_val_epoch_loss
 
 
 if __name__ == "__main__":
-    study = optuna.create_study()
-    study.optimize(objective, n_trials=1) 
+    study = optuna.create_study(direction='minimize')
+    study.optimize(objective, n_trials=None) 
     pass
