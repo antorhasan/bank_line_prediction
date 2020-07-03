@@ -190,7 +190,7 @@ def wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids,writ
         pred_left_den = savgol_filter(pred_list[:,iter_num,0], window, poly)
         pred_right_den = savgol_filter(pred_list[:,iter_num,1], window, poly)
 
-    img = cv2.imread('./data/img/up_rgb/'+str(val_img_ids[iter_num])+'.png', 1)
+    img = cv2.imread(os.path.join('./data/img/up_rgb/'+str(val_img_ids[iter_num])+'.png'), 1)
     for i in range(num_rows):
 
         img[i,int(actual_list[i,iter_num,0]),:] = [255,255,255]
@@ -242,10 +242,11 @@ def process_val(arr_list, num_val_img, msk_mean, msk_std):
 
 def model_save(model, optimizer, model_name):
     print('saving model....')
+    model_path = os.path.join('./data/model/'+model_name.split("\\")[-1]+'.pt')
     torch.save({
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict()
-            }, './data/model/'+model_name.split('/')[-1]+'.pt')
+            }, model_path)
 
 def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, epoch, msk_mean, msk_std, val_img_ids,writer):
     print('logging performance metrics........')
@@ -291,11 +292,11 @@ def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, 
 def objective(trial):
     load_mod = False
     save_mod = False
-    total_window = 30
+    total_window = 52
     num_lstm_layers = 1
     num_channels = 7
     batch_size = 100
-    EPOCHS = 53
+    EPOCHS = 52
     lr_rate = trial.suggest_loguniform('lr_rate', .0000001, 1)                       #.0001
     vertical_image_window = 1
     model_type = 'CNN_Model_vanilla'
@@ -327,7 +328,7 @@ def objective(trial):
         vertical_image_window = vertical_image_window
         )
 
-    dataset_f = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
+    dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/comp_tf.tfrecords'))
     dataset_f = dataset_f.window(size=data_div_step, shift=total_time_step, stride=1, drop_remainder=False)
     dataset_f = dataset_f.map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
     dataset_f = dataset_f.flat_map(lambda x2: x2.flat_map(lambda x1: x1))
@@ -335,7 +336,7 @@ def objective(trial):
     dataset_f = dataset_f.shuffle(10000)
     dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
 
-    dataseti1 = tf.data.TFRecordDataset('./data/tfrecord/comp_tf.tfrecords')
+    dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/comp_tf.tfrecords'))
     dataseti1 = dataseti1.window(size=total_time_step, shift=total_time_step, stride=1, drop_remainder=False)
     dataseti1 = dataseti1.map(lambda x: x.skip(total_time_step-(time_step+(num_val_img-1))).window(size=time_step, shift=1, stride=1,drop_remainder=True))
     dataseti1 = dataseti1.flat_map(lambda x2: x2.flat_map(lambda x1: x1))
@@ -351,13 +352,13 @@ def objective(trial):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate)
 
     if load_mod == True:
-        checkpoint = torch.load('./data/model/f_temp.pt')
+        checkpoint = torch.load(os.path.join('./data/model/f_temp.pt'))
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 
-    msk_mean = np.load('./data/mean_img/line_mean.npy')
-    msk_std = np.load('./data/mean_img/line_std.npy')
+    msk_mean = np.load(os.path.join('./data/mean_img/line_mean.npy'))
+    msk_std = np.load(os.path.join('./data/mean_img/line_std.npy'))
 
     early_stop_counter = 0
     global_train_counter = 0
