@@ -196,23 +196,23 @@ def wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids,writ
         img[i,int(actual_list[i,iter_num,0]),:] = [255,255,255]
         img[i,int(actual_list[i,iter_num,1]),:] = [255,255,255]
 
-        if 0<=int(pred_list[i,iter_num,0])<=745 :
+        if 0<=int(pred_list[i,iter_num,0])<=744 :
             pass
         else :
             pred_list[i,iter_num,0] = 0
-        if 0<=int(pred_left_den[i])<=745 :
+        if 0<=int(pred_left_den[i])<=744 :
             pass
         else :
             pred_left_den[i] = 0 
         
-        if 0<=int(pred_list[i,iter_num,1])<=745 :
+        if 0<=int(pred_list[i,iter_num,1])<=744 :
             pass
         else :
             pred_list[i,iter_num,1] = 744
-        if 0<=int(pred_right_den[i])<=745 : 
+        if 0<=int(pred_right_den[i])<=744 : 
             pass
         else :
-            pred_right_den[i] = 0
+            pred_right_den[i] = 744
 
 
         if actual_ers_lft[i] == 1 :
@@ -263,7 +263,7 @@ def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, 
             final_f1 = f1_comb
         else :
             test_pos_mae = test_pos_mae + pos_mae
-            test_pos_std = test_pos_std + pos_std
+            test_pos_std = test_pos_std + pos_std 
             test_neg_mae = test_neg_mae + neg_mae
             test_neg_std = test_neg_std + neg_std
             final_prec = final_prec + precision_comb
@@ -485,7 +485,7 @@ def objective(trial):
             final_conf = final_conf + temp_conf
         
     plt_conf_mat(final_conf, 'total_test_confusion_matrix', writer)
-    hyperparameter_defaults.update('epochs'=epoch+1)
+    hyperparameter_defaults.update(epochs=epoch+1)
     writer.add_hparams(hyperparameter_defaults,{'hparam/train_loss':avg_epoch_loss,'hparam/val_loss':avg_val_epoch_loss,
         'hparam/pos_mae':test_pos_mae, 'hparam/precision':test_prec,'hparam/recall':test_recall,'hparam/f1_score':test_f1_score,
         'hparam/pos_std':test_pos_std, 'hparam/neg_mae':test_neg_mae,'hparam/neg_std':test_neg_std})
