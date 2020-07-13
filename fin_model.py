@@ -292,15 +292,30 @@ def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, 
 def objective(trial):
     load_mod = False
     save_mod = False
-    total_window = 52
+    #total_window = 52
     num_lstm_layers = 1
     num_channels = 7
     batch_size = 100
     EPOCHS = 52
-    lr_rate = trial.suggest_loguniform('lr_rate', .0000001, 1)                       #.0001
+    #lr_rate = trial.suggest_loguniform('lr_rate', .0000001, .1)                       #.0001
+    lr_rate = trial.suggest_uniform('lr_rate', .0001, .0005)
     vertical_image_window = 1
-    model_type = 'CNN_Model_vanilla'
-    drop_rate = 0
+    model_type = 'CNN_Model_dropout_reg'
+
+    dr_1 = trial.suggest_discrete_uniform('drop_out_1',0.07, 0.17, 0.02)
+    dr_2 = trial.suggest_discrete_uniform('drop_out_2',0.1, 0.2, 0.02)
+    dr_3 = trial.suggest_discrete_uniform('drop_out_3',0.1, 0.2, 0.02)
+    dr_4 = trial.suggest_discrete_uniform('drop_out_4',0.19, 0.29, 0.02)
+    dr_5 = trial.suggest_discrete_uniform('drop_out_5',0.36, 0.46, 0.02)
+    dr_6 = trial.suggest_discrete_uniform('drop_out_6',0.39, 0.49, 0.02)
+    dr_7 = trial.suggest_discrete_uniform('drop_out_7',0.28, 0.38, 0.02)
+    dr_8 = trial.suggest_discrete_uniform('drop_out_8',0.5, 0.6, 0.02)
+    dr_9 = trial.suggest_discrete_uniform('drop_out_9',0.15, 0.25, 0.02)
+    dr_10 = trial.suggest_discrete_uniform('drop_out_10',0.26, 0.36, 0.02)
+    dr_11 = trial.suggest_discrete_uniform('drop_out_11',0.4, 0.5, 0.02)
+    dr_12 = trial.suggest_discrete_uniform('drop_out_12',0.22, 0.33, 0.02)
+    drop_rate = [dr_1,dr_2,dr_3,dr_4,dr_5,dr_6,dr_7,dr_8,dr_9,dr_10,dr_11,dr_12]
+
     time_step = 5
     val_batch_size = batch_size
     total_time_step = 33
@@ -315,13 +330,23 @@ def objective(trial):
     model_name = writer.log_dir
 
     hyperparameter_defaults = dict(
-        dropout = str(drop_rate),
+        drop_1 = dr_1,
+        drop_2 = dr_2,
+        drop_3 = dr_3,
+        drop_4 = dr_4,
+        drop_5 = dr_5,
+        drop_6 = dr_6,
+        drop_7 = dr_7,
+        drop_8 = dr_8,
+        drop_9 = dr_9,
+        drop_10 = dr_10,
+        drop_11 = dr_11,
+        drop_12 = dr_12,
         num_channels = num_channels,
         batch_size = batch_size,
         learning_rate = lr_rate,
         time_step = time_step,
         num_lstm_layers = num_lstm_layers,
-        total_window = total_window,
         dataset='7_chann',
         model_type=model_type,
         vertical_image_window = vertical_image_window

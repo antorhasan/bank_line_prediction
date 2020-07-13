@@ -10,6 +10,7 @@ import numpy as np
 from sklearn.metrics import mean_absolute_error
 #from preprocess import *
 import sys
+import os
 #from preprocess import path_sort
 #from utility import single_pix
 import matplotlib.pyplot as plt
@@ -777,7 +778,8 @@ def for_cegis():
     cv2.imwrite('./data/img/shp_mask/'+'cegis_19'+'.png', tif_img)
 
 if __name__ == "__main__" :
-    for_cegis()
+    save_img_from_tif(os.path.join('./data/img/final_rgb/198802.tif'),'infra',True,'198802')
+    #for_cegis()
     #comp_to_tfrec()
     #update_bin_mask([10,2232])
     #mean_line_npy(2,[10,2232])
