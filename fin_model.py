@@ -96,14 +96,26 @@ def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side,writer, val_img_
             neg_deviation = neg_deviation + (-temp_arr[i])
             counter_neg += 1
 
+
     pos_std = np.std(np.asarray(pos_list))
     neg_std = np.std(np.asarray(neg_list))
 
-    pos_max = np.amax(np.asarray(pos_list))
-    neg_max = np.amax(np.asarray(neg_list))
+    if len(pos_list) != 0 :
+        pos_max = np.amax(np.asarray(pos_list))
+        writer.add_scalar('max_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), pos_max, epoch+1)
 
-    mean_pos_dev = pos_deviation/counter_pos
-    mean_neg_dev = neg_deviation/counter_neg
+    if len(neg_list) != 0 :
+        neg_max = np.amax(np.asarray(neg_list))
+        writer.add_scalar('max_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), neg_max, epoch+1)
+
+    try:
+        mean_pos_dev = pos_deviation/counter_pos
+    except:
+        mean_pos_dev = pos_deviation/.0001
+    try:
+        mean_neg_dev = neg_deviation/counter_neg
+    except:
+        mean_neg_dev = neg_deviation/.0001
 
     writer.add_scalar('mean_abs_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), mean_pos_dev, epoch+1)
     writer.add_scalar('mean_abs_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), mean_neg_dev, epoch+1)
@@ -111,8 +123,6 @@ def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side,writer, val_img_
     writer.add_scalar('std_of_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), pos_std, epoch+1)
     writer.add_scalar('std_of_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), neg_std, epoch+1)
 
-    writer.add_scalar('max_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), pos_max, epoch+1)
-    writer.add_scalar('max_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), neg_max, epoch+1)
 
     return mean_pos_dev, pos_std, mean_neg_dev, neg_std
 
@@ -187,8 +197,12 @@ def wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids,writ
     poly = 2
 
     if denoising :
-        pred_left_den = savgol_filter(pred_list[:,iter_num,0], window, poly)
-        pred_right_den = savgol_filter(pred_list[:,iter_num,1], window, poly)
+        try :
+            pred_left_den = savgol_filter(pred_list[:,iter_num,0], window, poly)
+            pred_right_den = savgol_filter(pred_list[:,iter_num,1], window, poly)
+        except :
+            pred_left_den = pred_list[:,iter_num,0]
+            pred_right_den = pred_list[:,iter_num,1]
 
     img = cv2.imread(os.path.join('./data/img/up_rgb/'+str(val_img_ids[iter_num])+'.png'), 1)
     for i in range(num_rows):
@@ -295,9 +309,9 @@ def objective(trial):
     #total_window = 52
     num_lstm_layers = 1
     num_channels = 7
-    batch_size = 100
-    EPOCHS = 52
-    #lr_rate = trial.suggest_loguniform('lr_rate', .0000001, .1)                       #.0001
+    
+    EPOCHS = 202
+    #lr_rate = trial.suggest_loguniform('lr_rate', .0001, .0005)                       #.0001
     lr_rate = trial.suggest_uniform('lr_rate', .0001, .0005)
     vertical_image_window = 1
     model_type = 'CNN_Model_dropout_reg'
@@ -316,7 +330,8 @@ def objective(trial):
     dr_12 = trial.suggest_discrete_uniform('drop_out_12',0.22, 0.33, 0.02)
     drop_rate = [dr_1,dr_2,dr_3,dr_4,dr_5,dr_6,dr_7,dr_8,dr_9,dr_10,dr_11,dr_12]
 
-    time_step = 5
+    time_step = trial.suggest_int('time_step', 16, 20)
+    batch_size = int((500/time_step) - 2)
     val_batch_size = batch_size
     total_time_step = 33
     log_performance = 5 ###number of epochs after which performance metrics are calculated
@@ -400,8 +415,8 @@ def objective(trial):
             input_tensor = input_tensor[:,0:time_step-1,:,:]
             reg_coor = reg_coor[:,time_step-1:time_step,:]
             
-            input_tensor = torch.Tensor(input_tensor).cuda()
-            reg_coor = torch.Tensor(reg_coor).cuda()
+            input_tensor = torch.Tensor(input_tensor).cuda().requires_grad_(False)
+            reg_coor = torch.Tensor(reg_coor).cuda().requires_grad_(False)
             reg_coor = torch.reshape(reg_coor, (batch_size,-1))
             
             optimizer.zero_grad()
@@ -521,6 +536,7 @@ def objective(trial):
 
 
 if __name__ == "__main__":
-    study = optuna.create_study(direction='minimize')
+    study = optuna.create_study(direction='minimize',sampler= optuna.samplers.RandomSampler())
+    #study = optuna.create_study(direction='minimize')
     study.optimize(objective, n_trials=None) 
     pass
