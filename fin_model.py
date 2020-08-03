@@ -4,7 +4,6 @@ import torch
 import numpy as np
 import cv2
 import torch.nn.functional as F
-from torch.utils.tensorboard import SummaryWriter
 from os import listdir
 from os.path import isfile, join
 import os
@@ -17,6 +16,7 @@ import matplotlib.pyplot as plt
 import itertools
 from scipy.signal import savgol_filter
 import optuna
+from operator import add
 
 
 def _parse_function_(example_proto):
@@ -80,25 +80,44 @@ def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side,writer, val_img_
         temp_arr = -temp_arr
     counter_pos = 0
     counter_neg = 0 
-    pos_deviation = 0
-    neg_deviation = 0
+    counter_non = 0
+    #pos_deviation = 0
+    #neg_deviation = 0
 
     pos_list = []
     neg_list = []
+    non_ero_list = []
+    #actual_ero_abs = []
 
     for i in range(act_err_bin.shape[0]):
         if act_err_bin[i] == 1 and temp_arr[i]>=0 :
             pos_list.append(temp_arr[i])
-            pos_deviation = pos_deviation + temp_arr[i]
+            #actual_ero_abs.append(abs(temp_arr[i]))
+            #pos_deviation = pos_deviation + temp_arr[i]
             counter_pos += 1
         elif act_err_bin[i] == 1 and temp_arr[i]<0 :
             neg_list.append(-temp_arr[i])
-            neg_deviation = neg_deviation + (-temp_arr[i])
+            #actual_ero_abs.append(abs(temp_arr[i]))
+            #neg_deviation = neg_deviation + (-temp_arr[i])
             counter_neg += 1
+        elif act_err_bin[i] != 1 :
+            non_ero_list.append(abs(temp_arr[i]))
+            counter_non += 1
 
+    pos_np = np.asarray(pos_list)
+    neg_np = np.asarray(neg_list)
+    comb_np = np.asarray(pos_list+neg_list)
+    non_np = np.asarray(non_ero_list)
 
-    pos_std = np.std(np.asarray(pos_list))
-    neg_std = np.std(np.asarray(neg_list))
+    pos_sum = np.sum(pos_np)
+    neg_sum = np.sum(neg_np)
+    comb_sum = np.sum(comb_np)
+    non_sum = np.sum(non_np)
+
+    pos_std = np.std(pos_np)
+    neg_std = np.std(neg_np)
+    comb_std = np.std(comb_sum)
+    non_std = np.std(non_np)
 
     if len(pos_list) != 0 :
         pos_max = np.amax(np.asarray(pos_list))
@@ -109,22 +128,46 @@ def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side,writer, val_img_
         writer.add_scalar('max_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), neg_max, epoch+1)
 
     try:
-        mean_pos_dev = pos_deviation/counter_pos
+        mean_pos_dev = pos_sum/counter_pos
     except:
-        mean_pos_dev = pos_deviation/.0001
+        mean_pos_dev = pos_sum/.0001
     try:
-        mean_neg_dev = neg_deviation/counter_neg
+        mean_neg_dev = neg_sum/counter_neg
     except:
-        mean_neg_dev = neg_deviation/.0001
+        mean_neg_dev = neg_sum/.0001
+    try:
+        ero_mae = comb_sum/(counter_pos + counter_neg)
+    except:
+        ero_mae = comb_sum/.0001
+    try:
+        non_ero_mae = non_sum/counter_non
+    except:
+        non_ero_mae = non_sum/.0001
 
+    reach_mae = np.mean(np.absolute(temp_arr))
+    reach_std = np.std(np.absolute(temp_arr))
+    
     writer.add_scalar('mean_abs_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), mean_pos_dev, epoch+1)
     writer.add_scalar('mean_abs_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), mean_neg_dev, epoch+1)
+    writer.add_scalar('mae_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), ero_mae, epoch+1)
+    writer.add_scalar('mae_for_non_error_'+side+str(val_img_ids[iter_num]), non_ero_mae, epoch+1)
+    writer.add_scalar('reach_mae'+side+str(val_img_ids[iter_num]), reach_mae, epoch+1)
 
     writer.add_scalar('std_of_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), pos_std, epoch+1)
     writer.add_scalar('std_of_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), neg_std, epoch+1)
+    writer.add_scalar('std_of_comb_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), comb_std, epoch+1)
+    writer.add_scalar('std_of_non_error_'+side+str(val_img_ids[iter_num]), non_std, epoch+1)
+    writer.add_scalar('std_of_reach_error'+side+str(val_img_ids[iter_num]), reach_std, epoch+1)
 
+    return mean_pos_dev, pos_std, mean_neg_dev, neg_std, ero_mae, comb_std, non_ero_mae, non_std, reach_mae, reach_std
 
-    return mean_pos_dev, pos_std, mean_neg_dev, neg_std
+def log_perform_lef_rght(log_item, left_comp, right_comp, writer, val_img_ids, iter_num, epoch):
+    '''log the various mae and std in calc_fscore'''
+    writer.add_scalar('left_'+log_item+'_for_actual_erosion'+str(val_img_ids[iter_num]), left_comp, epoch+1)
+    writer.add_scalar('right_'+log_item+'_for_actual_erosion'+str(val_img_ids[iter_num]), right_comp, epoch+1)
+    avg_comp = (left_comp + right_comp)/2
+    writer.add_scalar('left_right_avg_'+log_item+'_for_actual_erosion'+str(val_img_ids[iter_num]), avg_comp, epoch+1)
+
 
 def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer,val_img_ids):
     act_left = actual_list[:,iter_num,0]
@@ -139,18 +182,17 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     actual_ers_lft = np.reshape(np.where(act_left<prev_left, 1, 0),(act_left.shape[0],1))
     actual_ers_rht = np.reshape(np.where(act_right>prev_right, 1, 0),(act_right.shape[0],1))
     
-    left_mae_pos,left_std_pos,left_mae_neg,left_std_neg = regress_erro(actual_ers_lft, act_left, pred_left, iter_num, 'left',writer,val_img_ids,epoch)
-    right_mae_pos,right_std_pos,right_mae_neg,right_std_neg = regress_erro(actual_ers_rht, act_right, pred_right, iter_num, 'right',writer,val_img_ids,epoch)
+    left_mae_pos,left_std_pos,left_mae_neg,left_std_neg,lft_cm_m,lft_cm_std,lft_non_m,lft_non_s,lft_r_m,lft_r_s = regress_erro(actual_ers_lft, act_left, pred_left, iter_num, 'left',writer,val_img_ids,epoch)
+    right_mae_pos,right_std_pos,right_mae_neg,right_std_neg,rg_cm_m,rg_cm_std,rg_non_m,rg_non_s,rg_r_m,rg_r_s = regress_erro(actual_ers_rht, act_right, pred_right, iter_num, 'right',writer,val_img_ids,epoch)
 
-    avg_mae_pos = (left_mae_pos + right_mae_pos)/2
-    writer.add_scalar('pos_mae_for_actual_erosion'+str(val_img_ids[iter_num]), avg_mae_pos, epoch+1)
-    avg_std_pos = (left_std_pos + right_std_pos)/2
-    writer.add_scalar('pos_std_for_actual_erosion'+str(val_img_ids[iter_num]), avg_std_pos, epoch+1)
+    log_dic_lef_rght = {'pos_mae': [left_mae_pos,right_mae_pos], 'pos_std':[left_std_pos,right_std_pos],
+    'neg_mae':[left_mae_neg,right_mae_neg],'neg_std':[left_std_neg,right_std_neg],
+    'full_act_mae':[lft_cm_m,rg_cm_m],'full_act_std':[lft_cm_std,rg_cm_std],
+    'full_non_erosion_mae':[lft_non_m,rg_non_m],'full_non_erosion_std':[lft_non_s,rg_non_s],
+    'reach_mae':[lft_r_m,rg_r_m],'reach_std':[lft_r_s,rg_r_s]}
 
-    avg_mae_neg = (left_mae_neg + right_mae_neg)/2
-    writer.add_scalar('neg_mae_for_actual_erosion'+str(val_img_ids[iter_num]), avg_mae_neg, epoch+1)
-    avg_std_neg = (left_std_neg + right_std_neg)/2
-    writer.add_scalar('neg_std_for_actual_erosion'+str(val_img_ids[iter_num]), avg_std_neg, epoch+1)
+    for i,j in zip(log_dic_lef_rght.keys(),log_dic_lef_rght.values()):
+        log_perform_lef_rght(i, j[0], j[1], writer, val_img_ids, iter_num, epoch)
 
     pred_ers_lft = np.reshape(np.where(pred_left<prev_left, 1, 0),(pred_left.shape[0],1))
     pred_ers_rht = np.reshape(np.where(pred_right>prev_right, 1, 0),(pred_right.shape[0],1))
@@ -166,11 +208,33 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     recall_comb = recall_score(y_true, y_pred, average='binary')
     f1_comb = f1_score(y_true, y_pred, average='binary')
     
+    precision_lft = precision_score(actual_ers_lft, pred_ers_lft, average='binary')
+    recall_lft = recall_score(actual_ers_lft, pred_ers_lft, average='binary')
+    f1_lft = f1_score(actual_ers_lft, pred_ers_lft, average='binary')
+
+    precision_rht = precision_score(actual_ers_rht, pred_ers_rht, average='binary')
+    recall_rht = recall_score(actual_ers_rht, pred_ers_rht, average='binary')
+    f1_rht = f1_score(actual_ers_rht, pred_ers_rht, average='binary')
+
+    
     writer.add_scalar('precision_'+ str(val_img_ids[iter_num]), precision_comb, epoch+1)
     writer.add_scalar('recall_'+ str(val_img_ids[iter_num]), recall_comb, epoch+1)
     writer.add_scalar('f1_score_'+ str(val_img_ids[iter_num]), f1_comb, epoch+1)
 
-    return avg_mae_pos, avg_std_pos, avg_mae_neg, avg_std_neg, precision_comb, recall_comb, f1_comb
+    writer.add_scalar('left_precision_'+ str(val_img_ids[iter_num]), precision_comb, epoch+1)
+    writer.add_scalar('left_recall_'+ str(val_img_ids[iter_num]), recall_comb, epoch+1)
+    writer.add_scalar('left_f1_score_'+ str(val_img_ids[iter_num]), f1_comb, epoch+1)
+
+    writer.add_scalar('right_precision_'+ str(val_img_ids[iter_num]), precision_comb, epoch+1)
+    writer.add_scalar('right_recall_'+ str(val_img_ids[iter_num]), recall_comb, epoch+1)
+    writer.add_scalar('right_f1_score_'+ str(val_img_ids[iter_num]), f1_comb, epoch+1)
+
+    log_dic_scores = {'left_precision':precision_lft,'left_recall':recall_lft,'left_f1':f1_lft,
+    'right_precision':precision_rht,'right_recall':recall_rht,'right_f1':f1_rht,
+    'lft_rht_precision':precision_comb,'lft_rgt_recall':recall_comb,'lft_rht_f1':f1_comb}
+
+    #return avg_mae_pos, avg_std_pos, avg_mae_neg, avg_std_neg, precision_comb, recall_comb, f1_comb
+    return log_dic_lef_rght, log_dic_scores
 
 
 
@@ -229,7 +293,7 @@ def wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids,writ
             pred_right_den[i] = 744
 
 
-        if actual_ers_lft[i] == 1 :
+        """ if actual_ers_lft[i] == 1 :
             img[i,int(prev_actual_list[i,iter_num,0]),:] = [255,0,0]
             img[i,int(pred_list[i,iter_num,0]),:] = [0,255,0]
             if denoising:
@@ -240,7 +304,15 @@ def wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids,writ
             img[i,int(prev_actual_list[i,iter_num,1]),:] = [255,0,0]
             img[i,int(pred_list[i,iter_num,1]),:] = [0,255,0]
             if denoising:
-                img[i,int(pred_right_den[i]),:] = [0,0,255]
+                img[i,int(pred_right_den[i]),:] = [0,0,255] """
+
+        img[i,int(prev_actual_list[i,iter_num,0]),:] = [255,0,0]
+        img[i,int(prev_actual_list[i,iter_num,1]),:] = [255,0,0]
+        img[i,int(pred_list[i,iter_num,0]),:] = [0,255,0]
+        img[i,int(pred_list[i,iter_num,1]),:] = [0,255,0]
+        if denoising:
+            img[i,int(pred_left_den[i]),:] = [0,0,255]
+            img[i,int(pred_right_den[i]),:] = [0,0,255]
             
     writer.add_image(str(val_img_ids[iter_num]), img, dataformats='HWC')
     return combined_conf
@@ -256,7 +328,7 @@ def process_val(arr_list, num_val_img, msk_mean, msk_std):
 
 def model_save(model, optimizer, model_name):
     print('saving model....')
-    model_path = os.path.join('./data/model/'+model_name.split("\\")[-1]+'.pt')
+    model_path = os.path.join('./data/model/'+model_name +'.pt')
     torch.save({
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict()
@@ -266,42 +338,60 @@ def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, 
     print('logging performance metrics........')
     
     for i in range(num_val_img):
-        pos_mae, pos_std,neg_mae,neg_std, precision_comb,recall_comb,f1_comb = calc_fscore(i, actual_list, prev_actual_list, pred_list, epoch,writer,val_img_ids)
+        log_dic_lef_rght, log_dic_scores = calc_fscore(i, actual_list, prev_actual_list, pred_list, epoch,writer,val_img_ids)
         if i == 0 :
-            test_pos_mae = pos_mae
+            """ test_pos_mae = pos_mae
             test_pos_std = pos_std
             test_neg_mae = neg_mae
             test_neg_std = neg_std
             final_prec = precision_comb
             final_recall = recall_comb
-            final_f1 = f1_comb
+            final_f1 = f1_comb """
+            test_logs = log_dic_lef_rght
+            test_logs_scores = log_dic_scores
         else :
-            test_pos_mae = test_pos_mae + pos_mae
+            """ test_pos_mae = test_pos_mae + pos_mae
             test_pos_std = test_pos_std + pos_std 
             test_neg_mae = test_neg_mae + neg_mae
             test_neg_std = test_neg_std + neg_std
             final_prec = final_prec + precision_comb
             final_recall = final_recall + recall_comb
-            final_f1 = final_f1 + f1_comb
+            final_f1 = final_f1 + f1_comb """
+            for i in test_logs.keys() :
+                test_logs[i] = list(map(add, test_logs[i], log_dic_lef_rght[i]))
+            for i in test_logs_scores.keys() :
+                test_logs_scores[i] = test_logs_scores[i] + log_dic_scores[i]
 
-    test_pos_mae = test_pos_mae/num_val_img
+    """ test_pos_mae = test_pos_mae/num_val_img
     test_pos_std = test_pos_std/num_val_img
     test_neg_mae = test_neg_mae/num_val_img
     test_neg_std = test_neg_std/num_val_img
     test_prec = final_prec/num_val_img
     test_recall = final_recall/num_val_img
-    test_f1_score = final_f1/num_val_img
+    test_f1_score = final_f1/num_val_img """
 
-    writer.add_scalar("test_set_pos_mae", test_pos_mae, epoch+1)
+    for i in test_logs.keys() :
+        test_logs[i] = [x/num_val_img for x in test_logs[i]]
+    for i in test_logs_scores.keys() :
+        test_logs_scores[i] = test_logs_scores[i] / num_val_img
+
+    """ writer.add_scalar("test_set_pos_mae", test_pos_mae, epoch+1)
     writer.add_scalar("test_set_pos_std", test_pos_std, epoch+1)
     writer.add_scalar("test_set_neg_mae", test_neg_mae, epoch+1)
     writer.add_scalar("test_set_neg_std", test_neg_std, epoch+1)
     writer.add_scalar("test_set_precision", test_prec, epoch+1)
     writer.add_scalar("test_set_recall", test_recall, epoch+1)
-    writer.add_scalar("test_set_f1_score", test_f1_score, epoch+1)
+    writer.add_scalar("test_set_f1_score", test_f1_score, epoch+1) """
+    
+    for i in test_logs.keys() :
+        writer.add_scalar('test_set_left'+ i, test_logs[i][0], epoch+1)
+        writer.add_scalar('test_set_right'+ i, test_logs[i][1], epoch+1)
 
-    return test_pos_mae, test_pos_std,test_neg_mae,test_neg_std, test_prec, test_recall, test_f1_score
+    for i in test_logs_scores.keys() :
+        writer.add_scalar('test_set_'+ i, test_logs_scores[i], epoch+1)
 
+    #return test_pos_mae, test_pos_std,test_neg_mae,test_neg_std, test_prec, test_recall, test_f1_score
+    return test_logs, test_logs_scores
 
 def objective(trial):
     load_mod = False
@@ -310,13 +400,16 @@ def objective(trial):
     num_lstm_layers = 1
     num_channels = 7
     
-    EPOCHS = 202
-    #lr_rate = trial.suggest_loguniform('lr_rate', .0001, .0005)                       #.0001
-    lr_rate = trial.suggest_uniform('lr_rate', .0001, .0005)
+    #EPOCHS = 6
+    EPOCHS = trial.suggest_discrete_uniform('epochs', 10, 100, 5)
+    EPOCHS = int(EPOCHS)
+    #lr_rate = trial.suggest_loguniform('lr_rate', .00001, .1)                       #.0001
+    #lr_rate = trial.suggest_uniform('lr_rate', .0001, .0005)
+    lr_rate = 0.000932098670370034
     vertical_image_window = 1
     model_type = 'CNN_Model_dropout_reg'
 
-    dr_1 = trial.suggest_discrete_uniform('drop_out_1',0.07, 0.17, 0.02)
+    """ dr_1 = trial.suggest_discrete_uniform('drop_out_1',0.07, 0.17, 0.02)
     dr_2 = trial.suggest_discrete_uniform('drop_out_2',0.1, 0.2, 0.02)
     dr_3 = trial.suggest_discrete_uniform('drop_out_3',0.1, 0.2, 0.02)
     dr_4 = trial.suggest_discrete_uniform('drop_out_4',0.19, 0.29, 0.02)
@@ -327,22 +420,56 @@ def objective(trial):
     dr_9 = trial.suggest_discrete_uniform('drop_out_9',0.15, 0.25, 0.02)
     dr_10 = trial.suggest_discrete_uniform('drop_out_10',0.26, 0.36, 0.02)
     dr_11 = trial.suggest_discrete_uniform('drop_out_11',0.4, 0.5, 0.02)
-    dr_12 = trial.suggest_discrete_uniform('drop_out_12',0.22, 0.33, 0.02)
+    dr_12 = trial.suggest_discrete_uniform('drop_out_12',0.22, 0.32, 0.02) """
+    
+    dr_1 = 0
+    dr_2 = 0
+    dr_3 = 0
+    dr_4 = 0
+    dr_5 = 0
+    dr_6 = 0
+    dr_7 = 0
+    dr_8 = 0
+    dr_9 = 0
+    dr_10 = 0
+    dr_11 = 0
+    dr_12 = 0
+
     drop_rate = [dr_1,dr_2,dr_3,dr_4,dr_5,dr_6,dr_7,dr_8,dr_9,dr_10,dr_11,dr_12]
 
-    time_step = trial.suggest_int('time_step', 16, 20)
+    #time_step = trial.suggest_int('time_step', 16, 20)
+    time_step = 5
     batch_size = int((500/time_step) - 2)
     val_batch_size = batch_size
     total_time_step = 33
     log_performance = 5 ###number of epochs after which performance metrics are calculated
     model_save_at = 50     ###number of epochs after which to save model
     early_stop_thresh = 30
-    val_img_ids = [201701, 201801, 201901, 202001]
+    #val_img_ids = [201701, 201801, 201901, 202001]
+    path_to_val_img = os.path.join('./data/img/up_rgb/')
+    val_img_ids = [int(f.split('.')[0]) for f in listdir(path_to_val_img) if isfile(join(path_to_val_img, f))]
+    val_img_ids.sort()
+    org_val_img = val_img_ids
+    #start_indx = org_val_img.index(200501)    ###year to start training set from
+    #start_indx = trial.suggest_int('great_division', 0, 25)
+    start_indx = 27
+    #print(start_indx) 
+    #print(val_img_ids[22])
+    #division_parameter = trial.suggest_int('great_division', 1, 10)
+    val_img_ids = val_img_ids[-1:]
+    #print(val_img_ids)
+
+    #print(asd)
     num_val_img = len(val_img_ids)
     data_div_step = total_time_step - num_val_img
     log_hist = 5
     writer = SummaryWriter()
-    model_name = writer.log_dir
+    model_name = writer.get_logdir().split("\\")[1]
+    #temp_name = model_name.split('_')[0]+ '_' + model_name.split('_')[1]
+    #temp_name = temp_name.split('_')[0]+model_name.split('_')
+    #temp_name = temp_name.split('-')[0]+temp_name.split('-')[1]+temp_name.split('-')[2]
+    #print(model_name)
+    #print(asd)
 
     hyperparameter_defaults = dict(
         drop_1 = dr_1,
@@ -364,12 +491,15 @@ def objective(trial):
         num_lstm_layers = num_lstm_layers,
         dataset='7_chann',
         model_type=model_type,
-        vertical_image_window = vertical_image_window
+        vertical_image_window = vertical_image_window,
+        start_indx = org_val_img[start_indx],
+        end_indx = org_val_img[data_div_step-1]
         )
 
     dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/comp_tf.tfrecords'))
     dataset_f = dataset_f.window(size=data_div_step, shift=total_time_step, stride=1, drop_remainder=False)
-    dataset_f = dataset_f.map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
+    #dataset_f = dataset_f.map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
+    dataset_f = dataset_f.map(lambda x: x.skip(start_indx).window(size=time_step, shift=1, stride=1,drop_remainder=True))
     dataset_f = dataset_f.flat_map(lambda x2: x2.flat_map(lambda x1: x1))
     dataset_f = dataset_f.map(_parse_function_).batch(time_step)
     dataset_f = dataset_f.shuffle(10000)
@@ -408,6 +538,9 @@ def objective(trial):
         epoch_loss = 0
 
         for input_tensor, reg_coor, _ , year_id in dataset_f:
+            #year_id = np.reshape(year_id, (batch_size,time_step,1))
+            #print(year_id)
+            #print(asd)
 
             input_tensor = np.reshape(input_tensor, (batch_size,time_step,745,num_channels))
             reg_coor = np.reshape(reg_coor, (batch_size,time_step,2))
@@ -508,13 +641,13 @@ def objective(trial):
                 pred_list = process_val(pred_list,num_val_img, msk_mean, msk_std)
                 actual_list = process_val(actual_list,num_val_img, msk_mean, msk_std)
                 prev_actual_list = process_val(prev_actual_list,num_val_img, msk_mean, msk_std)
-                test_pos_mae, test_pos_std,test_neg_mae,test_neg_std, test_prec, test_recall, test_f1_score = log_performance_metrics(pred_list,actual_list,prev_actual_list,
+                test_logs, test_logs_scores = log_performance_metrics(pred_list,actual_list,prev_actual_list,
                                                     num_val_img, epoch, msk_mean, msk_std, val_img_ids,writer)
                 
-        if early_stop_counter > early_stop_thresh :
-            print('early stopping as val loss is not improving ........')
-            model_save(model, optimizer, model_name)
-            break
+        #if early_stop_counter > early_stop_thresh :
+        #    print('early stopping as val loss is not improving ........')
+        #    model_save(model, optimizer, model_name)
+        #    break
 
     for iter_num in range(num_val_img):
         temp_conf = wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids, writer)
@@ -524,11 +657,16 @@ def objective(trial):
         else :
             final_conf = final_conf + temp_conf
         
-    plt_conf_mat(final_conf, 'total_test_confusion_matrix', writer)
+    plt_conf_mat(final_conf, 'total_test_confusion_matrix', writer) #'trial_name':str(model_name),
     hyperparameter_defaults.update(epochs=epoch+1)
+    hyperparameter_defaults.update(trial_name=model_name)
     writer.add_hparams(hyperparameter_defaults,{'hparam/train_loss':avg_epoch_loss,'hparam/val_loss':avg_val_epoch_loss,
-        'hparam/pos_mae':test_pos_mae, 'hparam/precision':test_prec,'hparam/recall':test_recall,'hparam/f1_score':test_f1_score,
-        'hparam/pos_std':test_pos_std, 'hparam/neg_mae':test_neg_mae,'hparam/neg_std':test_neg_std})
+        'hparam/left_reach_mae':test_logs['reach_mae'][0],'hparam/right_reach_mae':test_logs['reach_mae'][1],
+        'hparam/left_f1score':test_logs_scores['left_f1'],'hparam/right_f1score':test_logs_scores['right_f1'],
+        'hparam/left_pos_mae':test_logs['pos_mae'][0],'hparam/right_pos_mae':test_logs['pos_mae'][1],
+        'hparam/left_non_erosion_mae':test_logs['full_non_erosion_mae'][0],'hparam/right_non_erosion_mae':test_logs['full_non_erosion_mae'][1],
+        'hparam/left_neg_mae':test_logs['neg_mae'][0],'hparam/right_neg_mae':test_logs['neg_mae'][1],
+        'hparam/left_pos_neg_mae':test_logs['full_act_mae'][0],'hparam/right_pos_neg_mae':test_logs['full_act_mae'][1]})
     writer.close()
     model_save(model, optimizer, model_name)
 
