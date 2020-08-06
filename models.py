@@ -3,8 +3,14 @@ import torch.nn.functional as F
 import torch
 
 class CNN_Model(nn.Module):
-    def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out):
+    def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt):
         super(CNN_Model, self).__init__()
+        self.vert_img_hgt = vert_img_hgt
+
+        if vert_img_hgt >= 3 :
+            kernel_hgt = 3
+        elif vert_img_hgt == 1 :
+            kernel_hgt = 1
 
         self.device = 'cuda'
         self.num_channels = num_channels
@@ -15,15 +21,19 @@ class CNN_Model(nn.Module):
         self.drop_out = drop_out
         self.lstm_output_size = 256
 
-        self.conv1 = nn.Conv2d(num_channels,8,(1,3), padding=0)
+        self.conv1 = nn.Conv2d(num_channels,8,(kernel_hgt,3), padding=0)
         self.batch_norm10 = nn.BatchNorm2d(8)
         self.drop1 = nn.Dropout2d(p=self.drop_out[0])
-        self.conv2 = nn.Conv2d(8,16,(1,3), padding=0)
+        if vert_img_hgt < 5 :
+            kernel_hgt = 1
+        self.conv2 = nn.Conv2d(8,16,(kernel_hgt,3), padding=0)
 
         self.batch_norm1 = nn.BatchNorm2d(16)
         self.drop2 = nn.Dropout2d(p=self.drop_out[1])
-    
-        self.conv3 = nn.Conv2d(16,16,(1,3), padding=0)
+
+        if vert_img_hgt < 7 :
+            kernel_hgt = 1
+        self.conv3 = nn.Conv2d(16,16,(kernel_hgt,3), padding=0)
         self.batch_norm20 = nn.BatchNorm2d(16)
         self.drop3 = nn.Dropout2d(p=self.drop_out[2])
         self.conv4 = nn.Conv2d(16,32,(1,3), padding=0)
@@ -64,17 +74,21 @@ class CNN_Model(nn.Module):
 
     def forward(self, inputs):
         #inputs = torch.reshape(inputs, ((self.time_step-1)*self.batch_size, self.num_channels, 1, 745))
-        inputs = torch.reshape(inputs, (-1, self.num_channels, 1, 745))
+        inputs = torch.reshape(inputs, (-1, self.num_channels, self.vert_img_hgt, 745))
         x = F.relu(self.conv1(inputs))
+        
         x = self.batch_norm10(x)
         x = self.drop1(x)
         x = F.relu(self.conv2(x))
-
+        
         x = self.batch_norm1(x)
         x = self.drop2(x)
         x = F.max_pool2d(x, (1, 3))
-
         x = F.relu(self.conv3(x))
+        
+        #print(x.size())
+        #print(asd)
+
         x = self.batch_norm20(x)
         x = self.drop3(x)
         x = F.relu(self.conv4(x))
@@ -109,10 +123,14 @@ class CNN_Model(nn.Module):
         x = self.drop9(x)
         x = F.relu(self.conv10(x))
 
+        #print(x.size())
+        #print(asd)
+
+
         x = self.batch_norm5(x)
         x = self.drop10(x)
         x = F.max_pool2d(x, (1, 3))
-
+        
         x = torch.reshape(x, (-1,(self.time_step-1),256))
             
         if self.training:
