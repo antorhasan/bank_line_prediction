@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import torch
 
 class CNN_Model(nn.Module):
-    def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt):
+    def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,lf_rt_tag):
         super(CNN_Model, self).__init__()
         self.vert_img_hgt = vert_img_hgt
 
@@ -69,7 +69,13 @@ class CNN_Model(nn.Module):
         self.dropout1 = nn.Dropout(self.drop_out[10])
         self.fc1 = nn.Linear(self.lstm_output_size, int(self.lstm_output_size/2))
         self.dropout2 = nn.Dropout(self.drop_out[11])
-        self.fc2 = nn.Linear(int(self.lstm_output_size/2), 2)
+
+        if lf_rt_tag == 'left' or lf_rt_tag == 'right' :
+            output_num = 1
+        elif lf_rt_tag == 'both' :
+            output_num = 2
+
+        self.fc2 = nn.Linear(int(self.lstm_output_size/2), output_num)
         
 
     def forward(self, inputs):

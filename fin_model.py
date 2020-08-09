@@ -370,25 +370,33 @@ def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, 
     #return test_pos_mae, test_pos_std,test_neg_mae,test_neg_std, test_prec, test_recall, test_f1_score
     return test_logs, test_logs_scores, imp_val_logs
 
-def objective(trial):
+def objective():
+    
     load_mod = False
     save_mod = False
     #total_window = 52
     num_lstm_layers = 1
     num_channels = 7
-    
-    EPOCHS = 100
+    lf_rt_tag = 'both'
+    EPOCHS = 50
     #EPOCHS = trial.suggest_discrete_uniform('epochs', 100, 150, 5)
     #EPOCHS = int(EPOCHS)
-    #lr_rate = trial.suggest_loguniform('lr_rate', .000001, .001)                       #.0001
-    #lr_rate = trial.suggest_uniform('lr_rate', .0001, .0005)
+    #lr_pow = trial.suggest_discrete_uniform('lr_power',-5 , -3, 0.2)
+    #print(1*(10**lr_pow))
+    #print(asd)
+    #lr_rate = trial.suggest_loguniform('lr_rate', .00005, .0005)                       #.0001
+    #####lr_rate = trial.suggest_uniform('lr_rate', .0001, .0005)
     #lr_rate = 0.000932098670370034
-    lr_rate = 0.001
-    vert_img_hgt = trial.suggest_discrete_uniform('vert_hgt', 3,7,2)
+    lr_rate = 0.0001
+    #lr_rate = 0.000158489319246111
+    #lr_rate = 1*(10**lr_pow)
+    #vert_img_hgt = int(trial.suggest_discrete_uniform('vert_hgt', 3,5,2))
     vert_img_hgt = 5
     #print(vert_img_hgt)
     #print(asd)
     model_type = 'CNN_Model_dropout_reg'
+    #input_seed = 0
+    wgt_seed_flag = True
 
     """ dr_1 = trial.suggest_discrete_uniform('drop_out_1',0.07, 0.17, 0.02)
     dr_2 = trial.suggest_discrete_uniform('drop_out_2',0.1, 0.2, 0.02)
@@ -425,6 +433,7 @@ def objective(trial):
     total_time_step = 33    ###number of total year images
     log_performance = 5 ###number of epochs after which performance metrics are calculated
     model_save_at = 50     ###number of epochs after which to save model
+    early_stop_flag = False
     early_stop_thresh = 30
     #val_img_ids = [201701, 201801, 201901, 202001]
     path_to_val_img = os.path.join('./data/img/up_rgb/')
@@ -452,7 +461,7 @@ def objective(trial):
     log_hist = 5
     writer = SummaryWriter()
     model_name = writer.get_logdir().split("\\")[1]
-    adm_wd = .01
+    adm_wd = 0
     val_img_range = time_step+num_val_img-1
     #print(val_img_range)
     #print(asd)
@@ -481,7 +490,9 @@ def objective(trial):
         model_type=model_type,
         vertical_image_window = vert_img_hgt,
         start_indx = org_val_img[start_indx],
-        end_indx = org_val_img[end_indx]
+        end_indx = org_val_img[end_indx],
+        weight_seed = wgt_seed_flag,
+        reach_id = lf_rt_tag,
         )
 
     dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/comp_tf.tfrecords'))
@@ -509,13 +520,15 @@ def objective(trial):
     dataseti1 = dataseti1.map(_parse_function_).batch(vert_img_hgt).batch(time_step)
     dataseti1 = dataseti1.batch(val_batch_size, drop_remainder=True)
 
-    model = CNN_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate,vert_img_hgt)
+    if wgt_seed_flag :
+        torch.manual_seed(0)
+    model = CNN_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate,vert_img_hgt,lf_rt_tag)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     model = model.to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate, weight_decay=adm_wd)
 
     if load_mod == True:
         checkpoint = torch.load(os.path.join('./data/model/f_temp.pt'))
@@ -542,10 +555,13 @@ def objective(trial):
             input_tensor = np.reshape(input_tensor, (batch_size,time_step,vert_img_hgt,745,num_channels))
             reg_coor = np.reshape(reg_coor, (batch_size,time_step,vert_img_hgt,2))
             
-            
-
             input_tensor = input_tensor[:,0:time_step-1,:,:,:]
-            reg_coor = reg_coor[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,:]
+            if lf_rt_tag == 'left':
+                reg_coor = reg_coor[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,0:1]
+            elif lf_rt_tag == 'right':
+                reg_coor = reg_coor[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,1:2]
+            elif lf_rt_tag == 'both':
+                reg_coor = reg_coor[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,:]
             
             input_tensor = torch.Tensor(input_tensor).cuda().requires_grad_(False)
             reg_coor = torch.Tensor(reg_coor).cuda().requires_grad_(False)
@@ -561,8 +577,6 @@ def objective(trial):
             epoch_loss = epoch_loss+loss
             counter += 1
             global_train_counter += 1
-
-        
 
         avg_epoch_loss = epoch_loss / counter
         template = 'Epoch {}, Train Loss: {}'
@@ -601,14 +615,27 @@ def objective(trial):
                 #print(year_id)
                 #print(asd)
 
-
                 input_tensor = np.reshape(input_tensor, (batch_size,time_step,vert_img_hgt,745,num_channels))
                 reg_coor = np.reshape(reg_coor, (batch_size,time_step,vert_img_hgt,2))
 
                 input_tensor = input_tensor[:,0:time_step-1,:,:]
+
                 prev_time_step = reg_coor[:,time_step-2:time_step-1,output_vert_indx:output_vert_indx+1,:]
-                reg_coor = reg_coor[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,:]
+
+                if lf_rt_tag == 'left':
+                    prev_time_step = reg_coor[:,time_step-2:time_step-1,output_vert_indx:output_vert_indx+1,0:1]
+                    reg_coor = reg_coor[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,0:1]
                 
+                elif lf_rt_tag == 'right':
+                    prev_time_step = reg_coor[:,time_step-2:time_step-1,output_vert_indx:output_vert_indx+1,1:2]
+                    reg_coor = reg_coor[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,1:2]
+                
+                elif lf_rt_tag == 'both':
+                    prev_time_step = reg_coor[:,time_step-2:time_step-1,output_vert_indx:output_vert_indx+1,:]
+                    reg_coor = reg_coor[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,:]
+
+                prev_time_step = np.reshape(prev_time_step,(batch_size,-1))
+
                 input_tensor = torch.Tensor(input_tensor).cuda()
                 reg_coor = torch.Tensor(reg_coor).cuda()
                 reg_coor = torch.reshape(reg_coor, (batch_size,-1))
@@ -620,13 +647,27 @@ def objective(trial):
 
                 val_epoch_loss = val_epoch_loss+loss
                 counter_val += 1
-                
+
                 if epoch % log_performance == log_performance-1:
-                    prev_actual_list.append(prev_time_step)
                     reg_coor = reg_coor.cpu()
-                    actual_list.append(reg_coor.numpy())
+                    reg_coor = reg_coor.numpy()
                     pred_np = pred.cpu()
-                    pred_list.append(pred_np.numpy())
+                    pred_np = pred_np.numpy()
+
+                    if lf_rt_tag == 'left' :
+                        np_zero = np.zeros((batch_size,1))
+                        prev_time_step = np.concatenate((prev_time_step,np_zero),axis=1) 
+                        reg_coor = np.concatenate((reg_coor,np_zero),axis=1)
+                        pred_np = np.concatenate((pred_np,np_zero),axis=1)
+                    elif lf_rt_tag == 'right' :
+                        np_zero = np.zeros((batch_size,1))
+                        prev_time_step = np.concatenate((np_zero,prev_time_step),axis=1) 
+                        reg_coor = np.concatenate((np_zero,reg_coor),axis=1)
+                        pred_np = np.concatenate((np_zero,pred_np),axis=1)
+                    
+                    prev_actual_list.append(prev_time_step)
+                    actual_list.append(reg_coor)
+                    pred_list.append(pred_np)
 
             avg_val_epoch_loss = val_epoch_loss / counter_val
             template = 'Epoch {}, Val_Loss: {}'
@@ -651,10 +692,11 @@ def objective(trial):
                 test_logs, test_logs_scores, imp_val_logs = log_performance_metrics(pred_list,actual_list,prev_actual_list,
                                                     num_val_img, epoch, msk_mean, msk_std, val_img_ids,writer)
                 
-        #if early_stop_counter > early_stop_thresh :
-        #    print('early stopping as val loss is not improving ........')
-        #    model_save(model, optimizer, model_name)
-        #    break
+        if early_stop_flag:
+            if early_stop_counter > early_stop_thresh :
+                print('early stopping as val loss is not improving ........')
+                #model_save(model, optimizer, model_name)
+                break
 
     for iter_num in range(num_val_img):
         temp_conf = wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids, writer,smooth_flag)
@@ -678,13 +720,30 @@ def objective(trial):
     hparam_logs.update(imp_val_logs)
     writer.add_hparams(hyperparameter_defaults, hparam_logs)
     writer.close()
-    #model_save(model, optimizer, model_name)
+    if save_mod == True:
+        model_save(model, optimizer, model_name)
 
     return avg_val_epoch_loss
 
 
 if __name__ == "__main__":
-    study = optuna.create_study(direction='minimize',sampler= optuna.samplers.RandomSampler())
-    #study = optuna.create_study(direction='minimize')
-    study.optimize(objective, n_trials=None) 
+    #study = optuna.create_study(direction='minimize',sampler= optuna.samplers.RandomSampler())
+    #study = optuna.create_study(direction='minimize',sampler=optuna.samplers.GridSampler(search_space))
+    #study.optimize(objective, n_trials=10) 
+    objective()
+    #lr_pow = np.arange(-5.0 , -1.8, 0.2)
+    #print(lr_pow)
+    #vert_hgt = np.arange(5,9,2)
+    #print(int(vert_hgt[2]))
+    #print(asd)
+    """ for i in range(len(vert_hgt)):
+        for j in range(len(lr_pow)):
+            objective(lr_pow[j],int(vert_hgt[i]),0)
+            print(lr_pow[j],vert_hgt[i])
+
+    #adm_wd = np.random.uniform(.001,.01)
+    while True:
+        objective(-3.3, 3, float(np.random.uniform(.001,.01))) """
+        
+
     pass
