@@ -36,7 +36,11 @@ class CNN_Model(nn.Module):
         self.conv3 = nn.Conv2d(16,16,(kernel_hgt,3), padding=0)
         self.batch_norm20 = nn.BatchNorm2d(16)
         self.drop3 = nn.Dropout2d(p=self.drop_out[2])
-        self.conv4 = nn.Conv2d(16,32,(1,3), padding=0)
+
+        if vert_img_hgt < 9 :
+            kernel_hgt = 1
+
+        self.conv4 = nn.Conv2d(16,32,(kernel_hgt,3), padding=0)
 
         self.batch_norm2 = nn.BatchNorm2d(32)
         self.drop4 = nn.Dropout2d(p=self.drop_out[3])
@@ -79,6 +83,7 @@ class CNN_Model(nn.Module):
         
 
     def forward(self, inputs):
+        max_vert_kr = 2
         #inputs = torch.reshape(inputs, ((self.time_step-1)*self.batch_size, self.num_channels, 1, 745))
         inputs = torch.reshape(inputs, (-1, self.num_channels, self.vert_img_hgt, 745))
         x = F.relu(self.conv1(inputs))
@@ -89,21 +94,23 @@ class CNN_Model(nn.Module):
         
         x = self.batch_norm1(x)
         x = self.drop2(x)
-        x = F.max_pool2d(x, (1, 3))
-        x = F.relu(self.conv3(x))
-        
-        #print(x.size())
-        #print(asd)
 
+        if self.vert_img_hgt < 15 :
+            max_vert_kr = 1
+        
+        x = F.max_pool2d(x, (max_vert_kr, 3)) 
+        x = F.relu(self.conv3(x))
+       
         x = self.batch_norm20(x)
         x = self.drop3(x)
         x = F.relu(self.conv4(x))
 
         x = self.batch_norm2(x)
         x = self.drop4(x)
-
         x = F.max_pool2d(x, (1, 3))
         
+        
+
         x = F.relu(self.conv5(x))
         x = self.batch_norm30(x)
         x = self.drop5(x)

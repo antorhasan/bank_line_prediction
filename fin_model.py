@@ -370,7 +370,7 @@ def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, 
     #return test_pos_mae, test_pos_std,test_neg_mae,test_neg_std, test_prec, test_recall, test_f1_score
     return test_logs, test_logs_scores, imp_val_logs
 
-def objective():
+def objective(tm_stp, strt ,lr_pow,ad_pow):
     
     load_mod = False
     save_mod = False
@@ -378,7 +378,7 @@ def objective():
     num_lstm_layers = 1
     num_channels = 7
     lf_rt_tag = 'both'
-    EPOCHS = 50
+    EPOCHS = 30
     #EPOCHS = trial.suggest_discrete_uniform('epochs', 100, 150, 5)
     #EPOCHS = int(EPOCHS)
     #lr_pow = trial.suggest_discrete_uniform('lr_power',-5 , -3, 0.2)
@@ -387,11 +387,11 @@ def objective():
     #lr_rate = trial.suggest_loguniform('lr_rate', .00005, .0005)                       #.0001
     #####lr_rate = trial.suggest_uniform('lr_rate', .0001, .0005)
     #lr_rate = 0.000932098670370034
-    lr_rate = 0.0001
+    #lr_rate = lr_exp
     #lr_rate = 0.000158489319246111
-    #lr_rate = 1*(10**lr_pow)
+    lr_rate = 1*(10**lr_pow)
     #vert_img_hgt = int(trial.suggest_discrete_uniform('vert_hgt', 3,5,2))
-    vert_img_hgt = 5
+    vert_img_hgt = 9
     #print(vert_img_hgt)
     #print(asd)
     model_type = 'CNN_Model_dropout_reg'
@@ -427,7 +427,7 @@ def objective():
     drop_rate = [dr_1,dr_2,dr_3,dr_4,dr_5,dr_6,dr_7,dr_8,dr_9,dr_10,dr_11,dr_12]
     smooth_flag = False
     #time_step = trial.suggest_int('time_step', 16, 20)
-    time_step = 5
+    time_step = tm_stp
     batch_size = int(int((500/time_step) - 2)/vert_img_hgt)
     val_batch_size = batch_size
     total_time_step = 33    ###number of total year images
@@ -443,7 +443,7 @@ def objective():
     #start_indx = org_val_img.index(200501)    ###year to start training set from
     #start_indx = trial.suggest_int('start_indx', 0, 27)
     #start_indx = randrange(0,25,5)
-    start_indx = 27
+    start_indx = strt
     
     #print(start_indx) 
     #print(org_val_img[start_indx])
@@ -461,7 +461,8 @@ def objective():
     log_hist = 5
     writer = SummaryWriter()
     model_name = writer.get_logdir().split("\\")[1]
-    adm_wd = 0
+    adm_wd = ad_pow
+    #adm_wd = 1*(10**adm_wd_exp)
     val_img_range = time_step+num_val_img-1
     #print(val_img_range)
     #print(asd)
@@ -730,19 +731,36 @@ if __name__ == "__main__":
     #study = optuna.create_study(direction='minimize',sampler= optuna.samplers.RandomSampler())
     #study = optuna.create_study(direction='minimize',sampler=optuna.samplers.GridSampler(search_space))
     #study.optimize(objective, n_trials=10) 
-    objective()
-    #lr_pow = np.arange(-5.0 , -1.8, 0.2)
+    #objective()
+    #lr_pow = np.arange(-3.8, -1.8, 0.4)
+    ad_pow = [0, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
+    lr_pow = [-3.8]
     #print(lr_pow)
     #vert_hgt = np.arange(5,9,2)
+    #tm_stp_list = [5, 10, 15, 20, 25, 30]
+    tm_stp_list = [5]
+    #strt_list = [27, 21, 15, 7, 0]
+    strt_list = [21]
+    #vert_hgt = [5,7,9]
+    #lr_rate_exp = [0.000251188643150958,0.000251188643150958,0.0000794328234724275]
     #print(int(vert_hgt[2]))
     #print(asd)
+    """ for i in range(len(tm_stp_list)):
+        for j in range(len(strt_list)):
+            for k in range(len(lr_pow)):
+                objective(tm_stp_list[i],strt_list[j],lr_pow[k])
+                print(tm_stp_list[i],strt_list[j],lr_pow[k]) """
+
+    for i in range(len(ad_pow)):
+        objective(tm_stp_list[0],strt_list[0],lr_pow[0],ad_pow[i])
+
     """ for i in range(len(vert_hgt)):
-        for j in range(len(lr_pow)):
-            objective(lr_pow[j],int(vert_hgt[i]),0)
-            print(lr_pow[j],vert_hgt[i])
+        for j in range(len(wd_pow)):
+            objective(int(vert_hgt[i]), wd_pow[j], lr_rate_exp[i])
+            print(wd_pow[j],vert_hgt[i]) """
 
     #adm_wd = np.random.uniform(.001,.01)
-    while True:
+    """ while True:
         objective(-3.3, 3, float(np.random.uniform(.001,.01))) """
         
 
