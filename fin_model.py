@@ -9,7 +9,7 @@ from os.path import isfile, join
 import os
 import sys
 from torch.utils.tensorboard import SummaryWriter
-from models import CNN_Model
+from models import CNN_Model, Baseline_Model, Three_Model
 from sklearn.metrics import mean_absolute_error, precision_score, recall_score, confusion_matrix, f1_score
 from sklearn.preprocessing import OneHotEncoder
 import matplotlib.pyplot as plt
@@ -73,12 +73,17 @@ def plt_conf_mat(conf_mat, title, writer):
     writer.add_figure(title, mat_fig)
     plt.close()
 
-def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side,writer, val_img_ids,epoch):
+def regress_erro(act_err_bin, act_reg, pred_reg, prev_reg, iter_num, side,writer, val_img_ids,epoch):
     temp_arr = pred_reg - act_reg
+    temp_ero_diff = act_reg - prev_reg
+    overfit_error = pred_reg - prev_reg
     if side == 'left' :
         temp_arr = temp_arr
     elif side == 'right' :
         temp_arr = -temp_arr
+
+
+
     counter_pos = 0
     counter_neg = 0 
     counter_non = 0
@@ -88,7 +93,8 @@ def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side,writer, val_img_
     pos_list = []
     neg_list = []
     non_ero_list = []
-    #actual_ero_abs = []
+    ero_diff = []
+    overfit_error_list = []
 
     for i in range(act_err_bin.shape[0]):
         if act_err_bin[i] == 1 and temp_arr[i]>=0 :
@@ -105,15 +111,23 @@ def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side,writer, val_img_
             non_ero_list.append(abs(temp_arr[i]))
             counter_non += 1
 
+        if act_err_bin[i] == 1 :
+            ero_diff.append(abs(temp_ero_diff[i]))
+            overfit_error_list.append(abs(overfit_error[i]))
+
+
     pos_np = np.asarray(pos_list)
     neg_np = np.asarray(neg_list)
     comb_np = np.asarray(pos_list+neg_list)
     non_np = np.asarray(non_ero_list)
+    ero_diff_np = np.asarray(ero_diff)
 
     pos_sum = np.sum(pos_np)
     neg_sum = np.sum(neg_np)
     comb_sum = np.sum(comb_np)
     non_sum = np.sum(non_np)
+    ero_diff_sum = np.sum(ero_diff_np)
+    overfit_error_sum = np.sum(np.asarray(overfit_error_list))
 
     pos_std = np.std(pos_np)
     neg_std = np.std(neg_np)
@@ -122,11 +136,11 @@ def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side,writer, val_img_
 
     if len(pos_list) != 0 :
         pos_max = np.amax(np.asarray(pos_list))
-        writer.add_scalar('max_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), pos_max, epoch+1)
+        writer.add_scalar(str(val_img_ids[iter_num])+'/max_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), pos_max, epoch+1)
 
     if len(neg_list) != 0 :
         neg_max = np.amax(np.asarray(neg_list))
-        writer.add_scalar('max_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), neg_max, epoch+1)
+        writer.add_scalar(str(val_img_ids[iter_num])+'/max_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), neg_max, epoch+1)
 
     try:
         mean_pos_dev = pos_sum/counter_pos
@@ -144,23 +158,40 @@ def regress_erro(act_err_bin, act_reg, pred_reg, iter_num, side,writer, val_img_
         non_ero_mae = non_sum/counter_non
     except:
         non_ero_mae = non_sum/.0001
+    try:
+        mean_ero_diff = ero_diff_sum/(counter_pos + counter_neg)
+    except:
+        mean_ero_diff = ero_diff_sum/.0001
+    
+    try:
+        mean_act_overfit = overfit_error_sum/(counter_pos + counter_neg)
+    except:
+        mean_act_overfit = overfit_error_sum/.0001
 
     reach_mae = np.mean(np.absolute(temp_arr))
     reach_std = np.std(np.absolute(temp_arr))
     
-    writer.add_scalar('mean_abs_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), mean_pos_dev, epoch+1)
-    writer.add_scalar('mean_abs_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), mean_neg_dev, epoch+1)
-    writer.add_scalar('mae_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), ero_mae, epoch+1)
-    writer.add_scalar('mae_for_non_error_'+side+str(val_img_ids[iter_num]), non_ero_mae, epoch+1)
-    writer.add_scalar('reach_mae'+side+str(val_img_ids[iter_num]), reach_mae, epoch+1)
+    reach_diff = np.mean(np.absolute(temp_ero_diff))
+    reach_overfit = np.mean(np.absolute(overfit_error))
 
-    writer.add_scalar('std_of_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), pos_std, epoch+1)
-    writer.add_scalar('std_of_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), neg_std, epoch+1)
-    writer.add_scalar('std_of_comb_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), comb_std, epoch+1)
-    writer.add_scalar('std_of_non_error_'+side+str(val_img_ids[iter_num]), non_std, epoch+1)
-    writer.add_scalar('std_of_reach_error'+side+str(val_img_ids[iter_num]), reach_std, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/mean_abs_pos_error_for_actual_'+side+'_erosion_'+str(val_img_ids[iter_num]), mean_pos_dev, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/mean_abs_neg_error_for_actual_'+side+'_erosion_'+str(val_img_ids[iter_num]), mean_neg_dev, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/mae_for_actual_'+side+'_erosion_'+str(val_img_ids[iter_num]), ero_mae, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/mae_for_non_error_'+side+str(val_img_ids[iter_num]), non_ero_mae, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/reach_mae'+side+str(val_img_ids[iter_num]), reach_mae, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/mean_reach_diff'+side+str(val_img_ids[iter_num]), reach_diff, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/mean_act_ero_diff'+side+str(val_img_ids[iter_num]), mean_ero_diff, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/mean_act_overfit_'+side+str(val_img_ids[iter_num]), mean_act_overfit, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/mean_reach_overfit_'+side+str(val_img_ids[iter_num]), reach_overfit, epoch+1)
 
-    return mean_pos_dev, pos_std, mean_neg_dev, neg_std, ero_mae, comb_std, non_ero_mae, non_std, reach_mae, reach_std
+
+    writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), pos_std, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), neg_std, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_comb_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), comb_std, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_non_error_'+side+str(val_img_ids[iter_num]), non_std, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_reach_error'+side+str(val_img_ids[iter_num]), reach_std, epoch+1)
+
+    return mean_pos_dev, pos_std, mean_neg_dev, neg_std, ero_mae, comb_std, non_ero_mae, non_std, reach_mae, reach_std, reach_diff, mean_ero_diff,mean_act_overfit,reach_overfit
 
 def log_perform_lef_rght(log_item, left_comp, right_comp, writer, val_img_ids, iter_num, epoch):
     '''log the various mae and std in calc_fscore'''
@@ -183,17 +214,19 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     actual_ers_lft = np.reshape(np.where(act_left<prev_left, 1, 0),(act_left.shape[0],1))
     actual_ers_rht = np.reshape(np.where(act_right>prev_right, 1, 0),(act_right.shape[0],1))
     
-    left_mae_pos,left_std_pos,left_mae_neg,left_std_neg,lft_cm_m,lft_cm_std,lft_non_m,lft_non_s,lft_r_m,lft_r_s = regress_erro(actual_ers_lft, act_left, pred_left, iter_num, 'left',writer,val_img_ids,epoch)
-    right_mae_pos,right_std_pos,right_mae_neg,right_std_neg,rg_cm_m,rg_cm_std,rg_non_m,rg_non_s,rg_r_m,rg_r_s = regress_erro(actual_ers_rht, act_right, pred_right, iter_num, 'right',writer,val_img_ids,epoch)
+    left_mae_pos,left_std_pos,left_mae_neg,left_std_neg,lft_cm_m,lft_cm_std,lft_non_m,lft_non_s,lft_r_m,lft_r_s,lft_reach_diff,lft_ero_dif,lft_ove_act,lft_ove_rea = regress_erro(actual_ers_lft, act_left, pred_left, prev_left, iter_num, 'left',writer,val_img_ids,epoch)
+    right_mae_pos,right_std_pos,right_mae_neg,right_std_neg,rg_cm_m,rg_cm_std,rg_non_m,rg_non_s,rg_r_m,rg_r_s,rg_reach_diff,rg_ero_dif,rg_ove_act,rg_ove_rea = regress_erro(actual_ers_rht, act_right, pred_right, prev_right, iter_num, 'right',writer,val_img_ids,epoch)
 
     log_dic_lef_rght = {'pos_mae': [left_mae_pos,right_mae_pos], 'pos_std':[left_std_pos,right_std_pos],
     'neg_mae':[left_mae_neg,right_mae_neg],'neg_std':[left_std_neg,right_std_neg],
     'full_act_mae':[lft_cm_m,rg_cm_m],'full_act_std':[lft_cm_std,rg_cm_std],
     'full_non_erosion_mae':[lft_non_m,rg_non_m],'full_non_erosion_std':[lft_non_s,rg_non_s],
-    'reach_mae':[lft_r_m,rg_r_m],'reach_std':[lft_r_s,rg_r_s]}
+    'reach_mae':[lft_r_m,rg_r_m],'reach_std':[lft_r_s,rg_r_s],
+    'reach_diff':[lft_reach_diff,rg_reach_diff],'mean_ero_diff':[lft_ero_dif,rg_ero_dif],
+    'reach_overfit_diff':[lft_ove_rea,rg_ove_rea],'act_overfit_diff':[lft_ove_act,rg_ove_act]}
 
-    for i,j in zip(log_dic_lef_rght.keys(),log_dic_lef_rght.values()):
-        log_perform_lef_rght(i, j[0], j[1], writer, val_img_ids, iter_num, epoch)
+    #for i,j in zip(log_dic_lef_rght.keys(),log_dic_lef_rght.values()):
+    #    log_perform_lef_rght(i, j[0], j[1], writer, val_img_ids, iter_num, epoch)
 
     pred_ers_lft = np.reshape(np.where(pred_left<prev_left, 1, 0),(pred_left.shape[0],1))
     pred_ers_rht = np.reshape(np.where(pred_right>prev_right, 1, 0),(pred_right.shape[0],1))
@@ -201,6 +234,27 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     """ conf_mat_lft = confusion_matrix(actual_ers_lft, pred_ers_lft)
     conf_mat_rht = confusion_matrix(actual_ers_rht, pred_ers_rht)
     combined_conf = conf_mat_lft + conf_mat_rht """
+
+    act_th_ers_lft = np.reshape(np.where((prev_left-act_left)>3, 1, 0),(act_left.shape[0],1))
+    act_th_ers_rht = np.reshape(np.where((act_right-prev_right)>3, 1, 0),(act_right.shape[0],1))
+
+    pred_th_ers_lft = np.reshape(np.where((prev_left-pred_left)>3, 1, 0),(pred_left.shape[0],1))
+    pred_th_ers_rht = np.reshape(np.where((pred_right-prev_right)>3, 1, 0),(pred_right.shape[0],1))
+
+    prec_th_lft = precision_score(act_th_ers_lft, pred_th_ers_lft, average='binary')
+    recall_th_lft = recall_score(act_th_ers_lft, pred_th_ers_lft, average='binary')
+    f1_th_lft = f1_score(act_th_ers_lft, pred_th_ers_lft, average='binary')
+
+    prec_th_rht = precision_score(act_th_ers_rht, pred_th_ers_rht, average='binary')
+    recall_th_rht = recall_score(act_th_ers_rht, pred_th_ers_rht, average='binary')
+    f1_th_rht = f1_score(act_th_ers_rht, pred_th_ers_rht, average='binary')
+
+    writer.add_scalar(str(val_img_ids[iter_num])+'/left_precision_th_'+ str(val_img_ids[iter_num]), prec_th_lft, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/left_recall_th_'+ str(val_img_ids[iter_num]), recall_th_lft, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/left_f1_th_'+ str(val_img_ids[iter_num]), f1_th_lft, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/right_precision_th_'+ str(val_img_ids[iter_num]), prec_th_rht, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/right_recall_th'+ str(val_img_ids[iter_num]), recall_th_rht, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/right_f1_th_'+ str(val_img_ids[iter_num]), f1_th_rht, epoch+1)
 
     y_true = np.concatenate((actual_ers_lft,actual_ers_rht), axis = 0)
     y_pred = np.concatenate((pred_ers_lft,pred_ers_rht), axis = 0)
@@ -218,25 +272,46 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     f1_rht = f1_score(actual_ers_rht, pred_ers_rht, average='binary')
 
     
-    writer.add_scalar('precision_'+ str(val_img_ids[iter_num]), precision_comb, epoch+1)
-    writer.add_scalar('recall_'+ str(val_img_ids[iter_num]), recall_comb, epoch+1)
-    writer.add_scalar('f1_score_'+ str(val_img_ids[iter_num]), f1_comb, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/precision_'+ str(val_img_ids[iter_num]), precision_comb, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/recall_'+ str(val_img_ids[iter_num]), recall_comb, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/f1_score_'+ str(val_img_ids[iter_num]), f1_comb, epoch+1)
 
-    writer.add_scalar('left_precision_'+ str(val_img_ids[iter_num]), precision_comb, epoch+1)
-    writer.add_scalar('left_recall_'+ str(val_img_ids[iter_num]), recall_comb, epoch+1)
-    writer.add_scalar('left_f1_score_'+ str(val_img_ids[iter_num]), f1_comb, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/left_precision_'+ str(val_img_ids[iter_num]), precision_comb, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/left_recall_'+ str(val_img_ids[iter_num]), recall_comb, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/left_f1_score_'+ str(val_img_ids[iter_num]), f1_comb, epoch+1)
 
-    writer.add_scalar('right_precision_'+ str(val_img_ids[iter_num]), precision_comb, epoch+1)
-    writer.add_scalar('right_recall_'+ str(val_img_ids[iter_num]), recall_comb, epoch+1)
-    writer.add_scalar('right_f1_score_'+ str(val_img_ids[iter_num]), f1_comb, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/right_precision_'+ str(val_img_ids[iter_num]), precision_comb, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/right_recall_'+ str(val_img_ids[iter_num]), recall_comb, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/right_f1_score_'+ str(val_img_ids[iter_num]), f1_comb, epoch+1)
 
-    log_dic_scores = {'left_precision':precision_lft,'left_recall':recall_lft,'left_f1':f1_lft,
+    avg_reach_mae = (lft_r_m + rg_r_m) / 2
+    left_overfit_metric = abs(lft_reach_diff - lft_ove_rea) 
+    right_overfit_metric = abs(rg_reach_diff - rg_ove_rea)
+    avg_overfit_metric = (left_overfit_metric + right_overfit_metric) / 2
+    augmented_metric = avg_reach_mae + avg_overfit_metric
+    lr_f1_score = f1_comb
+
+    writer.add_scalar('AM_score/'+str(val_img_ids[iter_num])+'_augmented_metric_', augmented_metric, epoch+1)
+    writer.add_scalar('F1_score/'+str(val_img_ids[iter_num])+'_f1_score_', lr_f1_score, epoch+1)
+    writer.add_scalar('Reach_MAE/'+str(val_img_ids[iter_num])+'_lr_reach_mae_', avg_reach_mae, epoch+1)
+
+    log_dic_scores = {'AM_score':augmented_metric, 'lr_f1_score':lr_f1_score, 'lr_reach_mae':avg_reach_mae,
+    'left_precision':precision_lft,'left_recall':recall_lft,'left_f1':f1_lft,
     'right_precision':precision_rht,'right_recall':recall_rht,'right_f1':f1_rht,
-    'lft_rht_precision':precision_comb,'lft_rgt_recall':recall_comb,'lft_rht_f1':f1_comb}
+    'lft_rht_precision':precision_comb,'lft_rgt_recall':recall_comb,'lft_rht_f1':f1_comb,
+    'left_prec_th':prec_th_lft,'left_recall_th':recall_th_lft,'left_f1_th':f1_th_lft,
+    'right_prec_th':prec_th_rht,'right_recall_th':recall_th_rht,'right_f1_th':f1_th_rht}
 
-    imp_val_log = {str(val_img_ids[iter_num])+'_left_reach_mae':lft_r_m, str(val_img_ids[iter_num])+'_right_reach_mae':rg_r_m,
-                str(val_img_ids[iter_num])+'_left_f1score':f1_lft, str(val_img_ids[iter_num])+'_right_f1score':f1_rht}
+    imp_val_log = {str(val_img_ids[iter_num])+'_augmented_metric':augmented_metric, str(val_img_ids[iter_num])+'_lr_f1_score':lr_f1_score,
+                str(val_img_ids[iter_num])+'_lr_reach_mae':avg_reach_mae,
+                str(val_img_ids[iter_num])+'_left_reach_mae':lft_r_m, str(val_img_ids[iter_num])+'_right_reach_mae':rg_r_m,
+                str(val_img_ids[iter_num])+'_left_f1score':f1_lft, str(val_img_ids[iter_num])+'_right_f1score':f1_rht,
+                str(val_img_ids[iter_num])+'_left_erosion_diff':lft_ero_dif, str(val_img_ids[iter_num])+'_right_erosion_diff':rg_ero_dif,
+                str(val_img_ids[iter_num])+'_left_act_erosion_mae':lft_cm_m, str(val_img_ids[iter_num])+'_right_act_erosion_mae':rg_cm_m,
+                str(val_img_ids[iter_num])+'_left_f1_th':f1_th_lft, str(val_img_ids[iter_num])+'_right_f1_th':f1_th_rht,
+                str(val_img_ids[iter_num])+'_left_act_overfit_diff':lft_ove_act,str(val_img_ids[iter_num])+'_right_act_overfit_diff':rg_ove_act}
     #return avg_mae_pos, avg_std_pos, avg_mae_neg, avg_std_neg, precision_comb, recall_comb, f1_comb
+
     return log_dic_lef_rght, log_dic_scores, imp_val_log
 
 
@@ -361,24 +436,28 @@ def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, 
         test_logs_scores[i] = test_logs_scores[i] / num_val_img
     
     for i in test_logs.keys() :
-        writer.add_scalar('test_set_left'+ i, test_logs[i][0], epoch+1)
-        writer.add_scalar('test_set_right'+ i, test_logs[i][1], epoch+1)
+        writer.add_scalar('test_lr/test_set_left'+ i, test_logs[i][0], epoch+1)
+        writer.add_scalar('test_lr/test_set_right'+ i, test_logs[i][1], epoch+1)
 
     for i in test_logs_scores.keys() :
-        writer.add_scalar('test_set_'+ i, test_logs_scores[i], epoch+1)
+        writer.add_scalar('test_scores/test_set_'+ i, test_logs_scores[i], epoch+1)
+
 
     #return test_pos_mae, test_pos_std,test_neg_mae,test_neg_std, test_prec, test_recall, test_f1_score
     return test_logs, test_logs_scores, imp_val_logs
 
-def objective(tm_stp, strt ,lr_pow,ad_pow):
+def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs, lstm_hid,
+                fc1_units,fc2_units,lstm_layers):
     
     load_mod = False
     save_mod = False
     #total_window = 52
-    num_lstm_layers = 1
+    num_lstm_layers = lstm_layers
     num_channels = 7
     lf_rt_tag = 'both'
-    EPOCHS = 30
+    EPOCHS = num_epochs
+    data_mode = 'lines' 
+    lstm_hidden_units = lstm_hid
     #EPOCHS = trial.suggest_discrete_uniform('epochs', 100, 150, 5)
     #EPOCHS = int(EPOCHS)
     #lr_pow = trial.suggest_discrete_uniform('lr_power',-5 , -3, 0.2)
@@ -389,9 +468,11 @@ def objective(tm_stp, strt ,lr_pow,ad_pow):
     #lr_rate = 0.000932098670370034
     #lr_rate = lr_exp
     #lr_rate = 0.000158489319246111
+
     lr_rate = 1*(10**lr_pow)
     #vert_img_hgt = int(trial.suggest_discrete_uniform('vert_hgt', 3,5,2))
-    vert_img_hgt = 9
+    vert_img_hgt = vert_hgt
+    vert_step = vert_step_num            #vert skip step
     #print(vert_img_hgt)
     #print(asd)
     model_type = 'CNN_Model_dropout_reg'
@@ -431,7 +512,7 @@ def objective(tm_stp, strt ,lr_pow,ad_pow):
     batch_size = int(int((500/time_step) - 2)/vert_img_hgt)
     val_batch_size = batch_size
     total_time_step = 33    ###number of total year images
-    log_performance = 5 ###number of epochs after which performance metrics are calculated
+    log_performance = 1 ###number of epochs after which performance metrics are calculated
     model_save_at = 50     ###number of epochs after which to save model
     early_stop_flag = False
     early_stop_thresh = 30
@@ -449,7 +530,7 @@ def objective(tm_stp, strt ,lr_pow,ad_pow):
     #print(org_val_img[start_indx])
     #print(asd)
     #division_parameter = trial.suggest_int('great_division', 1, 10)
-    val_img_ids = val_img_ids[-1:]
+    val_img_ids = val_img_ids[-5:]
     #print(val_img_ids)
 
     #print(asd)
@@ -494,19 +575,24 @@ def objective(tm_stp, strt ,lr_pow,ad_pow):
         end_indx = org_val_img[end_indx],
         weight_seed = wgt_seed_flag,
         reach_id = lf_rt_tag,
+        vertical_pix_step = vert_step,
+        input_data = data_mode,
+        number_of_lstm_hu = lstm_hidden_units,
+        fc1_num_units = fc1_units,
+        fc2_num_units = fc2_units
         )
 
     dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/comp_tf.tfrecords'))
     dataset_f = dataset_f.window(size=data_div_step, shift=total_time_step, stride=1, drop_remainder=False)
     dataset_f = dataset_f.map(lambda x: x.skip(start_indx))
-    dataset_f = dataset_f.window(size=vert_img_hgt, shift=1, stride=1,drop_remainder=True)
+    dataset_f = dataset_f.window(size=vert_img_hgt, shift=vert_step, stride=1,drop_remainder=True)
     dataset_f = dataset_f.map(lambda x: x.flat_map(lambda x1: x1))
     dataset_f = dataset_f.map(lambda x: x.window(size=vert_img_hgt,shift=1,stride=end_indx-start_indx+1,drop_remainder=True))
     dataset_f = dataset_f.map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
     dataset_f = dataset_f.flat_map(lambda x: x)
     dataset_f = dataset_f.flat_map(lambda x: x.flat_map(lambda x1: x1))
     dataset_f = dataset_f.map(_parse_function_).batch(vert_img_hgt).batch(time_step)
-    dataset_f = dataset_f.shuffle(10000)
+    dataset_f = dataset_f.shuffle(10000, reshuffle_each_iteration=True)
     dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
 
     dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/comp_tf.tfrecords'))
@@ -523,7 +609,12 @@ def objective(tm_stp, strt ,lr_pow,ad_pow):
 
     if wgt_seed_flag :
         torch.manual_seed(0)
-    model = CNN_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate,vert_img_hgt,lf_rt_tag)
+
+    if data_mode == 'imgs' :
+        model = CNN_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate,vert_img_hgt,lf_rt_tag)
+    if data_mode == 'lines' :
+        model = Three_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, vert_img_hgt, lf_rt_tag, lstm_hidden_units,
+                            fc1_units,fc2_units)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
@@ -553,10 +644,15 @@ def objective(tm_stp, strt ,lr_pow,ad_pow):
             #print(year_id)
             #print(asd)
 
-            input_tensor = np.reshape(input_tensor, (batch_size,time_step,vert_img_hgt,745,num_channels))
+            if data_mode == 'imgs' :
+                input_tensor = np.reshape(input_tensor, (batch_size,time_step,vert_img_hgt,745,num_channels))
+                input_tensor = input_tensor[:,0:time_step-1,:,:,:]
+            elif data_mode == 'lines' :
+                input_tensor = np.reshape(reg_coor, (batch_size,time_step,vert_img_hgt,2))
+                input_tensor = input_tensor[:,0:time_step-1,:,:]
+
             reg_coor = np.reshape(reg_coor, (batch_size,time_step,vert_img_hgt,2))
             
-            input_tensor = input_tensor[:,0:time_step-1,:,:,:]
             if lf_rt_tag == 'left':
                 reg_coor = reg_coor[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,0:1]
             elif lf_rt_tag == 'right':
@@ -570,7 +666,9 @@ def objective(tm_stp, strt ,lr_pow,ad_pow):
             
             optimizer.zero_grad()
             pred = model(input_tensor)
-
+            #print(pred.size())
+            #print(reg_coor.size())
+            #print(asd)
             loss = F.mse_loss(pred, reg_coor,reduction='mean')
             loss.backward()
             optimizer.step()
@@ -614,12 +712,15 @@ def objective(tm_stp, strt ,lr_pow,ad_pow):
             for input_tensor, reg_coor, _ , year_id in dataseti1:
                 #year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
                 #print(year_id)
-                #print(asd)
+                #rint(asd)
+                if data_mode == 'imgs' :
+                    input_tensor = np.reshape(input_tensor, (batch_size,time_step,vert_img_hgt,745,num_channels))
+                    input_tensor = input_tensor[:,0:time_step-1,:,:,:]
+                elif data_mode == 'lines' :
+                    input_tensor = np.reshape(reg_coor, (batch_size,time_step,vert_img_hgt,2))
+                    input_tensor = input_tensor[:,0:time_step-1,:,:]
 
-                input_tensor = np.reshape(input_tensor, (batch_size,time_step,vert_img_hgt,745,num_channels))
                 reg_coor = np.reshape(reg_coor, (batch_size,time_step,vert_img_hgt,2))
-
-                input_tensor = input_tensor[:,0:time_step-1,:,:]
 
                 prev_time_step = reg_coor[:,time_step-2:time_step-1,output_vert_indx:output_vert_indx+1,:]
 
@@ -676,6 +777,11 @@ def objective(tm_stp, strt ,lr_pow,ad_pow):
 
             writer.add_scalar('Loss/Val', avg_val_epoch_loss, epoch+1)
 
+            #writer.add_scalar('Loss/variance', (avg_epoch_loss - avg_val_epoch_loss), epoch+1)
+            writer.add_scalars('Loss/train_val', {'train':avg_epoch_loss,
+                                    'val':avg_val_epoch_loss}, epoch+1)
+            #writer.add_scalars('Loss/bias_variance', {'bias':avg_epoch_loss,
+            #                        'variance':(avg_epoch_loss - avg_val_epoch_loss)}, epoch+1)
             if epoch == 0 :
                 best_val_loss = avg_val_epoch_loss
             else :
@@ -712,56 +818,97 @@ def objective(tm_stp, strt ,lr_pow,ad_pow):
     hyperparameter_defaults.update(trial_name=model_name)
     
     hparam_logs = {'hparam/train_loss':avg_epoch_loss,'hparam/val_loss':avg_val_epoch_loss,
+        'hparam/augmented_metric':test_logs_scores['AM_score'], 'hparam/lr_f1_score':test_logs_scores['lr_f1_score'], 'hparam/lr_reach_mae':test_logs_scores['lr_reach_mae'],
         'hparam/left_reach_mae':test_logs['reach_mae'][0],'hparam/right_reach_mae':test_logs['reach_mae'][1],
         'hparam/left_f1score':test_logs_scores['left_f1'],'hparam/right_f1score':test_logs_scores['right_f1'],
         'hparam/left_pos_mae':test_logs['pos_mae'][0],'hparam/right_pos_mae':test_logs['pos_mae'][1],
         'hparam/left_non_erosion_mae':test_logs['full_non_erosion_mae'][0],'hparam/right_non_erosion_mae':test_logs['full_non_erosion_mae'][1],
         'hparam/left_neg_mae':test_logs['neg_mae'][0],'hparam/right_neg_mae':test_logs['neg_mae'][1],
-        'hparam/left_pos_neg_mae':test_logs['full_act_mae'][0],'hparam/right_pos_neg_mae':test_logs['full_act_mae'][1]}
+        'hparam/left_pos_neg_mae':test_logs['full_act_mae'][0],'hparam/right_pos_neg_mae':test_logs['full_act_mae'][1],
+        'hparam/left_act_ero_diff':test_logs['mean_ero_diff'][0],'hparam/right_act_ero_diff':test_logs['mean_ero_diff'][1],
+        'hparam/left_act_overfit_dif':test_logs['act_overfit_diff'][0],'hparam/right_act_overfit_dif':test_logs['act_overfit_diff'][1]}
     hparam_logs.update(imp_val_logs)
     writer.add_hparams(hyperparameter_defaults, hparam_logs)
     writer.close()
     if save_mod == True:
         model_save(model, optimizer, model_name)
 
-    return avg_val_epoch_loss
+    avg_act_ero_mae = (test_logs['full_act_mae'][0] + test_logs['full_act_mae'][1] ) / 2 
+
+    return avg_val_epoch_loss, avg_act_ero_mae, lr_pow
 
 
 if __name__ == "__main__":
+    #objective(2, 30, -5.0, 0, 1,1,7)
+    #print(asd)
     #study = optuna.create_study(direction='minimize',sampler= optuna.samplers.RandomSampler())
     #study = optuna.create_study(direction='minimize',sampler=optuna.samplers.GridSampler(search_space))
     #study.optimize(objective, n_trials=10) 
     #objective()
-    #lr_pow = np.arange(-3.8, -1.8, 0.4)
-    ad_pow = [0, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
-    lr_pow = [-3.8]
+
+    #objective(5,27,-5.0,0,15)
+    #print(asd)
+    
+    #ad_pow = [0, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
+    #lr_pow = [-3.8]
     #print(lr_pow)
-    #vert_hgt = np.arange(5,9,2)
+    #vert_hgt = np.arange(1,23,2)
     #tm_stp_list = [5, 10, 15, 20, 25, 30]
-    tm_stp_list = [5]
+    #tm_stp_list = [5]
     #strt_list = [27, 21, 15, 7, 0]
-    strt_list = [21]
+    #strt_list = [27]
     #vert_hgt = [5,7,9]
     #lr_rate_exp = [0.000251188643150958,0.000251188643150958,0.0000794328234724275]
     #print(int(vert_hgt[2]))
     #print(asd)
-    """ for i in range(len(tm_stp_list)):
-        for j in range(len(strt_list)):
-            for k in range(len(lr_pow)):
-                objective(tm_stp_list[i],strt_list[j],lr_pow[k])
-                print(tm_stp_list[i],strt_list[j],lr_pow[k]) """
+    
+    #lowest_mae_list = [5.299081087, 6.96048522, 6.942534924, 6.488059044, 6.468466282]
+    
+    #lr_pow = np.arange(-5.0, -1.8, 0.4)
+    #vert_hgt = [9]
+    #strt_list = [27, 21, 15, 7, 0]
+    #tm_stp_list = [5]
+    #strt_list = [27]
 
-    for i in range(len(ad_pow)):
-        objective(tm_stp_list[0],strt_list[0],lr_pow[0],ad_pow[i])
+    objective(tm_stp=3,strt=0,lr_pow=-3.0,ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=80,lstm_hid=200,
+                   fc1_units=300,fc2_units=300,lstm_layers=4)
+    print(asd)
+
+    fc1_units_list = [20,40,60,80]
+    fc1_units_list = [100,150,200]
+    fc1_units_list = [250,300,400]
+    fc0_units_list = [100,200,300]
+    lr_rate_list = [-5.0,-4.0,-3.0,-2.0,-1.0]
+    lr_rate_list = np.arange(-3.0, -1.8, 1.0)
+    ad_pow = [0, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
+    ad_pow = np.arange(-3.0, -1.8, 0.2)
+    for i in range(len(lr_rate_list)):
+        objective(tm_stp=3,strt=0,lr_pow=lr_rate_list[i],ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=30,lstm_hid=200,
+                    fc1_units=300,fc2_units=300,lstm_layers=4)
+    #print('hidden units ',ls_hid_list[i])
+    """ for i in range(len(strt_list)):
+        mae_count = 0
+        for j in range(len(lr_pow)):
+            val_loss, temp_mae = objective(5, strt_list[i], float(lr_pow[j]), 0, 9,1,30)
+            print(lr_pow[j], strt_list[i])
+            if j == 0 :
+                lowest_mae = temp_mae
+                continue
+            
+            if temp_mae < lowest_mae or temp_mae == lowest_mae :
+                lowest_mae = temp_mae
+            elif temp_mae > lowest_mae :
+                mae_count += 1
+            
+            if mae_count == 3 :
+                break """
+
+
+
 
     """ for i in range(len(vert_hgt)):
         for j in range(len(wd_pow)):
             objective(int(vert_hgt[i]), wd_pow[j], lr_rate_exp[i])
-            print(wd_pow[j],vert_hgt[i]) """
-
-    #adm_wd = np.random.uniform(.001,.01)
-    """ while True:
-        objective(-3.3, 3, float(np.random.uniform(.001,.01))) """
-        
+            print(wd_pow[j],vert_hgt[i]) """        
 
     pass
