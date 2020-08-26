@@ -446,8 +446,8 @@ def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, 
     #return test_pos_mae, test_pos_std,test_neg_mae,test_neg_std, test_prec, test_recall, test_f1_score
     return test_logs, test_logs_scores, imp_val_logs
 
-def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs, lstm_hid,
-                fc1_units,fc2_units,lstm_layers):
+def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
+                lstm_layers):
     
     load_mod = False
     save_mod = False
@@ -456,8 +456,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     num_channels = 7
     lf_rt_tag = 'both'
     EPOCHS = num_epochs
-    data_mode = 'lines' 
-    lstm_hidden_units = lstm_hid
+    data_mode = 'imgs' 
     #EPOCHS = trial.suggest_discrete_uniform('epochs', 100, 150, 5)
     #EPOCHS = int(EPOCHS)
     #lr_pow = trial.suggest_discrete_uniform('lr_power',-5 , -3, 0.2)
@@ -510,6 +509,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     #time_step = trial.suggest_int('time_step', 16, 20)
     time_step = tm_stp
     batch_size = int(int((500/time_step) - 2)/vert_img_hgt)
+    batch_size = 16
     val_batch_size = batch_size
     total_time_step = 33    ###number of total year images
     log_performance = 1 ###number of epochs after which performance metrics are calculated
@@ -542,7 +542,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     log_hist = 5
     writer = SummaryWriter()
     model_name = writer.get_logdir().split("\\")[1]
-    adm_wd = ad_pow
+    adm_wd = 1*(10**ad_pow)
     #adm_wd = 1*(10**adm_wd_exp)
     val_img_range = time_step+num_val_img-1
     #print(val_img_range)
@@ -576,10 +576,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         weight_seed = wgt_seed_flag,
         reach_id = lf_rt_tag,
         vertical_pix_step = vert_step,
-        input_data = data_mode,
-        number_of_lstm_hu = lstm_hidden_units,
-        fc1_num_units = fc1_units,
-        fc2_num_units = fc2_units
+        input_data = data_mode
         )
 
     dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/comp_tf.tfrecords'))
@@ -613,8 +610,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     if data_mode == 'imgs' :
         model = CNN_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate,vert_img_hgt,lf_rt_tag)
     if data_mode == 'lines' :
-        model = Three_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, vert_img_hgt, lf_rt_tag, lstm_hidden_units,
-                            fc1_units,fc2_units)
+        model = Three_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, vert_img_hgt, lf_rt_tag)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
@@ -870,21 +866,15 @@ if __name__ == "__main__":
     #tm_stp_list = [5]
     #strt_list = [27]
 
-    objective(tm_stp=3,strt=0,lr_pow=-3.0,ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=80,lstm_hid=200,
-                   fc1_units=300,fc2_units=300,lstm_layers=4)
-    print(asd)
+    #objective(tm_stp=5,strt=0,lr_pow=-4.0,ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=150,lstm_layers=2)
+    #print(asd)
 
-    fc1_units_list = [20,40,60,80]
-    fc1_units_list = [100,150,200]
-    fc1_units_list = [250,300,400]
-    fc0_units_list = [100,200,300]
-    lr_rate_list = [-5.0,-4.0,-3.0,-2.0,-1.0]
-    lr_rate_list = np.arange(-3.0, -1.8, 1.0)
-    ad_pow = [0, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
-    ad_pow = np.arange(-3.0, -1.8, 0.2)
-    for i in range(len(lr_rate_list)):
-        objective(tm_stp=3,strt=0,lr_pow=lr_rate_list[i],ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=30,lstm_hid=200,
-                    fc1_units=300,fc2_units=300,lstm_layers=4)
+    #lr_rate_list = [-5.0,-4.0,-3.0,-2.0,-1.0]
+    #lr_rate_list = np.arange(-5.0, -2.8, 1.0)
+    #ad_pow = [0, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
+    ad_pow = np.arange(-3.0, -1.8, 1.0)
+    for i in range(len(ad_pow)):
+        objective(tm_stp=5,strt=0,lr_pow=-4.0,ad_pow=ad_pow[i],vert_hgt=1,vert_step_num=1,num_epochs=20,lstm_layers=2)
     #print('hidden units ',ls_hid_list[i])
     """ for i in range(len(strt_list)):
         mae_count = 0

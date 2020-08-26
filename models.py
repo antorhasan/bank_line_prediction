@@ -79,7 +79,7 @@ class CNN_Model(nn.Module):
         self.batch_norm5 = nn.BatchNorm2d(256)
         self.drop10 = nn.Dropout2d(p=self.drop_out[9])
 
-        self.lstm = nn.LSTM(self.lstm_output_size,self.lstm_output_size,num_layers=num_lstm_layers,batch_first=True)
+        self.lstm = nn.LSTM(self.lstm_output_size,self.lstm_output_size,num_layers=num_lstm_layers,batch_first=True,dropout=0.2)
         self.dropout1 = nn.Dropout(self.drop_out[10])
         self.fc1 = nn.Linear(self.lstm_output_size, int(self.lstm_output_size/2))
         self.dropout2 = nn.Dropout(self.drop_out[11])
@@ -166,9 +166,12 @@ class CNN_Model(nn.Module):
             h0 = torch.zeros((self.num_lstm_layers, self.val_batch_size, self.lstm_output_size),device=self.device)
             c0 = torch.zeros((self.num_lstm_layers, self.val_batch_size, self.lstm_output_size),device=self.device)
 
-        
-        output, (hn, cn) = self.lstm(x, (h0, c0))
-        
+        #print(x.size())
+        #print(asd)
+        _, (hn, _) = self.lstm(x, (h0, c0))
+        hn = hn[-1,:,:]
+        #print(hn.size())
+        #print(asd)
         if self.training:
             hn = torch.reshape(hn, (self.batch_size,256))
         else:
@@ -251,8 +254,7 @@ class Baseline_Model(nn.Module):
 
 
 class Three_Model(nn.Module):
-    def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,lf_rt_tag,
-                lstm_hidden_units,fc1_units,fc2_units):
+    def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,lf_rt_tag):
         super(Three_Model, self).__init__()
         self.vert_img_hgt = vert_img_hgt
 
@@ -263,18 +265,18 @@ class Three_Model(nn.Module):
         self.time_step = time_step
         self.num_lstm_layers = num_lstm_layers
         self.drop_out = drop_out
-        self.lstm_hidden_units = lstm_hidden_units
-        self.fc1_units = fc1_units
-        self.fc2_units = fc2_units
-        self.fc0_units = 200
-        self.fcm1_units = 200
+        self.lstm_hidden_units = 200
+        self.fc1_units = 200
+        self.fc2_units = 200
+        #self.fc0_units = 200
+        #self.fcm1_units = 200
         self.fc3_units = 200
 
-        self.fcm1 =  nn.Linear((vert_img_hgt * 2), self.fcm1_units) 
-        self.fc0 = nn.Linear(self.fcm1_units, self.fc0_units)
         
-
-        self.lstm = nn.LSTM(  self.fc0_units, self.lstm_hidden_units, num_layers=num_lstm_layers,dropout=self.lstm_dropout,batch_first=True)
+        #self.fcm1 =  nn.Linear((vert_img_hgt * 2), self.fcm1_units) 
+        #self.fc0 = nn.Linear(self.fcm1_units, self.fc0_units)
+        
+        self.lstm = nn.LSTM((vert_img_hgt * 2), self.lstm_hidden_units, num_layers=num_lstm_layers,dropout=self.lstm_dropout,batch_first=True)
         
         if lf_rt_tag == 'left' or lf_rt_tag == 'right' :
             output_num = 1
@@ -295,8 +297,11 @@ class Three_Model(nn.Module):
     def forward(self, inputs):
         #inputs = torch.reshape(inputs, (-1, self.vert_img_hgt, 2))
         x = torch.reshape(inputs, (-1,(self.time_step-1),int(self.vert_img_hgt * 2) ))
-        x = self.fcm1(x)
-        x = self.fc0(x)
+        #print(x.size())
+        #x = self.fcm1(x)
+        #print(x.size())
+        #x = self.fc0(x)
+        #print(x.size())
         if self.training:
             
             h0 = torch.zeros((self.num_lstm_layers, self.batch_size, self.lstm_hidden_units),device=self.device)
@@ -306,20 +311,26 @@ class Three_Model(nn.Module):
             c0 = torch.zeros((self.num_lstm_layers, self.val_batch_size, self.lstm_hidden_units),device=self.device)
 
         _, (hn, _) = self.lstm(x, (h0, c0))
+        #print(hn.size())
         hn = hn[-1,:,:]
+        #print(hn.size())
         if self.training:
             x = torch.reshape(hn, (self.batch_size, self.lstm_hidden_units))
         else:
             x = torch.reshape(hn, (self.val_batch_size, self.lstm_hidden_units))
 
-        
+        #print(x.size())
         #x = self.dropout1(hn)
         x = self.fc1(x)
-
+        #print(x.size())
         #x = self.dropout2(x)
         x = self.fc2(x)
+        #print(x.size())
         x = self.fc3(x)
+        #print(x.size())
         x = self.fc4(x)
+        #print(x.size())
+        #print(asd)
         return x
 
 
