@@ -213,12 +213,13 @@ class Baseline_Model(nn.Module):
         #self.dropout1 = nn.Dropout(self.drop_out[10])
         self.fc1 = nn.Linear(self.lstm_hidden_units, output_num)
         #self.dropout2 = nn.Dropout(self.drop_out[11])
-        #self.fc2 = nn.Linear(self.fc1_units, output_num)
+        #self.fc2 = nn.Linear(100, output_num)
 
     def forward(self, inputs):
         #inputs = torch.reshape(inputs, (-1, self.vert_img_hgt, 2))
         x = torch.reshape(inputs, (-1,(self.time_step-1),int(self.vert_img_hgt * 2) ))
-        
+        #print(x.size())
+        #print(asd)
         if self.training:
             
             h0 = torch.zeros((self.num_lstm_layers, self.batch_size, self.lstm_hidden_units),device=self.device)
@@ -230,7 +231,7 @@ class Baseline_Model(nn.Module):
         
         _, (hn, _) = self.lstm(x, (h0, c0))
         hn = hn[-1,:,:]
-        #print(hn)
+        #print(hn.size())
         #output = output[:,-1,:]
         #print(output)
         #print(asd)
@@ -242,9 +243,10 @@ class Baseline_Model(nn.Module):
         
         #x = self.dropout1(hn)
         x = self.fc1(x)
-
+        #print(x.size())
         #x = self.dropout2(x)
         #x = self.fc2(x)
+        #print(asd)
         return x
 
 

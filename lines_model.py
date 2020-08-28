@@ -400,14 +400,56 @@ def wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids,writ
     writer.add_image(str(val_img_ids[iter_num]), img, dataformats='HWC')
     return combined_conf
 
-def process_val(arr_list, num_val_img, msk_mean, msk_std):
+def process_prev(arr_list, num_val_img,trns_constants,prev_year_ids,prev_reach_ids):
+    inp_mean = np.transpose(trns_constants['inp_mean'])
+    inp_std = np.transpose(trns_constants['inp_std'])
+
+    #print(prev_year_ids)
+    #print(prev_reach_ids)
+    #print(asd)
+    prev_year_ids = np.asarray(prev_year_ids)
+    prev_reach_ids = np.asarray(prev_reach_ids)
     arr_list = np.asarray(arr_list)
     total_smpls = int(arr_list.shape[0])*int(arr_list.shape[1])
-    val_num_rows = int(total_smpls/num_val_img)
-    arr_list = np.resize(arr_list, (val_num_rows,num_val_img,2))
-    arr_list = (msk_std * arr_list) + msk_mean
+    val_num_rows = int(total_smpls/(num_val_img-1))
+    arr_list = np.resize(arr_list, (val_num_rows,(num_val_img-1),2))
+    prev_year_ids = np.resize(prev_year_ids, (val_num_rows,(num_val_img-1),1))
 
+    #print(prev_year_ids[0,:,:])
+    #rint(arr_list[0,:,:])
+    for i in range(arr_list.shape[0]):
+        arr_list[i,:,:] = np.add(np.multiply(arr_list[i,:,:], inp_std[i,:]), inp_mean[i,:])
+    #print(arr_list[0,:,:])
+    #print(asd)
     return arr_list
+
+def process_diffs(arr_list, num_val_img, trns_constants, prev_actual_list,act_year_ids,act_reach_ids):
+    out_mean = np.transpose(trns_constants['out_mean'])
+    out_std = np.transpose(trns_constants['out_std'])
+
+    act_year_ids = np.asarray(act_year_ids)
+    act_reach_ids = np.asarray(act_reach_ids)
+    arr_list = np.asarray(arr_list)
+    #print(arr_list.shape)
+    total_smpls = int(arr_list.shape[0])*int(arr_list.shape[1])
+    val_num_rows = int(total_smpls/(num_val_img-1))
+    arr_list = np.resize(arr_list, (val_num_rows,(num_val_img-1),2))
+    act_year_ids = np.resize(act_year_ids, (val_num_rows,(num_val_img-1),1))
+    #print(arr_list[0,:,:])
+
+    #print(act_year_ids[0,:,:])
+    
+    for i in range(arr_list.shape[0]):
+        arr_list[i,:,:] = np.add(np.multiply(arr_list[i,:,:], out_std[i,:]), out_mean[i,:])
+    
+    #print(arr_list[0,:,:])
+    arr_list = np.add(prev_actual_list, arr_list)
+    #print(arr_list[0,:,:])
+    #print(asd)
+    return arr_list
+
+
+    
 
 def model_save(model, optimizer, model_name):
     print('saving model....')
@@ -417,7 +459,7 @@ def model_save(model, optimizer, model_name):
             'optimizer_state_dict': optimizer.state_dict()
             }, model_path)
 
-def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, epoch, msk_mean, msk_std, val_img_ids,writer):
+def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, epoch, val_img_ids,writer):
     print('logging performance metrics........')
     imp_val_logs = {}
     for i in range(num_val_img):
@@ -447,6 +489,28 @@ def log_performance_metrics(pred_list,actual_list,prev_actual_list,num_val_img, 
 
     #return test_pos_mae, test_pos_std,test_neg_mae,test_neg_std, test_prec, test_recall, test_f1_score
     return test_logs, test_logs_scores, imp_val_logs
+
+
+def write_inp_tf(input_tensor,reach_id,year_id,batch_size,time_step,inp_std,inp_mean):
+    
+
+    temp_inp = input_tensor.copy()
+    temp_rch = reach_id.copy()
+    temp_yd = year_id.copy()
+    temp_ims = os.path.join('./data/img/temp/')
+
+    for m in range(batch_size):
+        for n in range(time_step-1):
+            input_tensor = temp_inp[m,n,:,:].copy()
+            reach_id = temp_rch[m,n,:,:].copy()
+            year_id = temp_yd[m,n,:,:].copy()
+
+            input_tensor = np.add(np.multiply(input_tensor,np.transpose(inp_std)[int(reach_id)]), np.transpose(inp_mean)[int(reach_id)])
+            print(round(input_tensor[0,0]),round(input_tensor[0,1]))
+            img = cv2.imread(temp_ims+str(int(year_id))+'.png')
+            img[int(reach_id),round(input_tensor[0,0]),:] = [255,255,255]
+            img[int(reach_id),round(input_tensor[0,1]),:] = [255,255,255]
+            cv2.imwrite(temp_ims+str(int(year_id))+'.png', img)
 
 def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 lstm_layers,lstm_hidden_units,batch_size):
@@ -479,7 +543,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
 
     drop_rate = [dr_1,dr_2,dr_3,dr_4,dr_5,dr_6,dr_7,dr_8,dr_9,dr_10,dr_11,dr_12]
     smooth_flag = False
-    time_step = tm_stp
+    time_step = 3
     #atch_size = int(int((500/time_step) - 2)/vert_img_hgt)
     batch_size = batch_size
     val_batch_size = batch_size
@@ -493,8 +557,10 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     org_val_img = val_img_ids
     start_indx = strt
     val_split = 5
-    val_img_ids = val_img_ids[-(val_split):]
-
+    val_numbers_id = (val_split+1) - (time_step-1)
+    val_img_ids = val_img_ids[-(val_numbers_id):]
+    #print(val_img_ids)
+    #print(asd)
     total_time_step = 33    ###number of total year images
     num_val_img = len(val_img_ids)
     #print(num_val_img)
@@ -504,9 +570,11 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     log_hist = 5
     writer = SummaryWriter()
     model_name = writer.get_logdir().split("\\")[1]
-    adm_wd = 1*(10**ad_pow)
+    #adm_wd = 1*(10**ad_pow)
+    adm_wd = 0
     val_img_range = time_step+num_val_img-1
     output_vert_indx = int((vert_img_hgt-1)/2)
+    time_win_shift = 1
 
     hyperparameter_defaults = dict(
         drop_1 = dr_1,
@@ -533,7 +601,6 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         start_indx = org_val_img[start_indx],
         end_indx = org_val_img[end_indx],
         weight_seed = wgt_seed_flag,
-        reach_id = lf_rt_tag,
         vertical_pix_step = vert_step,
         input_data = data_mode
         )
@@ -544,16 +611,16 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     dataset_f = dataset_f.window(size=vert_img_hgt, shift=vert_step, stride=1,drop_remainder=True)
     dataset_f = dataset_f.map(lambda x: x.flat_map(lambda x1: x1))
     dataset_f = dataset_f.map(lambda x: x.window(size=vert_img_hgt,shift=1,stride=end_indx-start_indx+1,drop_remainder=True))
-    dataset_f = dataset_f.map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
+    dataset_f = dataset_f.map(lambda x: x.window(size=time_step, shift=time_win_shift, stride=1,drop_remainder=True))
     dataset_f = dataset_f.flat_map(lambda x: x)
     dataset_f = dataset_f.flat_map(lambda x: x.flat_map(lambda x1: x1))
     dataset_f = dataset_f.map(_parse_function_).batch(vert_img_hgt).batch(time_step)
-    dataset_f = dataset_f.shuffle(10000, reshuffle_each_iteration=True)
+    #dataset_f = dataset_f.shuffle(10000, reshuffle_each_iteration=True)
     dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
 
     dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_sdd_'+str(val_split)+'.tfrecords'))
     dataseti1 = dataseti1.window(size=total_time_step, shift=total_time_step, stride=1, drop_remainder=False)
-    dataseti1 = dataseti1.map(lambda x: x.skip(total_time_step-(num_val_img+2)))
+    dataseti1 = dataseti1.map(lambda x: x.skip(total_time_step-(num_val_img+1)))
     dataseti1 = dataseti1.window(size=vert_img_hgt, shift=1, stride=1,drop_remainder=True)
     dataseti1 = dataseti1.map(lambda x: x.flat_map(lambda x1: x1))
     dataseti1 = dataseti1.map(lambda x: x.window(size=vert_img_hgt,shift=1,stride=val_img_range,drop_remainder=True))
@@ -590,6 +657,12 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     lft_diff_full_std = np.load(stdd_npy_path+'lft_out_std.npy')
     rgt_diff_full_std = np.load(stdd_npy_path+'rgt_out_std.npy')
 
+    inp_mean = np.asarray([lft_inp_mean,rgt_inp_mean])
+    inp_std = np.asarray([lft_inp_std,rgt_inp_std])
+    out_mean = np.asarray([lft_diff_full_mean,rgt_diff_full_mean])
+    out_std = np.asarray([lft_diff_full_std,rgt_diff_full_std])
+
+    trns_constants = {'inp_mean':inp_mean,'inp_std':inp_std,'out_mean':out_mean,'out_std':out_std}
     #print(asd)
     early_stop_counter = 0
     global_train_counter = 0
@@ -600,39 +673,34 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         epoch_loss = 0
 
         for input_tensor, year_id, reach_id, _, sdd_output in dataset_f:
-            """ year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
+            year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
             reach_id = np.reshape(reach_id, (batch_size,time_step,vert_img_hgt,1))
-            print(year_id)
-            print(reach_id)
+            """ for i in range(year_id.shape[0]):
+                print(year_id[i,:,:,:])
+                print(reach_id[i,:,:,:])
             print(asd) """
+
             input_tensor = np.reshape(input_tensor, (batch_size,time_step,vert_img_hgt,2))
             input_tensor = input_tensor[:,0:time_step-1,:,:]
 
             sdd_output = np.reshape(sdd_output, (batch_size,time_step,vert_img_hgt,2))
-            
-            if lf_rt_tag == 'left':
-                sdd_output = sdd_output[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,0:1]
-            elif lf_rt_tag == 'right':
-                sdd_output = sdd_output[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,1:2]
-            elif lf_rt_tag == 'both':
-                sdd_output = sdd_output[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,:]
-            
+                        
+            sdd_output = sdd_output[:,time_step-1:time_step,:,:]
+
+
             input_tensor = torch.Tensor(input_tensor).cuda().requires_grad_(False)
             sdd_output = torch.Tensor(sdd_output).cuda().requires_grad_(False)
             sdd_output = torch.reshape(sdd_output, (batch_size,-1))
             
             optimizer.zero_grad()
             pred = model(input_tensor)
-            #print(pred.size())
-            #print(reg_coor.size())
-            #print(asd)
             loss = F.mse_loss(pred, sdd_output,reduction='mean')
             loss.backward()
             optimizer.step()
 
             epoch_loss = epoch_loss+loss
             counter += 1
-            global_train_counter += 1
+
 
         avg_epoch_loss = epoch_loss / counter
         template = 'Epoch {}, Train Loss: {}'
@@ -665,31 +733,57 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 pred_list = []
                 actual_list = []
                 prev_actual_list = []
+                prev_reach_ids = []
+                prev_year_ids = []
+                act_reach_ids = []
+                act_year_ids = []
 
             for input_tensor, year_id, reach_id, _, sdd_output in dataseti1:
-                #year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
-                #rint(year_id)
-                #rint(asd)
+                """ year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
+                reach_id = np.reshape(reach_id, (batch_size,time_step,vert_img_hgt,1))
+                for i in range(year_id.shape[0]):
+                    print(year_id[i,:,:,:])
+                    print(reach_id[i,:,:,:])
+                print(asd) """
+                year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
+                reach_id = np.reshape(reach_id, (batch_size,time_step,vert_img_hgt,1))
+
                 input_tensor = np.reshape(input_tensor, (batch_size,time_step,vert_img_hgt,2))
+                prev_time_step = input_tensor[:,time_step-2:time_step-1,:,:]
+
+                #prev_time_step = prev_time_step[0,:,:,:]
+                #print(input_tensor)
+                #print(prev_time_step)
+                #print(asd)
+
+
+                year_id_prev = year_id[:,time_step-2:time_step-1,:,:]
+                reach_id_prev = reach_id[:,time_step-2:time_step-1,:,:]
+                year_id_act = year_id[:,time_step-1:time_step,:,:]
+                reach_id_act = reach_id[:,time_step-1:time_step,:,:]
+
+                """ print(year_id_prev)
+                print(reach_id_prev)
+                print(asd) """
+                
                 input_tensor = input_tensor[:,0:time_step-1,:,:]
+
+                #print(input_tensor)
+                #print(asd)
 
                 sdd_output = np.reshape(sdd_output, (batch_size,time_step,vert_img_hgt,2))
 
-                prev_time_step = sdd_output[:,time_step-2:time_step-1,output_vert_indx:output_vert_indx+1,:]
-
-                if lf_rt_tag == 'left':
-                    prev_time_step = sdd_output[:,time_step-2:time_step-1,output_vert_indx:output_vert_indx+1,0:1]
-                    sdd_output = sdd_output[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,0:1]
-                
-                elif lf_rt_tag == 'right':
-                    prev_time_step = sdd_output[:,time_step-2:time_step-1,output_vert_indx:output_vert_indx+1,1:2]
-                    sdd_output = sdd_output[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,1:2]
-                
-                elif lf_rt_tag == 'both':
-                    prev_time_step = sdd_output[:,time_step-2:time_step-1,output_vert_indx:output_vert_indx+1,:]
-                    sdd_output = sdd_output[:,time_step-1:time_step,output_vert_indx:output_vert_indx+1,:]
+                sdd_output = sdd_output[:,time_step-1:time_step,:,:]
 
                 prev_time_step = np.reshape(prev_time_step,(batch_size,-1))
+                year_id_prev = np.reshape(year_id_prev,(batch_size,-1))
+                reach_id_prev = np.reshape(reach_id_prev,(batch_size,-1))
+                year_id_act = np.reshape(year_id_act,(batch_size,-1))
+                reach_id_act = np.reshape(reach_id_act,(batch_size,-1))
+
+                ##print(year_id_prev)
+                #print(reach_id_prev)
+                #print(asd)
 
                 input_tensor = torch.Tensor(input_tensor).cuda()
                 sdd_output = torch.Tensor(sdd_output).cuda()
@@ -704,25 +798,21 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 counter_val += 1
 
                 if epoch % log_performance == log_performance-1:
-                    reg_coor = reg_coor.cpu()
-                    reg_coor = reg_coor.numpy()
+                    sdd_output = sdd_output.cpu()
+                    sdd_output = sdd_output.numpy()
                     pred_np = pred.cpu()
                     pred_np = pred_np.numpy()
 
-                    if lf_rt_tag == 'left' :
-                        np_zero = np.zeros((batch_size,1))
-                        prev_time_step = np.concatenate((prev_time_step,np_zero),axis=1) 
-                        reg_coor = np.concatenate((reg_coor,np_zero),axis=1)
-                        pred_np = np.concatenate((pred_np,np_zero),axis=1)
-                    elif lf_rt_tag == 'right' :
-                        np_zero = np.zeros((batch_size,1))
-                        prev_time_step = np.concatenate((np_zero,prev_time_step),axis=1) 
-                        reg_coor = np.concatenate((np_zero,reg_coor),axis=1)
-                        pred_np = np.concatenate((np_zero,pred_np),axis=1)
-                    
                     prev_actual_list.append(prev_time_step)
-                    actual_list.append(reg_coor)
+                    prev_year_ids.append(year_id_prev)
+                    prev_reach_ids.append(reach_id_prev)
+                    act_year_ids.append(year_id_act)
+                    act_reach_ids.append(reach_id_act)
+                    actual_list.append(sdd_output)
                     pred_list.append(pred_np)
+            
+            #print(prev_actual_list)
+            #print(asd)
 
             avg_val_epoch_loss = val_epoch_loss / counter_val
             template = 'Epoch {}, Val_Loss: {}'
@@ -746,11 +836,13 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
 
             ###logging performance metrics
             if epoch % log_performance == log_performance-1 :
-                pred_list = process_val(pred_list,num_val_img, msk_mean, msk_std)
-                actual_list = process_val(actual_list,num_val_img, msk_mean, msk_std)
-                prev_actual_list = process_val(prev_actual_list,num_val_img, msk_mean, msk_std)
+                prev_actual_list = process_prev(prev_actual_list,num_val_img,trns_constants,prev_year_ids,prev_reach_ids)
+                actual_list = process_diffs(actual_list,num_val_img, trns_constants, prev_actual_list,act_year_ids,act_reach_ids)
+                pred_list = process_diffs(pred_list,num_val_img, trns_constants, prev_actual_list,act_year_ids,act_reach_ids)
+                #print(num_val_img)
+                #print(asd)
                 test_logs, test_logs_scores, imp_val_logs = log_performance_metrics(pred_list,actual_list,prev_actual_list,
-                                                    num_val_img, epoch, msk_mean, msk_std, val_img_ids,writer)
+                                                    (num_val_img-1), epoch, val_img_ids,writer)
                 
         if early_stop_flag:
             if early_stop_counter > early_stop_thresh :
@@ -758,7 +850,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 #model_save(model, optimizer, model_name)
                 break
 
-    for iter_num in range(num_val_img):
+    for iter_num in range((num_val_img-1)):
         temp_conf = wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids, writer,smooth_flag)
 
         if iter_num == 0 :
@@ -823,8 +915,8 @@ if __name__ == "__main__":
     #tm_stp_list = [5]
     #strt_list = [27]
 
-    objective(tm_stp=3,strt=0,lr_pow=-3.0,ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=20,lstm_layers=1,
-                    lstm_hidden_units=2,batch_size=40)
+    objective(tm_stp=3,strt=0,lr_pow=-3.0,ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=10,lstm_layers=1,
+                    lstm_hidden_units=100,batch_size=32)
     #print(asd)
 
     #lr_rate_list = [-5.0,-4.0,-3.0,-2.0,-1.0]

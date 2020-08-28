@@ -828,7 +828,7 @@ def write_lines(val_split):
     lft_diff_full_std = []
     rgt_diff_full_std = []
 
-
+    global_j_count = 0
     for i in range(temp_img.shape[0]):
         print(i)
         left_reach_diff_values = []
@@ -865,11 +865,13 @@ def write_lines(val_split):
             sum_writer.add_scalar('Left_trend/reach_'+str(i),line_npy[0],j)
             sum_writer.add_scalar('Right_trend/reach_'+str(i),line_npy[1],j)
 
-            sum_writer.add_scalar('Left_bin/reach_'+str(i),bin_npy[0],j)
-            sum_writer.add_scalar('Right_bn/reach_'+str(i),bin_npy[1],j)
+            #sum_writer.add_scalar('Left_bin/reach_'+str(i),bin_npy[0],j)
+            #sum_writer.add_scalar('Right_bn/reach_'+str(i),bin_npy[1],j)
 
             sum_writer.add_scalar('Left_diff/reach_'+str(i),lft_reach_diff,j)
             sum_writer.add_scalar('Right_diff/reach_'+str(i),rgt_reach_diff,j)
+
+            sum_writer.add_scalars('complete_trend',{'left':line_npy[0],'right':line_npy[1]},global_j_count)
 
             if j != 0 :
                 left_reach_diff_values.append(lft_reach_diff)
@@ -892,6 +894,7 @@ def write_lines(val_split):
             example = tf.train.Example(features=tf.train.Features(feature=feature))
 
             writer.write(example.SerializeToString())
+            global_j_count += 1
 
         lft_full_diff.extend(left_reach_diff_values)
         rgt_full_diff.extend(right_reach_diff_values)
@@ -930,6 +933,8 @@ def write_lines(val_split):
         sum_writer.add_histogram('Left_Diff_Standardized_across_reach',standd_lft_rch_diff,i,bins='auto')
         sum_writer.add_histogram('Right_Diff_Standardized_across_reach',standd_rgt_rch_diff,i,bins='auto')
         
+        
+
         if i == 0 :
             stdd_trian_lft_diff = standd_lft_rch_diff
             stdd_trin_rgt_diff = standd_rgt_rch_diff
@@ -1135,7 +1140,7 @@ def write_stdd_lines():
     sys.stdout.flush() 
 
 if __name__ == "__main__" :
-    write_stdd_lines()
+    #write_stdd_lines()
     #write_lines(5)
     #line_npy_in_imgs()
     #save_img_from_tif(os.path.join('./data/img/final_rgb/198802.tif'),'infra',True,'198802')
