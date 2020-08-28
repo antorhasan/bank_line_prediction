@@ -188,7 +188,7 @@ class CNN_Model(nn.Module):
 
 
 class Baseline_Model(nn.Module):
-    def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,lf_rt_tag, lstm_hidden_units,fc1_units):
+    def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,lf_rt_tag, lstm_hidden_units):
         super(Baseline_Model, self).__init__()
         self.vert_img_hgt = vert_img_hgt
 
@@ -200,7 +200,6 @@ class Baseline_Model(nn.Module):
         self.num_lstm_layers = num_lstm_layers
         self.drop_out = drop_out
         self.lstm_hidden_units = lstm_hidden_units
-        self.fc1_units = fc1_units
         
         #self.fc0 = nn.Linear(self.lstm_hidden_units, self.fc1_units)
 
@@ -212,13 +211,9 @@ class Baseline_Model(nn.Module):
             output_num = 2
         
         #self.dropout1 = nn.Dropout(self.drop_out[10])
-
-        self.fc1 = nn.Linear(self.lstm_hidden_units, self.fc1_units)
+        self.fc1 = nn.Linear(self.lstm_hidden_units, output_num)
         #self.dropout2 = nn.Dropout(self.drop_out[11])
-
-        
-
-        self.fc2 = nn.Linear(self.fc1_units, output_num)
+        #self.fc2 = nn.Linear(self.fc1_units, output_num)
 
     def forward(self, inputs):
         #inputs = torch.reshape(inputs, (-1, self.vert_img_hgt, 2))
@@ -249,7 +244,7 @@ class Baseline_Model(nn.Module):
         x = self.fc1(x)
 
         #x = self.dropout2(x)
-        x = self.fc2(x)
+        #x = self.fc2(x)
         return x
 
 
