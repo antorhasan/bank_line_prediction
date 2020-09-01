@@ -209,11 +209,14 @@ class Baseline_Model(nn.Module):
             output_num = 1
         elif lf_rt_tag == 'both' :
             output_num = 2
+    
         
         #self.dropout1 = nn.Dropout(self.drop_out[10])
-        self.fc1 = nn.Linear(self.lstm_hidden_units, output_num)
+        self.fc1 = nn.Linear(self.lstm_hidden_units, 100)
         #self.dropout2 = nn.Dropout(self.drop_out[11])
-        #self.fc2 = nn.Linear(100, output_num)
+        self.fc2 = nn.Linear(100, 100)
+        self.fc3 = nn.Linear(100,100)
+        self.fc4 = nn.Linear(100,output_num)
 
     def forward(self, inputs):
         #inputs = torch.reshape(inputs, (-1, self.vert_img_hgt, 2))
@@ -242,10 +245,12 @@ class Baseline_Model(nn.Module):
 
         
         #x = self.dropout1(hn)
-        x = self.fc1(x)
+        x = F.relu(self.fc1(x))
         #print(x.size())
         #x = self.dropout2(x)
-        #x = self.fc2(x)
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
+        x = self.fc4(x)
         #print(asd)
         return x
 
