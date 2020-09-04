@@ -341,40 +341,55 @@ def wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids,writ
     window = 99
     poly = 2
 
-    if denoising :
+    """ if denoising :
         try :
             pred_left_den = savgol_filter(pred_list[:,iter_num,0], window, poly)
             pred_right_den = savgol_filter(pred_list[:,iter_num,1], window, poly)
         except :
             pred_left_den = pred_list[:,iter_num,0]
-            pred_right_den = pred_list[:,iter_num,1]
+            pred_right_den = pred_list[:,iter_num,1] """
 
     img = cv2.imread(os.path.join('./data/img/up_rgb/'+str(val_img_ids[iter_num])+'.png'), 1)
-    for i in range(reach_start_indx,reach_start_indx+num_rows,1):
+    coun = 0
+    for i,j in zip(range(reach_start_indx,reach_start_indx+num_rows,1),range(num_rows)):
+        #print(coun)
+        """ print(i,j)
+        print(len(range(reach_start_indx,reach_start_indx+num_rows,1)))
+        
+        print(len((range(num_rows))))
+        assert len(range(reach_start_indx,reach_start_indx+num_rows-1,1)) == len(range(num_rows)) 
+        print(img.shape)"""
+        #print(actual_list)
+        #print(asd)
+        #print(actual_list)
+        #print(actual_list[j,iter_num,1])
+        #print(asd)
+        """ if coun == 475 :
+            print(actual_list[j,iter_num,0])
+            print(actual_list[j,iter_num,1]) """
+        img[i,int(round(actual_list[j,iter_num,0])),:] = [255,255,255]
+        img[i,int(round(actual_list[j,iter_num,1])),:] = [255,255,255]
 
-        img[i,int(actual_list[i,iter_num,0]),:] = [255,255,255]
-        img[i,int(actual_list[i,iter_num,1]),:] = [255,255,255]
-
-        if 0<=int(pred_list[i,iter_num,0])<=744 :
+        if 0<=int(round(pred_list[j,iter_num,0]))<=744 :
             pass
         else :
-            pred_list[i,iter_num,0] = 0
+            pred_list[j,iter_num,0] = 0
 
-        if 0<=int(pred_list[i,iter_num,1])<=744 :
+        if 0<=int(round(pred_list[j,iter_num,1]))<=744 :
             pass
         else :
-            pred_list[i,iter_num,1] = 744
+            pred_list[j,iter_num,1] = 744
 
-        if denoising :
+        """ if denoising :
             if 0<=int(pred_left_den[i])<=744 :
                 pass
             else :
-                pred_left_den[i] = 0 
+                pred_left_den[j] = 0 
 
             if 0<=int(pred_right_den[i])<=744 : 
                 pass
             else :
-                pred_right_den[i] = 744
+                pred_right_den[i] = 744 """
 
 
         """ if actual_ers_lft[i] == 1 :
@@ -390,13 +405,14 @@ def wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids,writ
             if denoising:
                 img[i,int(pred_right_den[i]),:] = [0,0,255] """
 
-        img[i,int(prev_actual_list[i,iter_num,0]),:] = [255,0,0]
-        img[i,int(prev_actual_list[i,iter_num,1]),:] = [255,0,0]
-        img[i,int(pred_list[i,iter_num,0]),:] = [0,255,0]
-        img[i,int(pred_list[i,iter_num,1]),:] = [0,255,0]
-        if denoising:
+        img[i,int(round(prev_actual_list[j,iter_num,0])),:] = [255,0,0]
+        img[i,int(round(prev_actual_list[j,iter_num,1])),:] = [255,0,0]
+        img[i,int(round(pred_list[j,iter_num,0])),:] = [0,255,0]
+        img[i,int(round(pred_list[j,iter_num,1])),:] = [0,255,0]
+        """ if denoising:
             img[i,int(pred_left_den[i]),:] = [0,0,255]
-            img[i,int(pred_right_den[i]),:] = [0,0,255]
+            img[i,int(pred_right_den[i]),:] = [0,0,255] """
+        coun+=1
             
     writer.add_image(str(val_img_ids[iter_num]), img, dataformats='HWC')
     return combined_conf
@@ -405,21 +421,30 @@ def process_prev(arr_list, num_val_img,trns_constants,prev_year_ids,prev_reach_i
     inp_mean = np.transpose(trns_constants['inp_mean'])
     inp_std = np.transpose(trns_constants['inp_std'])
 
+
     #print(prev_year_ids)
     #print(prev_reach_ids)
     #print(asd)
-    prev_year_ids = np.asarray(prev_year_ids)
-    prev_reach_ids = np.asarray(prev_reach_ids)
     arr_list = np.asarray(arr_list)
     total_smpls = int(arr_list.shape[0])*int(arr_list.shape[1])
     val_num_rows = int(total_smpls/(num_val_img))
     arr_list = np.resize(arr_list, (val_num_rows,(num_val_img),2))
+
+    prev_year_ids = np.asarray(prev_year_ids)
     prev_year_ids = np.resize(prev_year_ids, (val_num_rows,(num_val_img),1))
 
+    prev_reach_ids = np.asarray(prev_reach_ids)
+    prev_reach_ids = np.resize(prev_reach_ids, (val_num_rows,(num_val_img),1))
+
+    #print(prev_reach_ids[0,:,:])
+    #print(prev_year_ids[0,:,:])
+    #print(arr_list[0,0,:])
+    #print(inp_mean.shape)
+    #print(asds)
     #print(prev_year_ids[0,:,:])
     #rint(arr_list[0,:,:])
     for i in range(arr_list.shape[0]):
-        arr_list[i,:,:] = np.add(np.multiply(arr_list[i,:,:], inp_std[i,:]), inp_mean[i,:])
+        arr_list[i,:,:] = np.add(np.multiply(arr_list[i,:,:], inp_std[int(prev_reach_ids[i,0,:]),:]), inp_mean[int(prev_reach_ids[i,0,:]),:])
     #print(arr_list[0,:,:])
     #print(asd)
     return arr_list
@@ -435,16 +460,19 @@ def process_diffs(arr_list, num_val_img, trns_constants, prev_actual_list,act_ye
     total_smpls = int(arr_list.shape[0])*int(arr_list.shape[1])
     val_num_rows = int(total_smpls/(num_val_img))
     arr_list = np.resize(arr_list, (val_num_rows,(num_val_img),2))
+
     act_year_ids = np.resize(act_year_ids, (val_num_rows,(num_val_img),1))
+    act_reach_ids = np.resize(act_reach_ids, (val_num_rows,(num_val_img),1))
+
     #print(arr_list[0,:,:])
 
     #print(act_year_ids[0,:,:])
     
     for i in range(arr_list.shape[0]):
-        arr_list[i,:,:] = np.add(np.multiply(arr_list[i,:,:], out_std[i,:]), out_mean[i,:])
+        arr_list[i,:,:] = np.add(np.multiply(arr_list[i,:,:], out_std[int(act_reach_ids[i,0,:]),:]), out_mean[int(act_reach_ids[i,0,:]),:])
     
     #print(arr_list[0,:,:])
-    arr_list = np.add(prev_actual_list, arr_list)
+    arr_list = np.add(arr_list,prev_actual_list)
     #print(arr_list[0,:,:])
     #print(asd)
     return arr_list
@@ -521,6 +549,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     num_lstm_layers = lstm_layers
     num_channels = 7
     lf_rt_tag = 'both'
+    inp_lr_flag = 'both'
     EPOCHS = num_epochs
     data_mode = 'imgs' 
     lr_rate = 1*(10**lr_pow)
@@ -584,10 +613,11 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     output_vert_indx = int((vert_img_hgt-1)/2)
     time_win_shift = 1
 
-    reach_start_indx = 0
-    reach_end_num = 0
+    reach_start_indx = 300
+    reach_end_num = 1722 - 50 - 6
     reach_shift_cons = 2222
     reach_win_size = reach_shift_cons - reach_end_num
+    reach_end_indx = reach_win_size - 1
 
 
     hyperparameter_defaults = dict(
@@ -617,7 +647,11 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         weight_seed = wgt_seed_flag,
         vertical_pix_step = vert_step,
         input_data = data_mode,
-        model_optimizer = model_optim
+        model_optimizer = model_optim,
+        reach_start_index = reach_start_indx,
+        reach_end_index = reach_end_indx,
+        input_lft_rgt_tag = inp_lr_flag,
+        output_lft_rgt_tag = lf_rt_tag,
         )
 
     dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_sdd_'+str(start_indx)+'_'+str(val_split)+'.tfrecords'))
@@ -713,8 +747,13 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
             input_tensor = input_tensor[:,0:time_step-1,:,:]
 
             sdd_output = np.reshape(sdd_output, (batch_size,time_step,vert_img_hgt,2))
-                        
-            sdd_output = sdd_output[:,time_step-1:time_step,:,:]
+            
+            if lf_rt_tag == 'left':
+                sdd_output = sdd_output[:,time_step-1:time_step,:,0:1]
+            elif lf_rt_tag == 'right':
+                sdd_output = sdd_output[:,time_step-1:time_step,:,1:2]
+            elif lf_rt_tag == 'both':
+                sdd_output = sdd_output[:,time_step-1:time_step,:,:]
 
 
             input_tensor = torch.Tensor(input_tensor).cuda().requires_grad_(False)
@@ -768,17 +807,19 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 act_year_ids = []
 
             for input_tensor, year_id, reach_id, _, sdd_output in dataseti1:
-                year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
+                """ year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
                 reach_id = np.reshape(reach_id, (batch_size,time_step,vert_img_hgt,1))
-                """ for i in range(year_id.shape[0]):
+                for i in range(year_id.shape[0]):
                     print(year_id[i,:,:,:])
                     print(reach_id[i,:,:,:])
                 print(asd) """
                 year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
                 reach_id = np.reshape(reach_id, (batch_size,time_step,vert_img_hgt,1))
 
-                input_tensor = np.reshape(input_tensor, (batch_size,time_step,vert_img_hgt,2))
-                prev_time_step = input_tensor[:,time_step-2:time_step-1,:,:]
+                org_input_tensor = np.reshape(input_tensor, (batch_size,time_step,vert_img_hgt,2))
+                input_tensor = org_input_tensor[:,0:time_step-1,:,:]
+
+                prev_time_step = org_input_tensor[:,time_step-2:time_step-1,:,:]
 
                 #prev_time_step = prev_time_step[0,:,:,:]
                 #print(input_tensor)
@@ -795,14 +836,22 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 print(reach_id_prev)
                 print(asd) """
                 
-                input_tensor = input_tensor[:,0:time_step-1,:,:]
-
-                #print(input_tensor)
-                #print(asd)
+                
 
                 sdd_output = np.reshape(sdd_output, (batch_size,time_step,vert_img_hgt,2))
 
-                sdd_output = sdd_output[:,time_step-1:time_step,:,:]
+                if lf_rt_tag == 'left':
+                    prev_time_step = org_input_tensor[:,time_step-2:time_step-1,:,0:1]
+                    sdd_output = sdd_output[:,time_step-1:time_step,:,0:1]
+                
+                elif lf_rt_tag == 'right':
+                    prev_time_step = org_input_tensor[:,time_step-2:time_step-1,:,1:2]
+                    sdd_output = sdd_output[:,time_step-1:time_step,:,1:2]
+                
+                elif lf_rt_tag == 'both':
+                    prev_time_step = org_input_tensor[:,time_step-2:time_step-1,:,:]
+                    sdd_output = sdd_output[:,time_step-1:time_step,:,:]
+
 
                 prev_time_step = np.reshape(prev_time_step,(batch_size,-1))
                 year_id_prev = np.reshape(year_id_prev,(batch_size,-1))
@@ -831,12 +880,23 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                     sdd_output = sdd_output.numpy()
                     pred_np = pred.cpu()
                     pred_np = pred_np.numpy()
-
-                    prev_actual_list.append(prev_time_step)
                     prev_year_ids.append(year_id_prev)
                     prev_reach_ids.append(reach_id_prev)
                     act_year_ids.append(year_id_act)
                     act_reach_ids.append(reach_id_act)
+
+                    if lf_rt_tag == 'left' :
+                        np_zero = np.zeros((batch_size,1))
+                        prev_time_step = np.concatenate((prev_time_step,np_zero),axis=1) 
+                        sdd_output = np.concatenate((sdd_output,np_zero),axis=1)
+                        pred_np = np.concatenate((pred_np,np_zero),axis=1)
+                    elif lf_rt_tag == 'right' :
+                        np_zero = np.zeros((batch_size,1))
+                        prev_time_step = np.concatenate((np_zero,prev_time_step),axis=1) 
+                        sdd_output = np.concatenate((np_zero,sdd_output),axis=1)
+                        pred_np = np.concatenate((np_zero,pred_np),axis=1)
+
+                    prev_actual_list.append(prev_time_step)
                     actual_list.append(sdd_output)
                     pred_list.append(pred_np)
             
@@ -945,7 +1005,7 @@ if __name__ == "__main__":
     #tm_stp_list = [5]
     #strt_list = [27]
 
-    objective(tm_stp=5,strt=0,lr_pow=-1.0,ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=4,lstm_layers=1,
+    objective(tm_stp=5,strt=0,lr_pow=-1.0,ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=2,lstm_layers=1,
                     lstm_hidden_units=100,batch_size=32)
     print(asd)
 

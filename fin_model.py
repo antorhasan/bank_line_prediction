@@ -716,7 +716,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                     input_tensor = np.reshape(reg_coor, (batch_size,time_step,vert_img_hgt,2))
                     input_tensor = input_tensor[:,0:time_step-1,:,:]
 
-                reg_coor = np.reshape(reg_coor, (batch_size,time_step,vert_img_hgt,2))
+                #reg_coor = np.reshape(reg_coor, (batch_size,time_step,vert_img_hgt,2))
 
                 prev_time_step = reg_coor[:,time_step-2:time_step-1,output_vert_indx:output_vert_indx+1,:]
 

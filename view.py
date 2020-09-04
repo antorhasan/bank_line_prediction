@@ -1187,14 +1187,16 @@ def write_stdd_lines(strt_year=0,val_split=5):
     sys.stdout.flush() 
 
 if __name__ == "__main__" :
-    write_lines(strt_year=25,val_split=5)
+    
+
+    """ write_lines(strt_year=25,val_split=5)
     write_stdd_lines(strt_year=25,val_split=5)
     print(asd)
 
     
     for i in range(20,26,1):
         write_lines(strt_year=i,val_split=5)
-        write_stdd_lines(strt_year=i,val_split=5)
+        write_stdd_lines(strt_year=i,val_split=5) """
     #write_stdd_lines()
     #
     #line_npy_in_imgs()
@@ -1227,9 +1229,9 @@ if __name__ == "__main__" :
     line = np.tile(mean_line,(12,5,1,1))
     print(line.shape)
     print(line[0,0,:,:]) """
-    """ img = cv2.imread('./data/img/png/200201.png')
+    """ img = cv2.imread('.\data\individualImage.png')
 
-    cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
+    cv2.namedWindow('image1', cv2.WINDOW_AUTOSIZE)
     cv2.imshow('image1',img)
     cv2.waitKey(0)
     cv2.destroyAllWindows() """

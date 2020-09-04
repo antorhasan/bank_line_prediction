@@ -209,7 +209,7 @@ class Baseline_Model(nn.Module):
             output_num = 1
         elif lf_rt_tag == 'both' :
             output_num = 2
-    
+        
         
         #self.dropout1 = nn.Dropout(self.drop_out[10])
         self.fc1 = nn.Linear(self.lstm_hidden_units, 100)
