@@ -188,7 +188,8 @@ class CNN_Model(nn.Module):
 
 
 class Baseline_Model(nn.Module):
-    def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,lf_rt_tag, lstm_hidden_units):
+    def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,
+                    inp_lr_flag, lf_rt_tag, lstm_hidden_units):
         super(Baseline_Model, self).__init__()
         self.vert_img_hgt = vert_img_hgt
 
@@ -201,9 +202,15 @@ class Baseline_Model(nn.Module):
         self.drop_out = drop_out
         self.lstm_hidden_units = lstm_hidden_units
         
+        
         #self.fc0 = nn.Linear(self.lstm_hidden_units, self.fc1_units)
 
-        self.lstm = nn.LSTM( (vert_img_hgt * 2), self.lstm_hidden_units, num_layers=num_lstm_layers,dropout=self.lstm_dropout,batch_first=True)
+        if inp_lr_flag == 'left' or inp_lr_flag == 'right' :
+            self.inp_num = 1
+        elif inp_lr_flag == 'both' :
+            self.inp_num = 2
+
+        self.lstm = nn.LSTM( (vert_img_hgt * self.inp_num), self.lstm_hidden_units, num_layers=num_lstm_layers,dropout=self.lstm_dropout,batch_first=True)
         
         if lf_rt_tag == 'left' or lf_rt_tag == 'right' :
             output_num = 1
@@ -212,15 +219,15 @@ class Baseline_Model(nn.Module):
         
         
         #self.dropout1 = nn.Dropout(self.drop_out[10])
-        self.fc1 = nn.Linear(self.lstm_hidden_units, 100)
+        self.fc1 = nn.Linear(self.lstm_hidden_units,(vert_img_hgt *output_num))
         #self.dropout2 = nn.Dropout(self.drop_out[11])
-        self.fc2 = nn.Linear(100, 100)
-        self.fc3 = nn.Linear(100,100)
-        self.fc4 = nn.Linear(100,output_num)
+        #self.fc2 = nn.Linear(int(self.lstm_hidden_units/2), (vert_img_hgt *output_num))
+        #self.fc3 = nn.Linear(100,100)
+        #self.fc4 = nn.Linear(100,output_num)
 
     def forward(self, inputs):
         #inputs = torch.reshape(inputs, (-1, self.vert_img_hgt, 2))
-        x = torch.reshape(inputs, (-1,(self.time_step-1),int(self.vert_img_hgt * 2) ))
+        x = torch.reshape(inputs, (-1,(self.time_step-1),int(self.vert_img_hgt * self.inp_num) ))
         #print(x.size())
         #print(asd)
         if self.training:
@@ -245,12 +252,12 @@ class Baseline_Model(nn.Module):
 
         
         #x = self.dropout1(hn)
-        x = F.relu(self.fc1(x))
+        x = self.fc1(x)
         #print(x.size())
         #x = self.dropout2(x)
-        x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(x))
-        x = self.fc4(x)
+        #x = self.fc2(x)
+        #x = F.relu(self.fc3(x))
+        #x = self.fc4(x)
         #print(asd)
         return x
 
