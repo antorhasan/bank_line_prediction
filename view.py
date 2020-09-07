@@ -470,7 +470,7 @@ def wrt_bin_mask(img, file_id):
 
     img = img[:,offset:offset+745]
     print("writing binary mask.......")
-    cv2.imwrite('./data/img/png/'+file_id+'.png', img)
+    cv2.imwrite(os.path.join('./data/img/png/'+file_id+'.png'), img)
 
     return img
 
@@ -485,9 +485,9 @@ def save_img_from_tif(tif_path,img_type,norm,file_id):
     tif_sav = tif_sav[:,offset:offset+745,:]
     print('writing colored image file.......')
     if img_type == 'rgb':
-        cv2.imwrite('./data/img/final_rgb/'+file_id+'.png', tif_sav)
+        cv2.imwrite(os.path.join('./data/img/final_rgb/'+file_id+'.png'), tif_sav)
     elif img_type == 'infra':
-        cv2.imwrite('./data/img/infra/'+file_id+'.png', tif_sav)
+        cv2.imwrite(os.path.join('./data/img/infra/'+file_id+'.png'), tif_sav)
     return tif_sav
 
 def mask_to_bnk_list(img):
@@ -528,7 +528,7 @@ def shp_mask_tif(shp_path, tif_path):
     with fiona.open(shp_path, "r") as shapefile:
         shapes = [feature["geometry"] for feature in shapefile]
 
-    temp_tif_path = './data/img/temp.tif'
+    temp_tif_path = os.path.join('./data/img/temp.tif')
     with rasterio.open(temp_tif_path) as src:
         out_image, out_transform = rasterio.mask.mask(src, shapes)
     
@@ -550,7 +550,7 @@ def shp_mask_tif(shp_path, tif_path):
             tif_img[i,right_lis[i],2] = 255
 
     print('''writing rgb with lines images ......''')
-    cv2.imwrite('./data/img/shp_mask/'+file_id+'.png', tif_img)
+    cv2.imwrite(os.path.join('./data/img/shp_mask/'+file_id+'.png'), tif_img)
 
     lines_raster = np.zeros((tif_img.shape[0],tif_img.shape[1]))
     for i in range(lines_raster.shape[0]):
@@ -559,13 +559,13 @@ def shp_mask_tif(shp_path, tif_path):
     
     lines_raster = np.asarray(lines_raster[0:2048,:], dtype=np.uint8)
     print('writing binary lines ......')
-    cv2.imwrite('./data/img/lines/'+file_id+'.png', lines_raster)
+    cv2.imwrite(os.path.join('./data/img/lines/'+file_id+'.png'), lines_raster)
 
     left_lis = np.resize(left_lis,(len(left_lis),1))
     right_lis = np.resize(right_lis,(len(right_lis),1))
     line_lis = np.concatenate((left_lis,right_lis),axis=1)
     print('writing numpy array.....')
-    np.save('./data/img/line_npy/'+file_id+'.npy', line_lis)
+    np.save(os.path.join('./data/img/line_npy/'+file_id+'.npy'), line_lis)
 
 def batch_shp_to_data(tif_path):
     '''using tif file path batch process shp and tif into 
@@ -577,22 +577,22 @@ def batch_shp_to_data(tif_path):
     tif_lis = [str(f) for f in tif_lis]
     print(tif_lis)
 
-    shp_path = "./data/img/shape_files/"
+    shp_path = os.path.join('./data/img/shape_files/')
     for i in range(len(tif_lis)):
         shp_file = shp_path+tif_lis[i][0:-2]+'/'+tif_lis[i]+'.shp'
         shp_mask_tif(shp_file,tif_path+tif_lis[i]+'.tif')
 
 
 def up_rgb_infra(inter_val):
-    rgb_path  = './data/img/final_rgb/'
-    infra_path = './data/img/infra/'
+    rgb_path  = os.path.join('./data/img/final_rgb/')
+    infra_path = os.path.join('./data/img/infra/')
 
     img_list = [f for f in listdir(rgb_path) if isfile(join(rgb_path, f))]
     img_list = [int(f.split('.')[0]) for f in img_list]
     img_list.sort()
     img_list = [str(f) for f in img_list]
 
-    mean_img = np.load('./data/mean_img/mean_tensor.npy')
+    mean_img = np.load(os.path.join('./data/mean_img/mean_tensor.npy'))
     print('updating......')
     for i in range(len(img_list)):
         print(img_list[i])
@@ -601,55 +601,55 @@ def up_rgb_infra(inter_val):
         img2 = np.resize(np.where(img[:,:,1]==0,mean_img[:,:,1],img[:,:,1]),(img.shape[0],img.shape[1],1))
         img3 = np.resize(np.where(img[:,:,2]==0,mean_img[:,:,2],img[:,:,2]),(img.shape[0],img.shape[1],1))
         img = np.concatenate((img1,img2,img3), axis=2)
-        cv2.imwrite('./data/img/up_rgb/'+img_list[i]+'.png',img[inter_val[0]:inter_val[1],:,:])
+        cv2.imwrite(os.path.join('./data/img/up_rgb/'+img_list[i]+'.png'),img[inter_val[0]:inter_val[1],:,:])
 
         img = cv2.imread(infra_path+img_list[i]+'.png')
         img1 = np.resize(np.where(img[:,:,0]==0,mean_img[:,:,3],img[:,:,0]),(img.shape[0],img.shape[1],1))
         img2 = np.resize(np.where(img[:,:,1]==0,mean_img[:,:,4],img[:,:,1]),(img.shape[0],img.shape[1],1))
         img3 = np.resize(np.where(img[:,:,2]==0,mean_img[:,:,5],img[:,:,2]),(img.shape[0],img.shape[1],1))
         img = np.concatenate((img1,img2,img3), axis=2)
-        cv2.imwrite('./data/img/up_infra/'+img_list[i]+'.png',img[inter_val[0]:inter_val[1],:,:])
+        cv2.imwrite(os.path.join('./data/img/up_infra/'+img_list[i]+'.png'),img[inter_val[0]:inter_val[1],:,:])
         #print(asd)
 
-def mean_line_npy(elemt_rmv,inter_val):
+def update_npy(elemt_rmv,inter_val):
     '''calculate mean numpy array from a dir of numpy array of banklines'''
     inter_val = [10,2232]
     elemt_rmv = 2
-    npy_path = './data/img/line_npy/'
+    npy_path = os.path.join('./data/img/line_npy/')
     npy_list = [f for f in listdir(npy_path) if isfile(join(npy_path, f))]
     npy_list = [int(f.split('.')[0]) for f in npy_list]
     npy_list.sort()
     npy_list = [str(f) for f in npy_list]
     print('reading data from .......')
     print(npy_list)
-    for i in range(elemt_rmv):
-        line_npy = np.load(npy_path+npy_list[-(i+1)]+'.npy')
-        line_npy = line_npy[inter_val[0]:inter_val[1],:]
-        np.save('./data/img/up_npy/'+npy_list[-(i+1)]+'.npy',line_npy)
-
-    for i in range(elemt_rmv):
-        npy_list.pop()
-
-    line_npy = np.load(npy_path+npy_list[i]+'.npy')
-    #coor_mean = np.zeros((1,line_npy.shape[1]))
-    coor_mean = []
     for i in range(len(npy_list)):
         line_npy = np.load(npy_path+npy_list[i]+'.npy')
         line_npy = line_npy[inter_val[0]:inter_val[1],:]
-        np.save('./data/img/up_npy/'+npy_list[i]+'.npy',line_npy)
-        coor_mean.append(line_npy)
-    
-    arr = np.resize(np.asarray(coor_mean),(-1,2))
-    coor_mean = np.mean(arr,axis=0)
-    coor_std = np.std(arr,axis=0)
-    print('writing mean and std numpy arrays .......')
-    np.save('./data/mean_img/line_mean.npy',coor_mean)
-    np.save('./data/mean_img/line_std.npy',coor_std)
-    print(coor_mean,coor_std)
+        np.save(os.path.join('./data/img/up_npy/'+npy_list[i]+'.npy'),line_npy)
+
+#for i in range(elemt_rmv):
+#   npy_list.pop()
+
+""" line_npy = np.load(npy_path+npy_list[i]+'.npy')
+#coor_mean = np.zeros((1,line_npy.shape[1]))
+coor_mean = []
+for i in range(len(npy_list)):
+    line_npy = np.load(npy_path+npy_list[i]+'.npy')
+    line_npy = line_npy[inter_val[0]:inter_val[1],:]
+    np.save('./data/img/up_npy/'+npy_list[i]+'.npy',line_npy)
+    coor_mean.append(line_npy)
+
+arr = np.resize(np.asarray(coor_mean),(-1,2))
+coor_mean = np.mean(arr,axis=0)
+coor_std = np.std(arr,axis=0)
+print('writing mean and std numpy arrays .......')
+np.save('./data/mean_img/line_mean.npy',coor_mean)
+np.save('./data/mean_img/line_std.npy',coor_std)
+print(coor_mean,coor_std) """
 
 def update_bin_mask(inter_val):
 
-    msk_path = './data/img/png/'
+    msk_path = os.path.join('./data/img/png/')
     msk_list = [f for f in listdir(msk_path) if isfile(join(msk_path, f))]
     msk_list = [int(f.split('.')[0]) for f in msk_list]
     msk_list.sort()
@@ -658,16 +658,16 @@ def update_bin_mask(inter_val):
     print('writing msk .....')
     for i in range(len(msk_list)):
         msk_img = cv2.imread(msk_path+msk_list[i]+'.png',0)
-        cv2.imwrite('./data/img/up_msk/'+msk_list[i]+'.png',msk_img[inter_val[0]:inter_val[1],:])
+        cv2.imwrite(os.path.join('./data/img/up_msk/'+msk_list[i]+'.png'),msk_img[inter_val[0]:inter_val[1],:])
 
-def comp_to_tfrec():
+""" def comp_to_tfrec():
     
 
     def _bytes_feature(value):
         return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
     def _float_feature(value):
-        """Returns a float_list from a float / double."""
+        ###Returns a float_list from a float / double.
         return tf.train.Feature(float_list=tf.train.FloatList(value=[value]))
                 
     def write_data():
@@ -742,7 +742,7 @@ def comp_to_tfrec():
         writer.close()
         sys.stdout.flush()   
 
-    write_data() 
+    write_data()  """
     
 def for_cegis():
     with fiona.open('./data/cegis_19/CEGIS_2019_5.shp', "r") as shapefile:
@@ -912,7 +912,6 @@ def write_lines(strt_year,val_split):
         sum_writer.add_histogram('Right_Diff_hist_across_reach',right_reach_diff_values,i,bins='auto')
 
 
-
         lft_rch_diff_train = left_reach_diff_values[:-(val_split)]
         rgt_rch_diff_train = right_reach_diff_values[:-(val_split)]
         lft_rch_diff_train = lft_rch_diff_train[strt:]
@@ -920,10 +919,8 @@ def write_lines(strt_year,val_split):
         lft_rch_diff_val = left_reach_diff_values[-(val_split):]
         rgt_rch_diff_val = right_reach_diff_values[-(val_split):]
 
-
         lft_rch_diff_mean = np.mean(lft_rch_diff_train,axis=0)
         rgt_rch_diff_mean = np.mean(rgt_rch_diff_train,axis=0)
-
         lft_rch_diff_std = np.std(lft_rch_diff_train,axis=0)
         rgt_rch_diff_std = np.std(rgt_rch_diff_train,axis=0)
 
@@ -960,12 +957,6 @@ def write_lines(strt_year,val_split):
         sum_writer.add_histogram('Left_val_Diff_Standardized_across_reach',lft_rch_diff_sddval,i,bins='auto')
         sum_writer.add_histogram('Right_val_Diff_Standardized_across_reach',rgt_rch_diff_sddval,i,bins='auto')
  
-
-        
-
-
-
-
 
 
         if i == 0 :
@@ -1189,11 +1180,11 @@ def write_stdd_lines(strt_year=0,val_split=5):
 if __name__ == "__main__" :
     
 
-    """ write_lines(strt_year=25,val_split=5)
-    write_stdd_lines(strt_year=25,val_split=5)
-    print(asd)
+    #write_lines(strt_year=0,val_split=5)
+    write_stdd_lines(strt_year=0,val_split=5)
+    #print(asd)
 
-    
+    """
     for i in range(20,26,1):
         write_lines(strt_year=i,val_split=5)
         write_stdd_lines(strt_year=i,val_split=5) """
@@ -1204,11 +1195,11 @@ if __name__ == "__main__" :
     #for_cegis()
     #comp_to_tfrec()
     #update_bin_mask([10,2232])
-    #mean_line_npy(2,[10,2232])
+    #update_npy(2,[10,2232])
     #up_rgb_infra([10,2232])
     
     #mean_tensor(2)
-    #tif_path = './data/img/finaltif/'
+    #tif_path = os.path.join('./data/img/finaltif/')
     #batch_shp_to_data(tif_path)
     #wrt_temp_blank_tif()
     #shp_mask_tif("./data/img/shape_files/2019/201901.shp",'./data/img/finaltif/201901.tif')

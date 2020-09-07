@@ -262,6 +262,80 @@ class Baseline_Model(nn.Module):
         return x
 
 
+class Baseline_ANN_Model(nn.Module):
+    def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,
+                    inp_lr_flag, lf_rt_tag, lstm_hidden_units):
+        super(Baseline_ANN_Model, self).__init__()
+        self.vert_img_hgt = vert_img_hgt
+
+        self.lstm_dropout = 0
+        self.device = 'cuda'
+        self.batch_size = batch_size
+        self.val_batch_size = val_batch_size
+        self.time_step = time_step
+        self.num_lstm_layers = num_lstm_layers
+        self.drop_out = drop_out
+        self.lstm_hidden_units = lstm_hidden_units
+        
+        #self.fc0 = nn.Linear(self.lstm_hidden_units, self.fc1_units)
+
+        if inp_lr_flag == 'left' or inp_lr_flag == 'right' :
+            self.inp_num = 1
+        elif inp_lr_flag == 'both' :
+            self.inp_num = 2
+
+        #self.lstm = nn.LSTM( (vert_img_hgt * self.inp_num), self.lstm_hidden_units, num_layers=num_lstm_layers,dropout=self.lstm_dropout,batch_first=True)
+        
+        if lf_rt_tag == 'left' or lf_rt_tag == 'right' :
+            output_num = 1
+        elif lf_rt_tag == 'both' :
+            output_num = 2
+        
+        
+        #self.dropout1 = nn.Dropout(self.drop_out[10])
+        self.fc1 = nn.Linear((vert_img_hgt * self.inp_num) ,self.lstm_hidden_units)
+        #self.dropout2 = nn.Dropout(self.drop_out[11])
+        self.fc2 = nn.Linear(self.lstm_hidden_units, (vert_img_hgt *output_num))
+        #self.fc3 = nn.Linear(100,100)
+        #self.fc4 = nn.Linear(100,output_num)
+
+    def forward(self, inputs):
+        x = torch.reshape(inputs, (-1,int(self.vert_img_hgt * self.inp_num)))
+        #print(x.size())
+        #print(asd)
+        """ if self.training:
+            
+            h0 = torch.zeros((self.num_lstm_layers, self.batch_size, self.lstm_hidden_units),device=self.device)
+            c0 = torch.zeros((self.num_lstm_layers, self.batch_size, self.lstm_hidden_units),device=self.device)
+        else:
+            h0 = torch.zeros((self.num_lstm_layers, self.val_batch_size, self.lstm_hidden_units),device=self.device)
+            c0 = torch.zeros((self.num_lstm_layers, self.val_batch_size, self.lstm_hidden_units),device=self.device) """
+
+        
+        #_, (hn, _) = self.lstm(x, (h0, c0))
+        #hn = hn[-1,:,:]
+        #print(hn.size())
+        #output = output[:,-1,:]
+        #print(output)
+        #print(asd)
+        #if self.training:
+        #    x = torch.reshape(hn, (self.batch_size, self.lstm_hidden_units))
+        #else:
+        #    x = torch.reshape(hn, (self.val_batch_size, self.lstm_hidden_units))
+
+        
+        #x = self.dropout1(hn)
+        x = F.relu(self.fc1(x))
+        #print(x.size())
+        #x = self.dropout2(x)
+        x = self.fc2(x)
+        #x = F.relu(self.fc3(x))
+        #x = self.fc4(x)
+        #print(asd)
+        return x
+
+
+
 class Three_Model(nn.Module):
     def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,lf_rt_tag):
         super(Three_Model, self).__init__()

@@ -10,7 +10,7 @@ from os.path import isfile, join
 import os
 import sys
 from torch.utils.tensorboard import SummaryWriter
-from models import CNN_Model, Baseline_Model, Three_Model
+from models import CNN_Model, Baseline_Model, Three_Model,Baseline_ANN_Model
 from sklearn.metrics import mean_absolute_error, precision_score, recall_score, confusion_matrix, f1_score
 from sklearn.preprocessing import OneHotEncoder
 import matplotlib.pyplot as plt
@@ -316,11 +316,18 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     avg_overfit_metric = (left_overfit_metric + right_overfit_metric) / 2
     augmented_metric = avg_reach_mae + avg_overfit_metric
     #lr_f1_score = f1_comb
+    lft_aug_metric = left_overfit_metric + lft_r_m
+    rgt_aug_metric = right_overfit_metric + rg_r_m
+    
 
     writer.add_scalar('AM_score/'+str(val_img_ids[iter_num])+'_augmented_metric_', augmented_metric, epoch+1)
+    writer.add_scalar('AM_score/'+str(val_img_ids[iter_num])+'_left_augmented_metric_', lft_aug_metric, epoch+1)
+    writer.add_scalar('AM_score/'+str(val_img_ids[iter_num])+'_right_augmented_metric_', rgt_aug_metric, epoch+1)
     #writer.add_scalar('F1_score/'+str(val_img_ids[iter_num])+'_f1_score_', lr_f1_score, epoch+1)
     writer.add_scalar('Reach_MAE/'+str(val_img_ids[iter_num])+'_lr_reach_mae_', avg_reach_mae, epoch+1)
 
+
+    log_dic_lef_rght.update()
     #lr_f1_score = 0.0
     """ log_dic_scores = {'AM_score':augmented_metric, 'lr_f1_score':lr_f1_score, 'lr_reach_mae':avg_reach_mae,
     'left_precision':precision_lft,'left_recall':recall_lft,'left_f1':f1_lft,
@@ -329,7 +336,7 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     'left_prec_th':prec_th_lft,'left_recall_th':recall_th_lft,'left_f1_th':f1_th_lft,
     'right_prec_th':prec_th_rht,'right_recall_th':recall_th_rht,'right_f1_th':f1_th_rht} """
 
-    log_dic_scores = {'AM_score':augmented_metric, 'lr_reach_mae':avg_reach_mae,
+    log_dic_scores = {'AM_score':augmented_metric, 'Left_AM_Score': lft_aug_metric,'Right_AM_Score':rgt_aug_metric,'lr_reach_mae':avg_reach_mae,
     'left_precision':precision_lft,'left_recall':recall_lft,
     'right_precision':precision_rht,'right_recall':recall_rht,
     'lft_rht_precision':precision_comb,'lft_rgt_recall':recall_comb,
@@ -662,8 +669,8 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     #output_vert_indx = int((vert_img_hgt-1)/2)
     time_win_shift = 1
 
-    reach_start_indx = 300
-    reach_end_num = 1722 - 50 - 6 
+    reach_start_indx = 1430
+    reach_end_num = 664
     reach_shift_cons = 2222
     reach_win_size = reach_shift_cons - reach_end_num 
     reach_end_indx = reach_win_size - 1
@@ -746,13 +753,18 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     model = Baseline_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
                             vert_img_hgt, inp_lr_flag, lf_rt_tag, lstm_hidden_units)
 
+    #model = Baseline_ANN_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
+    #                        vert_img_hgt, inp_lr_flag, lf_rt_tag, lstm_hidden_units)
+
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     model = model.to(device)
 
     if model_optim == 'SGD' :
         optimizer = torch.optim.SGD(model.parameters(), lr=lr_rate, weight_decay=adm_wd)
-        #optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate, weight_decay=adm_wd)
+    elif model_optim == 'Adam':
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate, weight_decay=adm_wd)
 
     if load_mod == True:
         checkpoint = torch.load(os.path.join('./data/model/f_temp.pt'))
@@ -1047,7 +1059,10 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     """    
     
     hparam_logs = {'hparam/train_loss':avg_epoch_loss,'hparam/val_loss':avg_val_epoch_loss,
-        'hparam/augmented_metric':test_logs_scores['AM_score'], 'hparam/lr_reach_mae':test_logs_scores['lr_reach_mae'],
+        'hparam/augmented_metric':test_logs_scores['AM_score'],
+        'hparam/Left_AM_Metric':test_logs_scores['Left_AM_Score'],
+        'hparam/Right_AM_Metric':test_logs_scores['Right_AM_Score'],
+        'hparam/lr_reach_mae':test_logs_scores['lr_reach_mae'],
         'hparam/left_reach_mae':test_logs['reach_mae'][0],'hparam/right_reach_mae':test_logs['reach_mae'][1],
         'hparam/left_pos_mae':test_logs['pos_mae'][0],'hparam/right_pos_mae':test_logs['pos_mae'][1],
         'hparam/left_non_erosion_mae':test_logs['full_non_erosion_mae'][0],'hparam/right_non_erosion_mae':test_logs['full_non_erosion_mae'][1],
@@ -1100,20 +1115,21 @@ if __name__ == "__main__":
     #tm_stp_list = [5]
     #strt_list = [27]
 
-    objective(tm_stp=2,strt=0,lr_pow=-1.0,ad_pow=0,vert_hgt=256,vert_step_num=1,num_epochs=100,lstm_layers=2,
-                    lstm_hidden_units=300,batch_size=1,inp_bnk='right',out_bnk='right')
+    objective(tm_stp=1,strt=0,lr_pow=-3.0,ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=20,lstm_layers=1,
+                lstm_hidden_units=8,batch_size=32,inp_bnk='right',out_bnk='right')
     print(asd)
 
     #lr_rate_list = [-5.0,-4.0,-3.0,-2.0,-1.0]
-    lr_rate_list = np.arange(-3.0, -0.8, 1.0)
+    lr_rate_list = np.arange(-5.0, -0.8, 1.0)
     #ad_pow = [0, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
     ad_pow = np.arange(-3.0, -0.8, 1.0)
     strt_list = [25,21,17,13,9,5,0]
     
+    
     for i in range(len(lr_rate_list)):
         
-        objective(tm_stp=2,strt=0,lr_pow=lr_rate_list[i],ad_pow=0,vert_hgt=256,vert_step_num=1,num_epochs=30,lstm_layers=2,
-                        lstm_hidden_units=400,batch_size=1,inp_bnk='right',out_bnk='right')
+        objective(tm_stp=4,strt=0,lr_pow=lr_rate_list[i],ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=20,lstm_layers=1,
+                    lstm_hidden_units=8,batch_size=32,inp_bnk='right',out_bnk='right')
         print(lr_rate_list[i])
     #print('hidden units ',ls_hid_list[i])
     """ for i in range(len(strt_list)):
