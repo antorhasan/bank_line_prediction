@@ -42,6 +42,27 @@ def _parse_function_(example_proto):
     return input_tensor, year_id, reach_id, bin_class, sdd_output
 
 
+def _parse_function_org_(example_proto):
+
+    features = {
+            'reg_coor': tf.io.FixedLenFeature((), tf.string),
+            'year_id': tf.io.FixedLenFeature((), tf.string),
+            'reach_id': tf.io.FixedLenFeature((), tf.string),
+            'bin_class': tf.io.FixedLenFeature((), tf.string),
+            'reach_diff':tf.io.FixedLenFeature((), tf.string)
+        }
+
+    parsed_features = tf.io.parse_single_example(example_proto, features)
+
+    input_tensor = tf.io.decode_raw(parsed_features["reg_coor"],  tf.float32)
+    year_id = tf.io.decode_raw(parsed_features['year_id'],  tf.float32)
+    reach_id = tf.io.decode_raw(parsed_features["reach_id"],  tf.float32)
+    bin_class = tf.io.decode_raw(parsed_features["bin_class"],  tf.float32)
+    sdd_output = tf.io.decode_raw(parsed_features["reach_diff"],  tf.float32)
+    
+    return input_tensor, year_id, reach_id, bin_class, sdd_output
+
+
 def plt_conf_mat(conf_mat, title, writer):
     normalize = True
     mat_fig = plt.figure(clear=True)
@@ -467,10 +488,11 @@ def wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids,writ
     writer.add_image(str(val_img_ids[iter_num]), img, dataformats='HWC')
     return combined_conf
 
-def process_prev(arr_list, num_val_img,trns_constants,prev_year_ids,prev_reach_ids,vert_img_hgt):
+def process_prev(arr_list, num_val_img,trns_constants,prev_year_ids,prev_reach_ids,vert_img_hgt,inp_mode):
     
-    inp_mean = np.transpose(trns_constants['inp_mean'])
-    inp_std = np.transpose(trns_constants['inp_std'])
+    if inp_mode  == 'sdd' :
+        inp_mean = np.transpose(trns_constants['inp_mean'])
+        inp_std = np.transpose(trns_constants['inp_std'])
 
     arr_list = np.asarray(arr_list)
     total_rows = int(arr_list.shape[0] * arr_list.shape[1] * arr_list.shape[2])
@@ -484,10 +506,11 @@ def process_prev(arr_list, num_val_img,trns_constants,prev_year_ids,prev_reach_i
     prev_reach_ids = np.asarray(prev_reach_ids)
     prev_reach_ids = np.reshape(prev_reach_ids, (btach_n_iter,vert_img_hgt,1))
 
-    for i in range(arr_list.shape[0]):
-        for j in range(arr_list.shape[1]):
-            arr_list[i,j,:] = np.add(np.multiply(arr_list[i,j,:], inp_std[int(prev_reach_ids[i,j,:]),:]), inp_mean[int(prev_reach_ids[i,j,:]),:])
-    
+    if inp_mode == 'sdd' :
+        for i in range(arr_list.shape[0]):
+            for j in range(arr_list.shape[1]):
+                arr_list[i,j,:] = np.add(np.multiply(arr_list[i,j,:], inp_std[int(prev_reach_ids[i,j,:]),:]), inp_mean[int(prev_reach_ids[i,j,:]),:])
+
     prev_year_ids = np.reshape(prev_year_ids, (num_val_img,num_rows_per_img,1),order='F')
     prev_year_ids = np.transpose(prev_year_ids,[1,0,2])
 
@@ -500,9 +523,17 @@ def process_prev(arr_list, num_val_img,trns_constants,prev_year_ids,prev_reach_i
     return arr_list
 
 def process_diffs(arr_list, num_val_img, trns_constants, prev_actual_list,act_year_ids,act_reach_ids,
-                    vert_img_hgt):
-    out_mean = np.transpose(trns_constants['out_mean'])
-    out_std = np.transpose(trns_constants['out_std'])
+                    vert_img_hgt,out_mode):
+
+    if out_mode == 'diff_sdd' :
+        out_mean = np.transpose(trns_constants['out_mean'])
+        out_std = np.transpose(trns_constants['out_std'])
+    elif out_mode == 'act_sdd' :
+        out_mean = np.transpose(trns_constants['inp_mean'])
+        out_std = np.transpose(trns_constants['inp_std'])
+    elif out_mode == 'act' :
+        pass
+
 
     arr_list = np.asarray(arr_list)
     total_rows = int(arr_list.shape[0] * arr_list.shape[1] * arr_list.shape[2])
@@ -516,10 +547,11 @@ def process_diffs(arr_list, num_val_img, trns_constants, prev_actual_list,act_ye
     act_reach_ids = np.asarray(act_reach_ids)
     act_reach_ids = np.reshape(act_reach_ids, (btach_n_iter,vert_img_hgt,1))
 
-    for i in range(arr_list.shape[0]):
-        for j in range(arr_list.shape[1]):
-            arr_list[i,j,:] = np.add(np.multiply(arr_list[i,j,:], out_std[int(act_reach_ids[i,j,:]),:]), out_mean[int(act_reach_ids[i,j,:]),:])
-    
+    if out_mode == 'diff_sdd' or out_mode == 'act_sdd' :
+        for i in range(arr_list.shape[0]):
+            for j in range(arr_list.shape[1]):
+                arr_list[i,j,:] = np.add(np.multiply(arr_list[i,j,:], out_std[int(act_reach_ids[i,j,:]),:]), out_mean[int(act_reach_ids[i,j,:]),:])
+        
     act_year_ids = np.reshape(act_year_ids, (num_val_img,num_rows_per_img,1),order='F')
     act_year_ids = np.transpose(act_year_ids,[1,0,2])
 
@@ -529,7 +561,10 @@ def process_diffs(arr_list, num_val_img, trns_constants, prev_actual_list,act_ye
     arr_list = np.reshape(arr_list, (num_val_img,num_rows_per_img,2),order='F')
     arr_list = np.transpose(arr_list,[1,0,2])
 
-    arr_list = np.add(arr_list,prev_actual_list)
+    if out_mode == 'diff_sdd' :
+        arr_list = np.add(arr_list,prev_actual_list)
+    elif out_mode == 'act_sdd' or out_mode == 'act':
+        arr_list = arr_list
 
     return arr_list
 
@@ -634,7 +669,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     time_step = tm_stp
     #atch_size = int(int((500/time_step) - 2)/vert_img_hgt)
     batch_size = batch_size
-    val_batch_size = batch_size
+    val_batch_size = 5
     
     log_performance = 1 ###number of epochs after which performance metrics are calculated
     early_stop_flag = False
@@ -653,14 +688,14 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     total_time_step = 33    ###number of total year images
     num_val_img = len(val_img_ids)
     #num_val_img
-
+    
 
     #print(val_img_ids)
     #print(num_val_img)
     #print(asd)
     data_div_step = total_time_step - (val_split)
     end_indx = data_div_step-1
-    log_hist = 5
+    log_hist = 6
     writer = SummaryWriter()
     model_name = writer.get_logdir().split("\\")[1]
     adm_wd = ad_pow
@@ -669,12 +704,37 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     #output_vert_indx = int((vert_img_hgt-1)/2)
     time_win_shift = 1
 
-    reach_start_indx = 1430
-    reach_end_num = 664
+    reach_start_indx = 1526 
+    reach_end_num = 664 
     reach_shift_cons = 2222
     reach_win_size = reach_shift_cons - reach_end_num 
     reach_end_indx = reach_win_size - 1
 
+    flag_reach_use = True
+
+    reach_id_list = []
+    for i in range(reach_start_indx, reach_win_size, 1) :
+        reach_id_list.append(i)
+
+    #print(reach_id_list)
+
+    if flag_reach_use == True :
+        reach_id_list = np.reshape(np.asarray(reach_id_list),(len(reach_id_list),1))
+        reach_id_mean = np.mean(reach_id_list,axis=0)
+        reach_id_std = np.std(reach_id_list,axis=0)
+
+    #reach_id_list = (reach_id_list - reach_id_mean) / reach_id_std
+
+    #print(reach_id_list)
+
+    #print(asd)
+
+    ###out_mode == act_sdd or diff_sdd or act
+    out_mode = 'act_sdd'
+    ###inp_mode == act_sdd or act 
+    inp_mode = 'act_sdd'
+
+    
 
     hyperparameter_defaults = dict(
         drop_1 = dr_1,
@@ -708,9 +768,15 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         reach_end_index = reach_end_indx,
         input_lft_rgt_tag = inp_lr_flag,
         output_lft_rgt_tag = lf_rt_tag,
+        output_mode = out_mode
         )
 
-    dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_sdd_'+str(start_indx)+'_'+str(val_split)+'.tfrecords'))
+
+    if inp_mode == 'act_sdd' :
+        dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_sdd_'+str(start_indx)+'_'+str(val_split)+'.tfrecords'))
+    elif inp_mode == 'act' :
+        dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(start_indx)+'_'+str(val_split)+'.tfrecords'))
+
     dataset_f = dataset_f.window(size=data_div_step, shift=total_time_step, stride=1, drop_remainder=False)
     dataset_f = dataset_f.map(lambda x: x.skip(start_indx))
 
@@ -724,13 +790,21 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     dataset_f = dataset_f.map(lambda x: x.window(size=time_step, shift=time_win_shift, stride=1,drop_remainder=True))
     dataset_f = dataset_f.flat_map(lambda x: x)
     dataset_f = dataset_f.flat_map(lambda x: x.flat_map(lambda x1: x1))
-    dataset_f = dataset_f.map(_parse_function_).batch(vert_img_hgt).batch(time_step)
+
+    if inp_mode == 'act_sdd' :
+        dataset_f = dataset_f.map(_parse_function_).batch(vert_img_hgt).batch(time_step)
+    elif inp_mode == 'act' :
+        dataset_f = dataset_f.map(_parse_function_org_).batch(vert_img_hgt).batch(time_step)
+
     dataset_f = dataset_f.shuffle(10000, reshuffle_each_iteration=True)
     dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
 
 
-
-    dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_sdd_'+str(start_indx)+'_'+str(val_split)+'.tfrecords'))
+    if inp_mode == 'act_sdd' :
+        dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_sdd_'+str(start_indx)+'_'+str(val_split)+'.tfrecords'))
+    elif inp_mode == 'act' :
+        dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(start_indx)+'_'+str(val_split)+'.tfrecords'))
+    
     dataseti1 = dataseti1.window(size=total_time_step, shift=total_time_step, stride=1, drop_remainder=False)
     dataseti1 = dataseti1.map(lambda x: x.skip(total_time_step-(num_val_img+(time_step-1))))
     
@@ -744,17 +818,22 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     dataseti1 = dataseti1.map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
     dataseti1 = dataseti1.flat_map(lambda x: x)
     dataseti1 = dataseti1.flat_map(lambda x: x.flat_map(lambda x1: x1))
-    dataseti1 = dataseti1.map(_parse_function_).batch(vert_img_hgt).batch(time_step)
+
+    if inp_mode == 'act_sdd' :
+        dataseti1 = dataseti1.map(_parse_function_).batch(vert_img_hgt).batch(time_step)
+    elif inp_mode == 'act' :
+        dataseti1 = dataseti1.map(_parse_function_org_).batch(vert_img_hgt).batch(time_step)
+
     dataseti1 = dataseti1.batch(val_batch_size, drop_remainder=True)
 
     if wgt_seed_flag :
         torch.manual_seed(0)
 
-    model = Baseline_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
-                            vert_img_hgt, inp_lr_flag, lf_rt_tag, lstm_hidden_units)
-
-    #model = Baseline_ANN_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
+    #model = Baseline_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
     #                        vert_img_hgt, inp_lr_flag, lf_rt_tag, lstm_hidden_units)
+
+    model = Baseline_ANN_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
+                            vert_img_hgt, inp_lr_flag, lf_rt_tag, lstm_hidden_units,flag_reach_use)
 
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -797,25 +876,46 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         counter = 0
         epoch_loss = 0
         #print(dataset_f)
-        for input_tensor, year_id, reach_id, _, sdd_output in dataset_f:
-            """ year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
+        for input_tensor_org, year_id, reach_id, _, sdd_output in dataset_f:
+            year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
             reach_id = np.reshape(reach_id, (batch_size,time_step,vert_img_hgt,1))
-            for i in range(year_id.shape[0]):
+
+            """ for i in range(year_id.shape[0]):
                 print(year_id[i,:,:,:])
                 print(reach_id[i,:,:,:])
-            #print(asd) """
+                print(input_tensor_org[i,:,:,:]) """
 
-            input_tensor = np.reshape(input_tensor, (batch_size,time_step,vert_img_hgt,2))
+            input_tensor = np.reshape(input_tensor_org, (batch_size,time_step,vert_img_hgt,2))
             
+            
+            if flag_reach_use == True :
+                reach_id_inp = (reach_id - reach_id_mean) / reach_id_std
+                input_tensor = np.concatenate((input_tensor,reach_id_inp), axis=3)
+            #print(input_tensor)
+            #print(input_tensor.shape)
+
             if inp_lr_flag == 'left' :
-                input_tensor = input_tensor[:,0:time_step-1,:,0:1]
+                if flag_reach_use == True :
+                    input_tensor = input_tensor[:,0:time_step-1,:,(0,2)]
+                elif flag_reach_use == False :
+                    input_tensor = input_tensor[:,0:time_step-1,:,0:1]
+
             elif inp_lr_flag == 'right' :
-                input_tensor = input_tensor[:,0:time_step-1,:,1:2]
+                if flag_reach_use == True : 
+                    input_tensor = input_tensor[:,0:time_step-1,:,(1,2)]
+                elif flag_reach_use == False :
+                    input_tensor = input_tensor[:,0:time_step-1,:,1:2]
+
             elif inp_lr_flag == 'both' :
                 input_tensor = input_tensor[:,0:time_step-1,:,:]
 
-            sdd_output = np.reshape(sdd_output, (batch_size,time_step,vert_img_hgt,2))
-            
+
+
+            if out_mode == 'diff_sdd' :
+                sdd_output = np.reshape(sdd_output, (batch_size,time_step,vert_img_hgt,2))
+            elif out_mode == 'act_sdd' or out_mode == 'act':
+                sdd_output = np.reshape(input_tensor_org, (batch_size,time_step,vert_img_hgt,2))
+
             if lf_rt_tag == 'left':
                 sdd_output = sdd_output[:,time_step-1:time_step,:,0:1]
             elif lf_rt_tag == 'right':
@@ -876,32 +976,38 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 act_reach_ids = []
                 act_year_ids = []
 
-            for input_tensor, year_id, reach_id, _, sdd_output in dataseti1:
-                year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
-                """ reach_id = np.reshape(reach_id, (batch_size,time_step,vert_img_hgt,1))
+            for org_input_tensor, year_id, reach_id, _, sdd_output in dataseti1:
+                """ year_id = np.reshape(year_id, (val_batch_size,time_step,vert_img_hgt,1))
+                reach_id = np.reshape(reach_id, (val_batch_size,time_step,vert_img_hgt,1))
                 for i in range(year_id.shape[0]):
                     print(year_id[i,:,:,:])
                     print(reach_id[i,:,:,:])
-                #print(asd) """
-                year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
-                reach_id = np.reshape(reach_id, (batch_size,time_step,vert_img_hgt,1))
+                print(asd) """
+                year_id = np.reshape(year_id, (val_batch_size,time_step,vert_img_hgt,1))
+                reach_id = np.reshape(reach_id, (val_batch_size,time_step,vert_img_hgt,1))
 
-                org_input_tensor = np.reshape(input_tensor, (batch_size,time_step,vert_img_hgt,2))
+                input_tensor_org = np.reshape(org_input_tensor, (val_batch_size,time_step,vert_img_hgt,2))
                 
+                if flag_reach_use == True :
+                    reach_id_inp = (reach_id - reach_id_mean) / reach_id_std
+                    input_tensor = np.concatenate((input_tensor_org,reach_id_inp), axis=3)
+
                 if inp_lr_flag == 'left' :
-                    input_tensor = org_input_tensor[:,0:time_step-1,:,0:1]
+                    if flag_reach_use == True :
+                        input_tensor = input_tensor[:,0:time_step-1,:,(0,2)]
+                    elif flag_reach_use == False :
+                        input_tensor = input_tensor[:,0:time_step-1,:,0:1]
+
                 elif inp_lr_flag == 'right' :
-                    input_tensor = org_input_tensor[:,0:time_step-1,:,1:2]
-                elif inp_lr_flag == 'both' :
-                    input_tensor = org_input_tensor[:,0:time_step-1,:,:]
+                    if flag_reach_use == True :
+                        input_tensor = input_tensor[:,0:time_step-1,:,(1,2)]
+                    if flag_reach_use == False :
+                        input_tensor = input_tensor[:,0:time_step-1,:,1:2]
                 
-                prev_time_step = org_input_tensor[:,time_step-2:time_step-1,:,:]
-
-                #prev_time_step = prev_time_step[0,:,:,:]
-                #print(input_tensor)
-                #print(prev_time_step)
-                #print(asd)
-
+                elif inp_lr_flag == 'both' :
+                    input_tensor = input_tensor[:,0:time_step-1,:,:]
+                
+                
 
                 year_id_prev = year_id[:,time_step-2:time_step-1,:,:]
                 reach_id_prev = reach_id[:,time_step-2:time_step-1,:,:]
@@ -913,34 +1019,36 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 print(asd) """
                 
                 
-
-                sdd_output = np.reshape(sdd_output, (batch_size,time_step,vert_img_hgt,2))
+                if out_mode ==  'diff_sdd' :
+                    sdd_output = np.reshape(sdd_output, (val_batch_size,time_step,vert_img_hgt,2))
+                elif out_mode == 'act_sdd' or out_mode == 'act' :
+                    sdd_output = np.reshape(org_input_tensor, (val_batch_size,time_step,vert_img_hgt,2))
 
                 if lf_rt_tag == 'left':
-                    prev_time_step = org_input_tensor[:,time_step-2:time_step-1,:,0:1]
+                    prev_time_step = input_tensor_org[:,time_step-2:time_step-1,:,0:1]
                     sdd_output = sdd_output[:,time_step-1:time_step,:,0:1]
                     val_extra_dim = 1
                 
                 elif lf_rt_tag == 'right':
-                    prev_time_step = org_input_tensor[:,time_step-2:time_step-1,:,1:2]
+                    prev_time_step = input_tensor_org[:,time_step-2:time_step-1,:,1:2]
                     sdd_output = sdd_output[:,time_step-1:time_step,:,1:2]
                     val_extra_dim = 1
                 
                 elif lf_rt_tag == 'both':
-                    prev_time_step = org_input_tensor[:,time_step-2:time_step-1,:,:]
+                    prev_time_step = input_tensor_org[:,time_step-2:time_step-1,:,:]
                     sdd_output = sdd_output[:,time_step-1:time_step,:,:]
                     val_extra_dim = 2
 
                 
-                prev_time_step = np.reshape(prev_time_step,(batch_size,-1,val_extra_dim))
-                year_id_prev = np.reshape(year_id_prev,(batch_size,-1,val_extra_dim))
-                reach_id_prev = np.reshape(reach_id_prev,(batch_size,-1,val_extra_dim))
-                year_id_act = np.reshape(year_id_act,(batch_size,-1,val_extra_dim))
-                reach_id_act = np.reshape(reach_id_act,(batch_size,-1,val_extra_dim))
+                prev_time_step = np.reshape(prev_time_step,(val_batch_size,-1,val_extra_dim))
+                year_id_prev = np.reshape(year_id_prev,(val_batch_size,-1,val_extra_dim))
+                reach_id_prev = np.reshape(reach_id_prev,(val_batch_size,-1,val_extra_dim))
+                year_id_act = np.reshape(year_id_act,(val_batch_size,-1,val_extra_dim))
+                reach_id_act = np.reshape(reach_id_act,(val_batch_size,-1,val_extra_dim))
 
                 input_tensor = torch.Tensor(input_tensor).cuda()
                 sdd_output = torch.Tensor(sdd_output).cuda()
-                sdd_output = torch.reshape(sdd_output, (batch_size,-1))
+                sdd_output = torch.reshape(sdd_output, (val_batch_size,-1))
                 #prev_time_step = torch.reshape(prev_time_step, (batch_size,-1))
 
                 pred = model(input_tensor)
@@ -962,8 +1070,8 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                     pred_np = pred.cpu()
                     pred_np = pred_np.numpy()
 
-                    sdd_output = np.reshape(sdd_output,(batch_size,-1,val_extra_dim))
-                    pred_np = np.reshape(pred_np,(batch_size,-1,val_extra_dim))
+                    sdd_output = np.reshape(sdd_output,(val_batch_size,-1,val_extra_dim))
+                    pred_np = np.reshape(pred_np,(val_batch_size,-1,val_extra_dim))
 
                     """ print(sdd_output.shape)
                     print(pred_np.shape)
@@ -980,12 +1088,12 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
 
 
                     if lf_rt_tag == 'left' :
-                        np_zero = np.zeros((batch_size,vert_img_hgt,val_extra_dim))
+                        np_zero = np.zeros((val_batch_size,vert_img_hgt,val_extra_dim))
                         prev_time_step = np.concatenate((prev_time_step,np_zero),axis=2) 
                         sdd_output = np.concatenate((sdd_output,np_zero),axis=2)
                         pred_np = np.concatenate((pred_np,np_zero),axis=2)
                     elif lf_rt_tag == 'right' :
-                        np_zero = np.zeros((batch_size,vert_img_hgt,val_extra_dim))
+                        np_zero = np.zeros((val_batch_size,vert_img_hgt,val_extra_dim))
                         prev_time_step = np.concatenate((np_zero,prev_time_step),axis=2) 
                         sdd_output = np.concatenate((np_zero,sdd_output),axis=2)
                         pred_np = np.concatenate((np_zero,pred_np),axis=2)
@@ -1019,9 +1127,9 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
 
             ###logging performance metrics
             if epoch % log_performance == log_performance-1 :
-                prev_actual_list = process_prev(prev_actual_list,num_val_img,trns_constants,prev_year_ids,prev_reach_ids,vert_img_hgt)
-                actual_list = process_diffs(actual_list,num_val_img, trns_constants, prev_actual_list,act_year_ids,act_reach_ids,vert_img_hgt)
-                pred_list = process_diffs(pred_list,num_val_img, trns_constants, prev_actual_list,act_year_ids,act_reach_ids,vert_img_hgt)
+                prev_actual_list = process_prev(prev_actual_list,num_val_img,trns_constants,prev_year_ids,prev_reach_ids,vert_img_hgt,inp_mode)
+                actual_list = process_diffs(actual_list,num_val_img, trns_constants, prev_actual_list,act_year_ids,act_reach_ids,vert_img_hgt,out_mode)
+                pred_list = process_diffs(pred_list,num_val_img, trns_constants, prev_actual_list,act_year_ids,act_reach_ids,vert_img_hgt,out_mode)
                 #print(num_val_img)
                 #print(asd)
                 test_logs, test_logs_scores, imp_val_logs = log_performance_metrics(pred_list,actual_list,prev_actual_list,
@@ -1115,25 +1223,24 @@ if __name__ == "__main__":
     #tm_stp_list = [5]
     #strt_list = [27]
 
-    objective(tm_stp=1,strt=0,lr_pow=-3.0,ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=20,lstm_layers=1,
-                lstm_hidden_units=8,batch_size=32,inp_bnk='right',out_bnk='right')
-    print(asd)
+    #objective(tm_stp=2,strt=0,lr_pow=-2.0,ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=50,lstm_layers=1,
+    #    lstm_hidden_units=20,batch_size=832,inp_bnk='right',out_bnk='right')
+    #print(asd)
 
     #lr_rate_list = [-5.0,-4.0,-3.0,-2.0,-1.0]
     lr_rate_list = np.arange(-5.0, -0.8, 1.0)
     #ad_pow = [0, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
-    ad_pow = np.arange(-3.0, -0.8, 1.0)
+    ad_pow = np.arange(-2.0, -0.1, 0.5)
     strt_list = [25,21,17,13,9,5,0]
     
     
     for i in range(len(lr_rate_list)):
-        
-        objective(tm_stp=4,strt=0,lr_pow=lr_rate_list[i],ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=20,lstm_layers=1,
-                    lstm_hidden_units=8,batch_size=32,inp_bnk='right',out_bnk='right')
-        print(lr_rate_list[i])
+        objective(tm_stp=2,strt=0,lr_pow=lr_rate_list[i],ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=20,lstm_layers=1,
+            lstm_hidden_units=10,batch_size=1,inp_bnk='right',out_bnk='right')
+        #print(lr_rate_list[i])
     #print('hidden units ',ls_hid_list[i])
     """ for i in range(len(strt_list)):
-        mae_count = 0
+        mae_count = 0     #1*(10**ad_pow[i])
         for j in range(len(lr_pow)):
             val_loss, temp_mae = objective(5, strt_list[i], float(lr_pow[j]), 0, 9,1,30)
             print(lr_pow[j], strt_list[i])

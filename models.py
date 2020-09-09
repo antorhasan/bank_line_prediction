@@ -203,6 +203,10 @@ class Baseline_Model(nn.Module):
         self.lstm_hidden_units = lstm_hidden_units
         
         
+        #self.conv1 = nn.Conv2d(1,1,(3,1), padding=0)
+        #self.conv2 = nn.Conv2d(2,4,(3,1), padding=0)
+        #self.conv3 = nn.Conv2d(4,6,(3,1), padding=0)
+        #self.batch_norm1 = nn.BatchNorm2d(1)
         #self.fc0 = nn.Linear(self.lstm_hidden_units, self.fc1_units)
 
         if inp_lr_flag == 'left' or inp_lr_flag == 'right' :
@@ -210,7 +214,7 @@ class Baseline_Model(nn.Module):
         elif inp_lr_flag == 'both' :
             self.inp_num = 2
 
-        self.lstm = nn.LSTM( (vert_img_hgt * self.inp_num), self.lstm_hidden_units, num_layers=num_lstm_layers,dropout=self.lstm_dropout,batch_first=True)
+        self.lstm = nn.LSTM( (vert_img_hgt *self.inp_num), self.lstm_hidden_units, num_layers=num_lstm_layers,dropout=self.lstm_dropout,batch_first=True)
         
         if lf_rt_tag == 'left' or lf_rt_tag == 'right' :
             output_num = 1
@@ -227,7 +231,22 @@ class Baseline_Model(nn.Module):
 
     def forward(self, inputs):
         #inputs = torch.reshape(inputs, (-1, self.vert_img_hgt, 2))
-        x = torch.reshape(inputs, (-1,(self.time_step-1),int(self.vert_img_hgt * self.inp_num) ))
+
+        #x = torch.reshape(inputs, (-1, 1, self.vert_img_hgt, 1))
+
+        #print(x.size())
+        
+
+        #x = F.relu(self.conv1(x))
+        #x = F.relu(self.conv2(x))
+        #x = F.relu(self.conv3(x))
+        
+        #print(list(x.size()))
+        #print(asd)
+        #lstm_num_features = list(x.size())[2]
+
+        #x = torch.reshape(x, (-1,(self.time_step-1),int(lstm_num_features) ))
+        x = torch.reshape(inputs, (-1,(self.time_step-1),int(self.vert_img_hgt * self.inp_num)))
         #print(x.size())
         #print(asd)
         if self.training:
@@ -239,16 +258,16 @@ class Baseline_Model(nn.Module):
             c0 = torch.zeros((self.num_lstm_layers, self.val_batch_size, self.lstm_hidden_units),device=self.device)
 
         
-        _, (hn, _) = self.lstm(x, (h0, c0))
-        hn = hn[-1,:,:]
+        _, (x, _) = self.lstm(x, (h0, c0))
+        x = x[-1,:,:]
         #print(hn.size())
         #output = output[:,-1,:]
         #print(output)
         #print(asd)
         if self.training:
-            x = torch.reshape(hn, (self.batch_size, self.lstm_hidden_units))
+            x = torch.reshape(x, (self.batch_size, self.lstm_hidden_units))
         else:
-            x = torch.reshape(hn, (self.val_batch_size, self.lstm_hidden_units))
+            x = torch.reshape(x, (self.val_batch_size, self.lstm_hidden_units))
 
         
         #x = self.dropout1(hn)
@@ -264,7 +283,7 @@ class Baseline_Model(nn.Module):
 
 class Baseline_ANN_Model(nn.Module):
     def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,
-                    inp_lr_flag, lf_rt_tag, lstm_hidden_units):
+                    inp_lr_flag, lf_rt_tag, lstm_hidden_units, flag_reach_use):
         super(Baseline_ANN_Model, self).__init__()
         self.vert_img_hgt = vert_img_hgt
 
@@ -281,8 +300,12 @@ class Baseline_ANN_Model(nn.Module):
 
         if inp_lr_flag == 'left' or inp_lr_flag == 'right' :
             self.inp_num = 1
+            if flag_reach_use == True :
+                self.inp_num = 2
         elif inp_lr_flag == 'both' :
             self.inp_num = 2
+            if flag_reach_use == True :
+                self.inp_num = 3
 
         #self.lstm = nn.LSTM( (vert_img_hgt * self.inp_num), self.lstm_hidden_units, num_layers=num_lstm_layers,dropout=self.lstm_dropout,batch_first=True)
         
@@ -325,7 +348,7 @@ class Baseline_ANN_Model(nn.Module):
 
         
         #x = self.dropout1(hn)
-        x = F.relu(self.fc1(x))
+        x = F.elu(self.fc1(x))
         #print(x.size())
         #x = self.dropout2(x)
         x = self.fc2(x)

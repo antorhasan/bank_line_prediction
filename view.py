@@ -800,6 +800,12 @@ def line_npy_in_imgs():
 
 
 def write_lines(strt_year,val_split):
+
+    def _bytes_feature(value):
+        return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+
+
     strt = strt_year
     val_split = val_split
     npy_path = os.path.join('./data/img/up_npy/')
@@ -888,11 +894,11 @@ def write_lines(strt_year,val_split):
             right_reach_inputs.append(line_npy[1])
 
             feature = {
-                        'reg_coor': _bytes_feature(line_npy.tobytes()),
-                        'year_id' : _bytes_feature(year_id.tobytes()),
-                        'reach_id': _bytes_feature(reach_id.tobytes()),
-                        'bin_class': _bytes_feature(bin_npy.tobytes()),
-                        'reach_diff':_bytes_feature(reach_diff.tobytes())
+                        'reg_coor': _bytes_feature(line_npy.tostring()),
+                        'year_id' : _bytes_feature(year_id.tostring()),
+                        'reach_id': _bytes_feature(reach_id.tostring()),
+                        'bin_class': _bytes_feature(bin_npy.tostring()),
+                        'reach_diff':_bytes_feature(reach_diff.tostring())
                         }
 
             example = tf.train.Example(features=tf.train.Features(feature=feature))
@@ -1090,16 +1096,15 @@ def write_lines(strt_year,val_split):
     sys.stdout.flush() 
 
 
-def write_stdd_lines(strt_year=0,val_split=5):
+def write_stdd_lines(strt_year,val_split):
     strt = strt_year
-    val_split = val_split
 
 
     def _bytes_feature(value):
         return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 
-    val_split = 5
+    val_split = val_split
     npy_path = os.path.join('./data/img/up_npy/')
     rgb_path = os.path.join('./data/img/up_rgb/')
     rgb_list = [f for f in listdir(rgb_path) if isfile(join(rgb_path, f))]
@@ -1180,7 +1185,7 @@ def write_stdd_lines(strt_year=0,val_split=5):
 if __name__ == "__main__" :
     
 
-    #write_lines(strt_year=0,val_split=5)
+    write_lines(strt_year=0,val_split=5)
     write_stdd_lines(strt_year=0,val_split=5)
     #print(asd)
 
