@@ -19,6 +19,7 @@ import tensorflow as tf
 from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 
+
 class viz():
     '''read tif image and get relevant properties
     '''
@@ -804,8 +805,6 @@ def write_lines(strt_year,val_split):
     def _bytes_feature(value):
         return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
-
-
     strt = strt_year
     val_split = val_split
     npy_path = os.path.join('./data/img/up_npy/')
@@ -1096,6 +1095,305 @@ def write_lines(strt_year,val_split):
     sys.stdout.flush() 
 
 
+def write_lines(strt_year,val_split,time_step,reach_strt,reach_end):
+
+    def _bytes_feature(value):
+        return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+    strt = strt_year
+    val_split = val_split
+    reach_nums = reach_end - reach_strt
+
+
+    npy_path = os.path.join('./data/img/up_npy/')
+    rgb_path = os.path.join('./data/img/up_rgb/')
+    rgb_list = [f for f in listdir(rgb_path) if isfile(join(rgb_path, f))]
+    rgb_list = [int(f.split('.')[0]) for f in rgb_list]
+    rgb_list.sort()
+    rgb_list = [str(f) for f in rgb_list]
+    #print(rgb_list)
+    #rgb_list = rgb_list[]
+
+    temp_img = cv2.imread(rgb_path+rgb_list[0]+'.png')
+    sum_writer = SummaryWriter()
+    writer = tf.io.TFRecordWriter(os.path.join('./data/tfrecord/'+ 'lines_'+str(strt)+'_'+str(val_split)+'.tfrecords'))
+
+    lft_full_diff = []
+    rgt_full_diff = []
+
+    lft_full_ins = []
+    rgt_full_ins = []
+
+    lft_full_mean = []
+    rgt_full_mean = []
+    lft_full_std = []
+    rgt_full_std = []
+
+    lft_diff_full_mean = []
+    rgt_diff_full_mean = []
+    lft_diff_full_std = []
+    rgt_diff_full_std = []
+
+    global_j_count = 0
+    for i in range(reach_nums):
+        print(i)
+        left_reach_diff_values = []
+        right_reach_diff_values = []
+
+        left_reach_inputs = []
+        right_reach_inputs = []
+        for j in range(len(rgb_list)):
+            year_id = np.asarray(int(rgb_list[j]),dtype =  np.float32)
+            reach_id = np.asarray(int(i),dtype =  np.float32)
+            line_npy = np.load(npy_path+rgb_list[j]+'.npy')
+            line_npy = line_npy[i,:]
+            line_npy = np.asarray(line_npy,dtype =  np.float32)
+
+            if j == 0 :
+                prev_npy = line_npy
+                bin_npy = np.asarray([0,0])
+                lft_reach_diff = 0 
+                rgt_reach_diff = 0
+            else :
+                lft_reach_diff = line_npy[0] - prev_npy[0]
+                rgt_reach_diff = line_npy[1] - prev_npy[1]
+
+                bin_npy[0] = np.where(prev_npy[0] > line_npy[0], 1, 0)
+                bin_npy[1] = np.where(prev_npy[1] < line_npy[1], 1, 0)
+                prev_npy = line_npy
+            
+            bin_npy = np.asarray(bin_npy,dtype =  np.float32)
+
+            """ print(line_npy)
+            print(year_id)
+            print(reach_id)
+            print(bin_npy) """
+
+            sum_writer.add_scalar('Left_trend/reach_'+str(i),line_npy[0],j)
+            sum_writer.add_scalar('Right_trend/reach_'+str(i),line_npy[1],j)
+
+            #sum_writer.add_scalar('Left_bin/reach_'+str(i),bin_npy[0],j)
+            #sum_writer.add_scalar('Right_bn/reach_'+str(i),bin_npy[1],j)
+
+            sum_writer.add_scalar('Left_diff/reach_'+str(i),lft_reach_diff,j)
+            sum_writer.add_scalar('Right_diff/reach_'+str(i),rgt_reach_diff,j)
+
+            sum_writer.add_scalars('complete_trend',{'left':line_npy[0],'right':line_npy[1]},global_j_count)
+
+            if j != 0 :
+                left_reach_diff_values.append(lft_reach_diff)
+                right_reach_diff_values.append(rgt_reach_diff)
+
+            reach_diff = [lft_reach_diff, rgt_reach_diff]
+            reach_diff = np.asarray(reach_diff, dtype=np.float32)
+            
+            left_reach_inputs.append(line_npy[0])
+            right_reach_inputs.append(line_npy[1])
+
+            feature = {
+                        'reg_coor': _bytes_feature(line_npy.tostring()),
+                        'year_id' : _bytes_feature(year_id.tostring()),
+                        'reach_id': _bytes_feature(reach_id.tostring()),
+                        'bin_class': _bytes_feature(bin_npy.tostring()),
+                        'reach_diff':_bytes_feature(reach_diff.tostring())
+                        }
+
+            example = tf.train.Example(features=tf.train.Features(feature=feature))
+
+            writer.write(example.SerializeToString())
+            global_j_count += 1
+
+        lft_full_diff.extend(left_reach_diff_values)
+        rgt_full_diff.extend(right_reach_diff_values)
+
+        left_reach_diff_values = np.asarray(left_reach_diff_values)
+        right_reach_diff_values = np.asarray(right_reach_diff_values)
+
+        sum_writer.add_histogram('Left_diff/reach_'+str(i),left_reach_diff_values,i,bins='auto')
+        sum_writer.add_histogram('Right_diff/reach_'+str(i),right_reach_diff_values,i,bins='auto')
+        sum_writer.add_histogram('Left_Diff_across_reach',left_reach_diff_values,i,bins='auto')
+        sum_writer.add_histogram('Right_Diff_hist_across_reach',right_reach_diff_values,i,bins='auto')
+
+
+        lft_rch_diff_train = left_reach_diff_values[:-(val_split)]
+        rgt_rch_diff_train = right_reach_diff_values[:-(val_split)]
+        lft_rch_diff_train = lft_rch_diff_train[strt:]
+        rgt_rch_diff_train = rgt_rch_diff_train[strt:]
+        lft_rch_diff_val = left_reach_diff_values[-(val_split):]
+        rgt_rch_diff_val = right_reach_diff_values[-(val_split):]
+
+        #lft_rch_diff_mean = np.mean(lft_rch_diff_train,axis=0)
+        #rgt_rch_diff_mean = np.mean(rgt_rch_diff_train,axis=0)
+        #lft_rch_diff_std = np.std(lft_rch_diff_train,axis=0)
+        #rgt_rch_diff_std = np.std(rgt_rch_diff_train,axis=0)
+
+        """ lft_diff_full_mean.append(lft_rch_diff_mean)
+        rgt_diff_full_mean.append(rgt_rch_diff_mean)
+        lft_diff_full_std.append(lft_rch_diff_std)
+        rgt_diff_full_std.append(rgt_rch_diff_std) """
+        
+        standd_lft_rch_diff = (lft_rch_diff_train - lft_rch_diff_mean)/lft_rch_diff_std
+        standd_rgt_rch_diff = (rgt_rch_diff_train - rgt_rch_diff_mean)/rgt_rch_diff_std
+        lft_rch_diff_sddval = (lft_rch_diff_val - lft_rch_diff_mean)/lft_rch_diff_std
+        rgt_rch_diff_sddval = (rgt_rch_diff_val - rgt_rch_diff_mean)/rgt_rch_diff_std
+
+
+        for j in range(standd_lft_rch_diff.shape[0]):
+            sum_writer.add_scalar('Left_train_diff_unscld/reach_'+str(i),lft_rch_diff_train[j],j)
+            sum_writer.add_scalar('Right_train_diff_unscld/reach_'+str(i),rgt_rch_diff_train[j],j)
+            sum_writer.add_scalar('Left_train_diff_sdd/reach_'+str(i),standd_lft_rch_diff[j],j)
+            sum_writer.add_scalar('Right_train_diff_sdd/reach_'+str(i),standd_rgt_rch_diff[j],j)
+
+        for j in range(lft_rch_diff_sddval.shape[0]):
+            sum_writer.add_scalar('Left_val_diff_unscld/reach_'+str(i),lft_rch_diff_val[j],j)
+            sum_writer.add_scalar('Right_val_diff_unscld/reach_'+str(i),rgt_rch_diff_val[j],j)
+            sum_writer.add_scalar('Left_val_diff_sdd/reach_'+str(i),lft_rch_diff_sddval[j],j)
+            sum_writer.add_scalar('Right_val_diff_sdd/reach_'+str(i),rgt_rch_diff_sddval[j],j)
+
+
+
+        sum_writer.add_histogram('Left_Diff_Standardized/reach_'+str(i),standd_lft_rch_diff,i,bins='auto')
+        sum_writer.add_histogram('Right_Diff_Standardized/reach_'+str(i),standd_rgt_rch_diff,i,bins='auto')
+        sum_writer.add_histogram('Left_Diff_Standardized_across_reach',standd_lft_rch_diff,i,bins='auto')
+        sum_writer.add_histogram('Right_Diff_Standardized_across_reach',standd_rgt_rch_diff,i,bins='auto')
+        
+        sum_writer.add_histogram('Left_val_Diff_Standardized_across_reach',lft_rch_diff_sddval,i,bins='auto')
+        sum_writer.add_histogram('Right_val_Diff_Standardized_across_reach',rgt_rch_diff_sddval,i,bins='auto')
+ 
+
+
+        if i == 0 :
+            stdd_trian_lft_diff = standd_lft_rch_diff
+            stdd_trin_rgt_diff = standd_rgt_rch_diff
+        else :
+            stdd_trian_lft_diff = np.concatenate((stdd_trian_lft_diff,standd_lft_rch_diff))
+            stdd_trin_rgt_diff = np.concatenate((stdd_trin_rgt_diff,standd_rgt_rch_diff)) 
+
+
+        lft_full_ins.extend(left_reach_inputs)
+        rgt_full_ins.extend(right_reach_inputs)
+        
+        left_reach_inputs = np.asarray(left_reach_inputs)
+        right_reach_inputs = np.asarray(right_reach_inputs)
+
+        sum_writer.add_histogram('Left_input/reach_'+str(i),left_reach_inputs,i,bins='auto')
+        sum_writer.add_histogram('Right_input/reach_'+str(i),right_reach_inputs,i,bins='auto')
+        sum_writer.add_histogram('Left_inp_across_reach',left_reach_inputs,i,bins='auto')
+        sum_writer.add_histogram('Right_inp_hist_across_reach',right_reach_inputs,i,bins='auto')
+
+
+        lft_rch_inp_train = left_reach_inputs[:-(val_split+1)]
+        rgt_rch_inp_train = right_reach_inputs[:-(val_split+1)]
+        lft_rch_inp_train = lft_rch_inp_train[strt:]
+        rgt_rch_inp_train = rgt_rch_inp_train[strt:]
+        lft_rch_inp_val = left_reach_inputs[-(val_split+1):]
+        rgt_rch_inp_val = left_reach_inputs[-(val_split+1):]
+        
+        lft_reach_inp_mean = np.mean(lft_rch_inp_train,axis=0)
+        rgt_reach_inp_mean = np.mean(rgt_rch_inp_train,axis=0)
+
+        lft_reach_inp_std = np.std(lft_rch_inp_train,axis=0)
+        rgt_reach_inp_std = np.std(rgt_rch_inp_train,axis=0)
+
+        lft_full_mean.append(lft_reach_inp_mean)
+        rgt_full_mean.append(rgt_reach_inp_mean)
+        lft_full_std.append(lft_reach_inp_std)
+        rgt_full_std.append(rgt_reach_inp_std)
+
+        standd_lft_rch_inp = (lft_rch_inp_train - lft_reach_inp_mean)/lft_reach_inp_std
+        standd_rgt_rch_inp = (rgt_rch_inp_train - rgt_reach_inp_mean)/rgt_reach_inp_std
+        standd_lft_rch_inp_val = (lft_rch_inp_val - lft_reach_inp_mean)/lft_reach_inp_std
+        standd_rgt_rch_inp_val = (rgt_rch_inp_val - rgt_reach_inp_mean)/rgt_reach_inp_std
+
+        for j in range(standd_lft_rch_inp.shape[0]):
+            sum_writer.add_scalar('Left_train_inp_unscld/reach_'+str(i),lft_rch_inp_train[j],j)
+            sum_writer.add_scalar('Right_train_inp_unscld/reach_'+str(i),rgt_rch_inp_train[j],j)
+            sum_writer.add_scalar('Left_train_inp_sdd/reach_'+str(i),standd_lft_rch_inp[j],j)
+            sum_writer.add_scalar('Right_train_inp_sdd/reach_'+str(i),standd_rgt_rch_inp[j],j)
+
+        for j in range(lft_rch_diff_sddval.shape[0]):
+            sum_writer.add_scalar('Left_val_inp_unscld/reach_'+str(i),lft_rch_inp_val[j],j)
+            sum_writer.add_scalar('Right_val_inp_unscld/reach_'+str(i),rgt_rch_inp_val[j],j)
+            sum_writer.add_scalar('Left_val_inp_sdd/reach_'+str(i),standd_lft_rch_inp_val[j],j)
+            sum_writer.add_scalar('Right_val_inp_sdd/reach_'+str(i),standd_rgt_rch_inp_val[j],j)
+
+
+
+
+        sum_writer.add_histogram('Left_input_Standardized/reach_'+str(i),standd_lft_rch_inp,i,bins='auto')
+        sum_writer.add_histogram('Right_input_Standardized/reach_'+str(i),standd_rgt_rch_inp,i,bins='auto')
+        sum_writer.add_histogram('Left_input_Standardized_across_reach',standd_lft_rch_inp,i,bins='auto')
+        sum_writer.add_histogram('Right_input_Standardized_across_reach',standd_rgt_rch_inp,i,bins='auto')
+        sum_writer.add_histogram('Left_input_val_Standardized_across_reach',standd_lft_rch_inp_val,i,bins='auto')
+        sum_writer.add_histogram('Right_input_val_Standardized_across_reach',standd_rgt_rch_inp_val,i,bins='auto')
+
+        if i == 0 :
+            stdd_trian_lft_inp = standd_lft_rch_inp
+            stdd_trin_rgt_inp = standd_rgt_rch_inp
+        else :
+            stdd_trian_lft_inp = np.concatenate((stdd_trian_lft_inp,standd_lft_rch_inp))
+            stdd_trin_rgt_inp = np.concatenate((stdd_trin_rgt_inp,standd_rgt_rch_inp)) 
+
+        #print(asd)
+    lft_full_mean = np.asarray(lft_full_mean)
+    rgt_full_mean = np.asarray(rgt_full_mean)
+    lft_full_std = np.asarray(lft_full_std) 
+    rgt_full_std = np.asarray(rgt_full_std)
+
+    stdd_npy_path = os.path.join('./data/trns_npys/')
+    ###save left and right both mean and std 
+    np.save(stdd_npy_path+'lft_inp_mean_'+str(strt)+'_'+str(val_split)+'.npy',lft_full_mean)
+    np.save(stdd_npy_path+'rgt_inp_mean_'+str(strt)+'_'+str(val_split)+'.npy',rgt_full_mean)
+    np.save(stdd_npy_path+'lft_inp_std_'+str(strt)+'_'+str(val_split)+'.npy',lft_full_std)
+    np.save(stdd_npy_path+'rgt_inp_std_'+str(strt)+'_'+str(val_split)+'.npy',rgt_full_std)
+
+
+    
+    lft_diff_full_mean = np.asarray(lft_diff_full_mean)
+    rgt_diff_full_mean = np.asarray(rgt_diff_full_mean)
+    lft_diff_full_std = np.asarray(lft_diff_full_std) 
+    rgt_diff_full_std = np.asarray(rgt_diff_full_std)
+
+    ###save left and right both mean and std 
+    np.save(stdd_npy_path+'lft_out_mean_'+str(strt)+'_'+str(val_split)+'.npy',lft_diff_full_mean)
+    np.save(stdd_npy_path+'rgt_out_mean_'+str(strt)+'_'+str(val_split)+'.npy',rgt_diff_full_mean)
+    np.save(stdd_npy_path+'lft_out_std_'+str(strt)+'_'+str(val_split)+'.npy',lft_diff_full_std)
+    np.save(stdd_npy_path+'rgt_out_std_'+str(strt)+'_'+str(val_split)+'.npy',rgt_diff_full_std)
+
+
+
+
+    lft_full_ins = np.asarray(lft_full_ins)
+    rgt_full_ins = np.asarray(rgt_full_ins)
+    sum_writer.add_histogram('Unscaled_inputs/left_full_reach',lft_full_ins,0,bins='auto')
+    sum_writer.add_histogram('Unscaled_inputs/right_full_reach',rgt_full_ins,0,bins='auto')
+    dataset_inputs = np.concatenate((lft_full_ins,rgt_full_ins))
+    sum_writer.add_histogram('Unscaled_inputs/full_reach_both_banks',dataset_inputs,0,bins='auto')
+
+    sum_writer.add_histogram('standardized_train_inputs/left_full_reach',stdd_trian_lft_inp,0,bins='auto')
+    sum_writer.add_histogram('standardized_train_inputs/right_full_reach',stdd_trin_rgt_inp,0,bins='auto')
+    stdd_train_dataset_inps = np.concatenate((stdd_trian_lft_inp,stdd_trin_rgt_inp))
+    sum_writer.add_histogram('standardized_train_inputs/full_reach_both_banks',stdd_train_dataset_inps,0,bins='auto')
+
+    lft_full_diff = np.asarray(lft_full_diff)
+    rgt_full_diff = np.asarray(rgt_full_diff)
+    sum_writer.add_histogram('Difference_outputs/left_full',lft_full_diff,0,bins='auto')
+    sum_writer.add_histogram('Difference_outputs/right_full',rgt_full_diff,0,bins='auto')
+    dataset_diff = np.concatenate((lft_full_diff,rgt_full_diff))
+    sum_writer.add_histogram('Difference_outputs/full_reach_both_banks_',dataset_diff,0,bins='auto')
+    
+    sum_writer.add_histogram('standardized_Diff_outputs/left_full_reach',stdd_trian_lft_diff,0,bins='auto')
+    sum_writer.add_histogram('standardized_Diff_outputs/right_full_reach',stdd_trin_rgt_diff,0,bins='auto')
+    stdd_train_dataset_outputs = np.concatenate((stdd_trian_lft_diff,stdd_trin_rgt_diff))
+    sum_writer.add_histogram('standardized_Diff_outputs/full_reach_both_banks',stdd_train_dataset_outputs,0,bins='auto')
+
+
+    #print(asd)
+    writer.close()
+    sys.stdout.flush() 
+
+
+
 def write_stdd_lines(strt_year,val_split):
     strt = strt_year
 
@@ -1185,9 +1483,37 @@ def write_stdd_lines(strt_year,val_split):
 if __name__ == "__main__" :
     
 
-    write_lines(strt_year=0,val_split=5)
-    write_stdd_lines(strt_year=0,val_split=5)
+    #write_lines(strt_year=0,val_split=5)
+    #write_stdd_lines(strt_year=0,val_split=5)
     #print(asd)
+    """ npy_path = os.path.join('./data/img/up_npy/')
+    rgb_path = os.path.join('./data/img/up_rgb/')
+    rgb_list = [f for f in listdir(rgb_path) if isfile(join(rgb_path, f))]
+    rgb_list = [int(f.split('.')[0]) for f in rgb_list]
+    rgb_list.sort()
+    rgb_list = [str(f) for f in rgb_list]
+
+    temp_img = cv2.imread(rgb_path+rgb_list[0]+'.png')
+
+
+    full_list = []
+
+    for i in range(temp_img.shape[0]):
+        print(i)
+        row_list = []
+        for j in range(len(rgb_list)):
+            line_npy = np.load(npy_path+rgb_list[j]+'.npy')
+            line_npy = line_npy[i,1]
+            row_list.append(line_npy)
+
+        full_list.append(row_list)
+
+
+    full_list = np.asarray(full_list)
+    print(full_list.shape)
+
+    np.savetxt(os.path.join('./data/right_bank.csv'), full_list, delimiter=",")
+ """
 
     """
     for i in range(20,26,1):

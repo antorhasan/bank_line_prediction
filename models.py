@@ -295,6 +295,7 @@ class Baseline_ANN_Model(nn.Module):
         self.num_lstm_layers = num_lstm_layers
         self.drop_out = drop_out
         self.lstm_hidden_units = lstm_hidden_units
+        self.flag_batch_norm = False
         
         #self.fc0 = nn.Linear(self.lstm_hidden_units, self.fc1_units)
 
@@ -316,18 +317,20 @@ class Baseline_ANN_Model(nn.Module):
         
         
         #self.dropout1 = nn.Dropout(self.drop_out[10])
-        self.fc1 = nn.Linear((vert_img_hgt * self.inp_num) ,self.lstm_hidden_units)
+        self.fc1 = nn.Linear(int(self.vert_img_hgt * self.inp_num * (self.time_step-1)) ,self.lstm_hidden_units)
+        
+        if self.flag_batch_norm == True :
+            self.batch_norm1 = nn.BatchNorm2d(self.lstm_hidden_units)
         #self.dropout2 = nn.Dropout(self.drop_out[11])
         self.fc2 = nn.Linear(self.lstm_hidden_units, (vert_img_hgt *output_num))
         #self.fc3 = nn.Linear(100,100)
         #self.fc4 = nn.Linear(100,output_num)
 
     def forward(self, inputs):
-        x = torch.reshape(inputs, (-1,int(self.vert_img_hgt * self.inp_num)))
+        x = torch.reshape(inputs, (-1,int(self.vert_img_hgt * self.inp_num * (self.time_step-1))))
         #print(x.size())
         #print(asd)
         """ if self.training:
-            
             h0 = torch.zeros((self.num_lstm_layers, self.batch_size, self.lstm_hidden_units),device=self.device)
             c0 = torch.zeros((self.num_lstm_layers, self.batch_size, self.lstm_hidden_units),device=self.device)
         else:
@@ -349,6 +352,9 @@ class Baseline_ANN_Model(nn.Module):
         
         #x = self.dropout1(hn)
         x = F.elu(self.fc1(x))
+        
+        if self.flag_batch_norm == True :
+            x = self.batch_norm1(x)
         #print(x.size())
         #x = self.dropout2(x)
         x = self.fc2(x)
