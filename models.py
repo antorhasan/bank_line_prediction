@@ -322,12 +322,12 @@ class Baseline_ANN_Model(nn.Module):
         if self.flag_batch_norm == True :
             self.batch_norm1 = nn.BatchNorm2d(self.lstm_hidden_units)
         #self.dropout2 = nn.Dropout(self.drop_out[11])
-        self.fc2 = nn.Linear(self.lstm_hidden_units, (vert_img_hgt *output_num))
+        self.fc2 = nn.Linear(self.lstm_hidden_units, (self.vert_img_hgt *output_num))
         #self.fc3 = nn.Linear(100,100)
         #self.fc4 = nn.Linear(100,output_num)
 
-    def forward(self, inputs):
-        x = torch.reshape(inputs, (-1,int(self.vert_img_hgt * self.inp_num * (self.time_step-1))))
+    def forward(self, x):
+        #x = torch.reshape(inputs, (-1,int(self.vert_img_hgt * self.inp_num * (self.time_step-1))))
         #print(x.size())
         #print(asd)
         """ if self.training:
@@ -348,8 +348,8 @@ class Baseline_ANN_Model(nn.Module):
         #    x = torch.reshape(hn, (self.batch_size, self.lstm_hidden_units))
         #else:
         #    x = torch.reshape(hn, (self.val_batch_size, self.lstm_hidden_units))
-
-        
+        #print(x.size())
+        #print(asd)
         #x = self.dropout1(hn)
         x = F.elu(self.fc1(x))
         
