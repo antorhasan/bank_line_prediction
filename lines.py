@@ -673,7 +673,10 @@ def process_tf_dataset(input_tensor_org, year_id, reach_id, sdd_output,inp_mode,
         input_tensor_sub = np.reshape(input_tensor[:,-1,:,:],(batch_size,1,vert_img_hgt,1))
 
         if flag_reach_use :
+            #print(reach_id)
             reach_id = reach_id[:,0,:,:]
+            #print(reach_id)
+            #print(asd)
 
     elif inp_lr_flag == 'both' :
         input_tensor = input_tensor[:,0:time_step-1,:,:]
@@ -736,7 +739,16 @@ def custom_mean_sdd(dataset_f,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_stan
 
     out_list = np.asarray(out_list,dtype=np.float32)
     out_list = np.reshape(out_list,(batch_size*prox_counter, -1))
-
+    
+    #np.savetxt(os.path.join('./data/right_bank_inp.csv'), inp_list, delimiter=",")
+    #np.savetxt(os.path.join('./data/right_bank_out.csv'), out_list, delimiter=",")
+    #print(inp_list[0:4,:])
+    #print(out_list[0:4,:])
+    #print(inp_list.shape)
+    #print(out_list.shape)
+    
+    
+    #print(asd)
     inp_list_mean = np.mean(inp_list,axis=0)
     inp_list_std = np.std(inp_list,axis=0)
 
@@ -753,7 +765,8 @@ def custom_mean_sdd(dataset_f,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_stan
 
 
 def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
-                lstm_layers,lstm_hidden_units,batch_size,inp_bnk,out_bnk,val_split):
+                lstm_layers,lstm_hidden_units,batch_size,inp_bnk,out_bnk,val_split,
+                model_optim):
     
     load_mod = False
     save_mod = False
@@ -769,7 +782,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     model_type = 'CNN_Model_dropout_reg'
     wgt_seed_flag = True
 
-    model_optim = 'SGD'
+    model_optim = model_optim
     
     dr_1 = 0
     dr_2 = 0
@@ -825,10 +838,10 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     #output_vert_indx = int((vert_img_hgt-1)/2)
     time_win_shift = 1
 
-    reach_start_indx = 1526 
-    reach_end_num = 664 
-    #reach_start_indx = 0 
-    #reach_end_num = 0 
+    #reach_start_indx = 1526 
+    #reach_end_num = 664 
+    reach_start_indx = 0 
+    reach_end_num = 0 
 
     reach_shift_cons = 2222
     reach_win_size = reach_shift_cons - reach_end_num 
@@ -892,14 +905,15 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         reach_end_index = reach_end_indx,
         input_lft_rgt_tag = inp_lr_flag,
         output_lft_rgt_tag = out_lr_tag,
-        output_mode = out_mode
+        output_mode = out_mode,
+        flag_reach_use = flag_reach_use
         )
 
 
     if inp_mode == 'act_sdd' :
         dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_sdd_'+str(start_indx)+'_'+str(val_split)+'.tfrecords'))
     elif inp_mode == 'act' :
-        dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(start_indx)+'_'+str(val_split)+'.tfrecords'))
+        dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(0)+'_'+str(5)+'.tfrecords'))
 
     dataset_f = dataset_f.window(size=data_div_step, shift=total_time_step, stride=1, drop_remainder=False)
     dataset_f = dataset_f.map(lambda x: x.skip(start_indx))
@@ -920,7 +934,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     elif inp_mode == 'act' :
         dataset_f = dataset_f.map(_parse_function_org_).batch(vert_img_hgt).batch(time_step)
 
-    #dataset_f = dataset_f.shuffle(10000, reshuffle_each_iteration=True)
+    dataset_f = dataset_f.shuffle(10000, reshuffle_each_iteration=True)
     dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
 
 
@@ -929,7 +943,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     if inp_mode == 'act_sdd' :
         dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_sdd_'+str(start_indx)+'_'+str(val_split)+'.tfrecords'))
     elif inp_mode == 'act' :
-        dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(start_indx)+'_'+str(val_split)+'.tfrecords'))
+        dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(0)+'_'+str(5)+'.tfrecords'))
     
     dataseti1 = dataseti1.window(size=total_time_step, shift=total_time_step, stride=1, drop_remainder=False)
     dataseti1 = dataseti1.map(lambda x: x.skip(total_time_step-(num_val_img+(time_step-1))))
@@ -1006,6 +1020,12 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     out_mean = transform_constants['out_mean']
     out_std = transform_constants['out_std']
 
+    """ print(inp_mean)
+    print(inp_std)
+    print(out_mean)
+    print(out_std)
+    print(asd) """
+
     for epoch in range(EPOCHS):
 
         model.train()
@@ -1015,20 +1035,23 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         for inp_flatten, year_id, reach_id, _, sdd_output in dataset_f:
             year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
             reach_id = np.reshape(reach_id, (batch_size,time_step,vert_img_hgt,1))
-            for i in range(year_id.shape[0]):
-                print(year_id[i,:,:,:])
-                print(reach_id[i,:,:,:])
-                print(inp_flatten[i,:,:,:])
-
-            print(asd)
-
+        
 
             inp_flatten, out_flatten = process_tf_dataset(inp_flatten, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
                 out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data)
 
+            
+
             if inp_mode == 'act' and flag_standardize_actual == True :
                 inp_flatten = (inp_flatten - inp_mean) / inp_std 
                 out_flatten = (out_flatten - out_mean) / out_std 
+
+            """ for i in range(inp_flatten.shape[0]):
+                print(inp_flatten[i,:])
+                print(out_flatten[i,:])
+                #print(inp_flatten[i,:,:,:])
+
+            print(asd) """
 
             #print(inp_flatten.shape)
             #print(out_flatten.shape)
@@ -1039,6 +1062,9 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
             #out_flatten = torch.reshape(out_flatten, (batch_size,-1))
             
             optimizer.zero_grad()
+
+            #print(inp_flatten.shape)
+            #print(asd)
             pred = model(inp_flatten)
             
             loss = F.mse_loss(pred, out_flatten,reduction='mean')
@@ -1169,7 +1195,9 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                     #inp_flatten = inp_flatten.numpy()
                     
                     if flag_reach_use == True :
-                        prev_inp_flatten = inp_flatten_org[:,-2]
+                        #print(inp_flatten_org[0:4,:])
+                        #print(asd)
+                        prev_inp_flatten = inp_flatten_org[:,0:-(vert_img_hgt)]
                     elif flag_reach_use == False :
                         prev_inp_flatten = inp_flatten_org[:,-1]
 
@@ -1223,11 +1251,15 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
 
                     if out_lr_tag == 'left' :
                         np_zero = np.zeros((val_batch_size,vert_img_hgt,val_extra_dim))
+                        
                         prev_time_step = np.concatenate((prev_time_step,np_zero),axis=2) 
                         out_flatten = np.concatenate((out_flatten,np_zero),axis=2)
                         pred_np = np.concatenate((pred_np,np_zero),axis=2)
                     elif out_lr_tag == 'right' :
                         np_zero = np.zeros((val_batch_size,vert_img_hgt,val_extra_dim))
+                        #print(prev_time_step.shape)
+                        #print(np_zero.shape)
+                        #print(asd)
                         prev_time_step = np.concatenate((np_zero,prev_time_step),axis=2) 
                         out_flatten = np.concatenate((np_zero,out_flatten),axis=2)
                         pred_np = np.concatenate((np_zero,pred_np),axis=2)
@@ -1358,20 +1390,20 @@ if __name__ == "__main__":
     #tm_stp_list = [5]
     #strt_list = [27]
 
-    #objective(tm_stp=2,strt=0,lr_pow=-1.0,ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=150,lstm_layers=1,
-    #    lstm_hidden_units=100,batch_size=864,inp_bnk='right',out_bnk='right',val_split=5)
-    #print(asd)
+    objective(tm_stp=2,strt=0,lr_pow=-3.0,ad_pow=0,vert_hgt=3,vert_step_num=3,num_epochs=20,lstm_layers=1,
+        lstm_hidden_units=100,batch_size=19980,inp_bnk='right',out_bnk='right',val_split=5,model_optim='SGD')
+    print(asd)
 
     #lr_rate_list = [-5.0,-4.0,-3.0,-2.0,-1.0]
-    lr_rate_list = np.arange(-3.0, -0.8, 1.0)
+    lr_rate_list = np.arange(-2.0, -0.8, 1.0)
     #ad_pow = [0, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
-    ad_pow = np.arange(-2.0, -0.1, 0.5)
+    ad_pow = np.arange(-0.1, -0.001, 1.0)
     strt_list = [25,21,17,13,9,5,0]
     
     
-    for i in range(len(ad_pow)):
-        objective(tm_stp=2,strt=0,lr_pow=-1.0,ad_pow=1*(10**ad_pow[i]),vert_hgt=1,vert_step_num=1,num_epochs=50,lstm_layers=1,
-            lstm_hidden_units=50,batch_size=864,inp_bnk='right',out_bnk='right',val_split=5)
+    for i in range(len(lr_rate_list)):
+        objective(tm_stp=2,strt=0,lr_pow=-3.0,ad_pow=0,vert_hgt=1,vert_step_num=1,num_epochs=50,lstm_layers=1,
+            lstm_hidden_units=30,batch_size=57772,inp_bnk='right',out_bnk='right',val_split=5,model_optim='SGD')
         #print(lr_rate_list[i])
     #print('hidden units ',ls_hid_list[i])
     """ for i in range(len(strt_list)):

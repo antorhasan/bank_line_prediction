@@ -295,7 +295,7 @@ class Baseline_ANN_Model(nn.Module):
         self.num_lstm_layers = num_lstm_layers
         self.drop_out = drop_out
         self.lstm_hidden_units = lstm_hidden_units
-        self.flag_batch_norm = False
+        self.flag_batch_norm = True
         
         #self.fc0 = nn.Linear(self.lstm_hidden_units, self.fc1_units)
 
@@ -317,13 +317,48 @@ class Baseline_ANN_Model(nn.Module):
         
         
         #self.dropout1 = nn.Dropout(self.drop_out[10])
-        self.fc1 = nn.Linear(int(self.vert_img_hgt * self.inp_num * (self.time_step-1)) ,self.lstm_hidden_units)
+        #print(int((self.vert_img_hgt * self.inp_num) * (self.time_step-1)))
+        #print(asd)
+
+        self.fc1 = nn.Linear(int((self.vert_img_hgt * self.inp_num) * (self.time_step-1)) ,self.lstm_hidden_units)
         
         if self.flag_batch_norm == True :
-            self.batch_norm1 = nn.BatchNorm2d(self.lstm_hidden_units)
+            self.batch_norm1 = nn.BatchNorm1d(self.lstm_hidden_units)
         #self.dropout2 = nn.Dropout(self.drop_out[11])
-        self.fc2 = nn.Linear(self.lstm_hidden_units, (self.vert_img_hgt *output_num))
-        #self.fc3 = nn.Linear(100,100)
+        self.fc2 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm2 = nn.BatchNorm1d(self.lstm_hidden_units)
+
+        self.fc3 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm3 = nn.BatchNorm1d(self.lstm_hidden_units)
+        
+        self.fc4 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm4 = nn.BatchNorm1d(self.lstm_hidden_units)
+
+        self.fc5 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm5 = nn.BatchNorm1d(self.lstm_hidden_units)
+
+        self.fc6 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm6 = nn.BatchNorm1d(self.lstm_hidden_units)
+
+        self.fc7 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm7 = nn.BatchNorm1d(self.lstm_hidden_units)
+
+        self.fc8 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm8 = nn.BatchNorm1d(self.lstm_hidden_units)
+        
+        self.fc9 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm9 = nn.BatchNorm1d(self.lstm_hidden_units)
+
+
+        self.fc10 = nn.Linear(self.lstm_hidden_units,(self.vert_img_hgt *output_num))
         #self.fc4 = nn.Linear(100,output_num)
 
     def forward(self, x):
@@ -351,14 +386,47 @@ class Baseline_ANN_Model(nn.Module):
         #print(x.size())
         #print(asd)
         #x = self.dropout1(hn)
-        x = F.elu(self.fc1(x))
+        x = F.relu(self.fc1(x))
         
         if self.flag_batch_norm == True :
             x = self.batch_norm1(x)
         #print(x.size())
         #x = self.dropout2(x)
-        x = self.fc2(x)
-        #x = F.relu(self.fc3(x))
+        x = F.relu(self.fc2(x))
+        if self.flag_batch_norm == True :
+            x = self.batch_norm2(x)
+
+        x = F.relu(self.fc3(x))
+        if self.flag_batch_norm == True :
+            x = self.batch_norm3(x)
+        
+        x = F.relu(self.fc4(x))
+        if self.flag_batch_norm == True :
+            x = self.batch_norm4(x)
+
+
+        x = F.relu(self.fc5(x))
+        if self.flag_batch_norm == True :
+            x = self.batch_norm5(x)
+        
+        x = F.relu(self.fc6(x))
+        if self.flag_batch_norm == True :
+            x = self.batch_norm6(x)
+
+        x = F.relu(self.fc7(x))
+        if self.flag_batch_norm == True :
+            x = self.batch_norm7(x)
+
+        x = F.relu(self.fc8(x))
+        if self.flag_batch_norm == True :
+            x = self.batch_norm8(x)
+
+        x = F.relu(self.fc9(x))
+        if self.flag_batch_norm == True :
+            x = self.batch_norm9(x)
+        
+
+        x = self.fc10(x)
         #x = self.fc4(x)
         #print(asd)
         return x
