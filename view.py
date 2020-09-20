@@ -1482,7 +1482,13 @@ def write_stdd_lines(strt_year,val_split):
 
 if __name__ == "__main__" :
     
+    """ img = cv2.imread(os.path.join('.\\data\\img\\up_lines_imgs\\201901.png'))
 
+    cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
+    cv2.imshow('image1',img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    print(asd) """
     #write_lines(strt_year=0,val_split=5)
     #write_stdd_lines(strt_year=0,val_split=5)
     #print(asd)
@@ -1493,27 +1499,29 @@ if __name__ == "__main__" :
     rgb_list.sort()
     rgb_list = [str(f) for f in rgb_list]
 
-    temp_img = cv2.imread(rgb_path+rgb_list[0]+'.png')
+    temp_img = cv2.imread(rgb_path+'201901.png')
 
 
     full_list = []
 
-    for i in range(temp_img.shape[0]):
+    reach_len = range(890,975)
+
+    for i in reach_len:
         print(i)
         row_list = []
         for j in range(len(rgb_list)):
             line_npy = np.load(npy_path+rgb_list[j]+'.npy')
-            line_npy = line_npy[i,1]
+            line_npy = line_npy[i,0]
             row_list.append(line_npy)
 
         full_list.append(row_list)
-
+        temp_img[i,row_list[-2],:] = [255,255,255]
 
     full_list = np.asarray(full_list)
     print(full_list.shape)
 
-    np.savetxt(os.path.join('./data/right_bank.csv'), full_list, delimiter=",")
- """
+    np.savetxt(os.path.join('./data/right_01.csv'), full_list, delimiter=",")
+    cv2.imwrite(os.path.join('./data/right_01.png'),temp_img) """
 
     """
     for i in range(20,26,1):
@@ -1551,12 +1559,7 @@ if __name__ == "__main__" :
     line = np.tile(mean_line,(12,5,1,1))
     print(line.shape)
     print(line[0,0,:,:]) """
-    """ img = cv2.imread('.\data\individualImage.png')
-
-    cv2.namedWindow('image1', cv2.WINDOW_AUTOSIZE)
-    cv2.imshow('image1',img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows() """
+    
     """ data = rasterio.open('./data/198801.tif')
     img = data.read()
     img = rasterio.plot.reshape_as_image(img)
