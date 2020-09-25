@@ -470,77 +470,71 @@ class Baseline_ANN_Model(nn.Module):
             x = self.batch_norm5(x)
         x = F.relu(x)
 
-        """ x = F.relu(self.fc6(x))
+        """ x = self.fc6(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm6(x)
+        x = F.relu(x)
 
-        x = F.relu(self.fc7(x))
+        x = self.fc7(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm7(x)
+        x = F.relu(x)
 
-        x = F.relu(self.fc8(x))
+        x = self.fc8(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm8(x)
+        x = F.relu(x)
 
-        x = F.relu(self.fc9(x))
+        x = self.fc9(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm9(x)
+        x = F.relu(x)
 
-        x = F.relu(self.fc10(x))
+        x = self.fc10(x)
         if self.flag_batch_norm == True :
-            x = self.batch_norm10(x) """
+            x = self.batch_norm10(x)
+        x = F.relu(x) """
 
-        """ x = F.relu(self.fc11(x))
+        """ x = self.fc11(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm11(x)
+        x = F.relu(x)
 
-        x = F.relu(self.fc12(x))
+        x = self.fc12(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm12(x)
+        x = F.relu(x)
 
-        x = F.relu(self.fc13(x))
+        x = self.fc13(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm13(x)
+        x = F.relu(x)
 
-        x = F.relu(self.fc14(x))
+        x = self.fc14(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm14(x)
+        x = F.relu(x)
 
-        x = F.relu(self.fc15(x))
+        x = self.fc15(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm15(x)
+        x = F.relu(x) """
 
-        x = F.relu(self.fc16(x))
+        """ x = self.fc16(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm16(x)
+        x = F.relu(x)
 
-        x = F.relu(self.fc17(x))
+        x = self.fc17(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm17(x)
+        x = F.relu(x)
 
-        x = F.relu(self.fc18(x))
+        x = self.fc18(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm18(x)
+        x = F.relu(x) """
 
-        x = F.relu(self.fc19(x))
-        if self.flag_batch_norm == True :
-            x = self.batch_norm19(x)
-
-        x = F.relu(self.fc20(x))
-        if self.flag_batch_norm == True :
-            x = self.batch_norm20(x)
-
-        x = F.relu(self.fc21(x))
-        if self.flag_batch_norm == True :
-            x = self.batch_norm21(x)
-
-        x = F.relu(self.fc22(x))
-        if self.flag_batch_norm == True :
-            x = self.batch_norm22(x)
-
-        x = F.relu(self.fc23(x))
-        if self.flag_batch_norm == True :
-            x = self.batch_norm23(x) """
         
 
         x = self.fc24(x)

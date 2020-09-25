@@ -476,7 +476,7 @@ def wrt_bin_mask(img, file_id):
     return img
 
 def save_img_from_tif(tif_path,img_type,norm,file_id):
-    '''write rgb or ifra channel data as image data from tif file'''
+    '''write rgb or infra channel data as image data from tif file'''
     offset = 385
     jan_tif_path = tif_path
     tif_img = viz(jan_tif_path)
@@ -746,14 +746,14 @@ def update_bin_mask(inter_val):
     write_data()  """
     
 def for_cegis():
-    with fiona.open('./data/cegis_19/CEGIS_2019_5.shp', "r") as shapefile:
+    with fiona.open(os.path.join('./data/cegis_19/CEGIS_PREDICTION_0219_V3.shp'), "r") as shapefile:
         #with fiona.open('./data/img/shape_files/2019/201901.shp', "r") as shapefile:
         #print(type(shapefile))
         #print(asd)
         shapes = [feature["geometry"] for feature in shapefile]
         #print(shapes)
 
-    temp_tif_path = './data/img/temp.tif'
+    temp_tif_path = os.path.join('./data/img/temp.tif')
     with rasterio.open(temp_tif_path) as src:
         temp_t = src.read()
         #print(temp_t)
@@ -766,7 +766,7 @@ def for_cegis():
 
     #save_infra = save_img_from_tif(tif_path, 'infra',True, file_id)
 
-    tif_img = save_img_from_tif('./data/img/finaltif/201901.tif', 'rgb',True, 'cegis_19')
+    tif_img = save_img_from_tif(os.path.join('./data/img/finaltif/201901.tif'), 'rgb',True, 'cegis_19')
 
     for i in range(tif_img.shape[0]):
         if left_lis[i] != 0 and right_lis[i] != 0:
@@ -778,7 +778,7 @@ def for_cegis():
             tif_img[i,right_lis[i],2] = 255
 
     print('''writing rgb with lines images ......''')
-    cv2.imwrite('./data/img/shp_mask/'+'cegis_19'+'.png', tif_img)
+    cv2.imwrite(os.path.join('./data/img/shp_mask/'+'cegis_19'+'.png'), tif_img)
 
 def line_npy_in_imgs():
     '''given a directory of numpy lines, write images with white lines according to
@@ -1481,7 +1481,11 @@ def write_stdd_lines(strt_year,val_split):
     sys.stdout.flush() 
 
 if __name__ == "__main__" :
-    
+    """ img = viz(os.path.join('./data/img/finaltif/199201.tif'))
+    img.get_image('rgb',True)
+    img.cv_view() """
+
+
     """ img = cv2.imread(os.path.join('.\\data\\img\\up_lines_imgs\\201901.png'))
 
     cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
@@ -1531,7 +1535,7 @@ if __name__ == "__main__" :
     #
     #line_npy_in_imgs()
     #save_img_from_tif(os.path.join('./data/img/final_rgb/198802.tif'),'infra',True,'198802')
-    #for_cegis()
+    for_cegis()
     #comp_to_tfrec()
     #update_bin_mask([10,2232])
     #update_npy(2,[10,2232])
