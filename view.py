@@ -74,6 +74,41 @@ class viz():
         self.img = self.img[0:2048,:]
         cv2.imwrite(output_dir + filename +'.png', self.img)
 
+def click_event(event, x, y, flags, params): 
+  
+    # checking for left mouse clicks 
+    if event == cv2.EVENT_LBUTTONDOWN: 
+  
+        # displaying the coordinates 
+        # on the Shell 
+        print(x, ' ', y) 
+  
+        # displaying the coordinates 
+        # on the image window 
+        font = cv2.FONT_HERSHEY_SIMPLEX 
+        cv2.putText(img, str(x) + ',' +
+                    str(y), (x,y), font, 
+                    1, (255, 0, 0), 2) 
+        cv2.imshow('image', img) 
+  
+    # checking for right mouse clicks      
+    if event==cv2.EVENT_RBUTTONDOWN: 
+  
+        # displaying the coordinates 
+        # on the Shell 
+        print(x, ' ', y) 
+  
+        # displaying the coordinates 
+        # on the image window 
+        font = cv2.FONT_HERSHEY_SIMPLEX 
+        b = img[y, x, 0] 
+        g = img[y, x, 1] 
+        r = img[y, x, 2] 
+        cv2.putText(img, str(b) + ',' +
+                    str(g) + ',' + str(r), 
+                    (x,y), font, 1, 
+                    (255, 255, 0), 2) 
+        cv2.imshow('image', img) 
 
 
 def tif_to_npaggr(path):
@@ -746,7 +781,7 @@ def update_bin_mask(inter_val):
     write_data()  """
     
 def for_cegis():
-    with fiona.open(os.path.join('./data/cegis_19/CEGIS_PREDICTION_0219_V3.shp'), "r") as shapefile:
+    with fiona.open(os.path.join('./data/cegis_19/CEGIS_WGS84_POLY_2019.shp'), "r") as shapefile:
         #with fiona.open('./data/img/shape_files/2019/201901.shp', "r") as shapefile:
         #print(type(shapefile))
         #print(asd)
@@ -1478,13 +1513,57 @@ def write_stdd_lines(strt_year,val_split):
             writer.write(example.SerializeToString())
 
     writer.close()
-    sys.stdout.flush() 
+    sys.stdout.flush()
+    
+def cegis_refine():
+    img = cv2.imread(os.path.join('./data/img/shp_mask/cegis_19.png'))
+    #img = img[:,:,0]
+    """ cv2.namedWindow('image', cv2.WINDOW_NORMAL)
+    cv2.imshow('image', img) 
+    cv2.setMouseCallback('image', click_event) 
+    cv2.waitKey(0) 
+    cv2.destroyAllWindows() """
+    img_new = cv2.imread(os.path.join('./data/img/up_rgb/201901.png'))
+    #np_arr = np.zeros((img.shape[0],2))
+    #np_arr = np.zeros((img_new.shape[0],2))
+    rg_ranges = [(360,453),(685,902),(1477,1753)]
+    lf_ranges = [(895,989)]
+    #print(rg_ranges[0][0])
+    for k in range(len(rg_ranges)):
+        for i in range(rg_ranges[k][0],rg_ranges[k][1],1):
+            
+            for j in range(-1,-745,-1):
+                if img[i,j,0] == 255 :
+                    #print('kjj')
+                    img_new[i,j,:] = [0,0,255]
+                    break
+    
+    for i in range(lf_ranges[0][0],lf_ranges[0][1],1):
+        
+        for j in range(745):
+            if img[i,j,0] == 255 :
+                #print('kjj')
+                img_new[i,j,:] = [0,0,255]
+                break
+
+    cv2.imwrite(os.path.join('./data/cegis_refined.png'),img_new)
 
 if __name__ == "__main__" :
     """ img = viz(os.path.join('./data/img/finaltif/199201.tif'))
     img.get_image('rgb',True)
     img.cv_view() """
 
+    #img_new = cv2.imread(os.path.join('./data/cegis_refined.png'))
+
+    #np_arr = np.zeros((img_new.shape[0],2))
+
+    cegis_refine()
+
+
+
+
+
+    #np_arr = np.where()
 
     """ img = cv2.imread(os.path.join('.\\data\\img\\up_lines_imgs\\201901.png'))
 
@@ -1535,7 +1614,7 @@ if __name__ == "__main__" :
     #
     #line_npy_in_imgs()
     #save_img_from_tif(os.path.join('./data/img/final_rgb/198802.tif'),'infra',True,'198802')
-    for_cegis()
+    #for_cegis()
     #comp_to_tfrec()
     #update_bin_mask([10,2232])
     #update_npy(2,[10,2232])
