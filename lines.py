@@ -391,6 +391,11 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
 def wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids,writer,smooth_flag,
             reach_start_indx):
     
+    """ print(actual_list.shape)
+    print(actual_list)
+    print(asd) """
+
+
     num_rows = int(pred_list.shape[0])
 
     actual_ers_lft = np.reshape(np.where(actual_list[:,iter_num,0]<prev_actual_list[:,iter_num,0], 1, 0),(actual_list[:,iter_num,0].shape[0],1))
@@ -524,15 +529,17 @@ def process_prev(arr_list, num_val_img,prev_year_ids,prev_reach_ids,vert_img_hgt
 
     #print(prev_year_ids.shape)
     #print(asd)
-    prev_year_ids = np.reshape(prev_year_ids, (num_val_img,num_rows_per_img,1),order='F')
+    """ prev_year_ids = np.reshape(prev_year_ids, (num_val_img,num_rows_per_img,1),order='F')
     prev_year_ids = np.transpose(prev_year_ids,[1,0,2])
 
     prev_reach_ids = np.reshape(prev_reach_ids, (num_val_img,num_rows_per_img,1),order='F')
-    prev_reach_ids = np.transpose(prev_reach_ids,[1,0,2])
+    prev_reach_ids = np.transpose(prev_reach_ids,[1,0,2]) """
 
     arr_list = np.reshape(arr_list, (num_val_img,num_rows_per_img,2),order='F')
+    #arr_list = np.reshape(arr_list, (num_val_img,num_rows_per_img,2))
+
     arr_list = np.transpose(arr_list,[1,0,2])
-    #print(arr_list)
+    #print(arr_list.shape)
     #print(asd)
 
     return arr_list
@@ -570,20 +577,36 @@ def process_diffs(arr_list, num_val_img, prev_actual_list,act_year_ids,act_reach
         for i in range(arr_list.shape[0]):
             for j in range(arr_list.shape[1]):
                 arr_list[i,j,:] = np.add(np.multiply(arr_list[i,j,:], out_std[int(act_reach_ids[i,j,:]),:]), out_mean[int(act_reach_ids[i,j,:]),:]) """
-    if out_mode == 'act' and flag_standardize_actual == True :
-        #print('hel')
-        for i in range(arr_list.shape[0]):
-            for j in range(arr_list.shape[1]):
-                arr_list[i,j,:] = np.add(np.multiply(arr_list[i,j,:], out_std), out_mean)
+    
+    
+    #print(out_mean.shape)
+    #print(arr_list.shape)
 
-    act_year_ids = np.reshape(act_year_ids, (num_val_img,num_rows_per_img,1),order='F')
+    
+    if out_mode == 'act' and flag_standardize_actual == True :
+        out_mean = np.reshape(out_mean,(vert_img_hgt,1))
+        out_std = np.reshape(out_std,(vert_img_hgt,1))
+        #for i in range(arr_list.shape[0]):
+        #    for j in range(arr_list.shape[1]):
+        #        arr_list[i,j,:] = np.add(np.multiply(arr_list[i,j,:], out_std), out_mean)
+
+        for i in range(arr_list.shape[0]):
+            arr_list[i,:,:] = np.add(np.multiply(arr_list[i,:,:], out_std), out_mean)
+
+
+    #print(asd)
+
+    """ act_year_ids = np.reshape(act_year_ids, (num_val_img,num_rows_per_img,1),order='F')
     act_year_ids = np.transpose(act_year_ids,[1,0,2])
 
     act_reach_ids = np.reshape(act_reach_ids, (num_val_img,num_rows_per_img,1),order='F')
-    act_reach_ids = np.transpose(act_reach_ids,[1,0,2])
+    act_reach_ids = np.transpose(act_reach_ids,[1,0,2]) """
 
     arr_list = np.reshape(arr_list, (num_val_img,num_rows_per_img,2),order='F')
+    #arr_list = np.transpose(arr_list,[1,0,2])
+    #arr_list = np.reshape(arr_list, (num_val_img,num_rows_per_img,2))
     arr_list = np.transpose(arr_list,[1,0,2])
+
 
     if out_mode == 'diff_sdd' or (out_mode=='act' and output_subtracted == True):
         arr_list = np.add(arr_list,prev_actual_list)
@@ -592,7 +615,7 @@ def process_diffs(arr_list, num_val_img, prev_actual_list,act_year_ids,act_reach
         #arr_list[:,:,0] = 
         pass
 
-    #print(arr_list)
+    #print(arr_list.shape)
     #print(asd)
     
 
@@ -829,7 +852,7 @@ def train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,fla
 
                 
             if flag_reach_use == True :
-                inp_flatten_org = inp_flatten_org[:,:-1]
+                inp_flatten_org = inp_flatten_org[:,:-vert_img_hgt]
                 if inp_lr_flag == 'left' or inp_lr_flag == 'right' :
                     inp_flatten_org = np.reshape(inp_flatten_org,(batch_size,time_step-1,vert_img_hgt,1))
                 elif inp_lr_flag == 'both' :
@@ -930,9 +953,9 @@ def train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,fla
 
 
 
-def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
+def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,train_shuffle,
                 lstm_layers,lstm_hidden_units,batch_size,inp_bnk,out_bnk,val_split,val_skip,
-                model_optim,loss_func,save_mod,load_mod,load_file,skip_training,output_subtracted):
+                model_optim,loss_func,save_mod,load_mod,load_file,skip_training,output_subtracted,train_val_gap):
     
     load_mod = load_mod
     load_file = load_file
@@ -1003,7 +1026,11 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     #print(val_img_ids)
     #print(num_val_img)
     #print(asd)
-    data_div_step = total_time_step - (val_split)
+    
+    if train_val_gap == True :
+        data_div_step = total_time_step - (val_split)
+    elif train_val_gap == False :
+        data_div_step = total_time_step - (val_split - time_step + 2)
     #print(data_div_step)
     #print(asd)
     end_indx = data_div_step-1
@@ -1113,8 +1140,11 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         dataset_f = dataset_f.map(_parse_function_).batch(vert_img_hgt).batch(time_step)
     elif inp_mode == 'act' :
         dataset_f = dataset_f.map(_parse_function_org_).batch(vert_img_hgt).batch(time_step)
-
-    #dataset_f = dataset_f.shuffle(50000, reshuffle_each_iteration=True)
+    
+    if train_shuffle == True :
+        dataset_f = dataset_f.shuffle(50000, reshuffle_each_iteration=True)
+    elif train_shuffle == False :
+        pass
     dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
 
 
@@ -1229,8 +1259,9 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
             for inp_flatten, year_id, reach_id, _, sdd_output in dataset_f:
                 year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
                 reach_id = np.reshape(reach_id, (batch_size,time_step,vert_img_hgt,1))
-                prin_count = 30
-                """ print(inp_flatten[0:prin_count,:,:,:])
+                
+                """ prin_count = 30
+                print(inp_flatten[0:prin_count,:,:,:])
                 print(year_id[0:prin_count,:,:,:])
                 print(reach_id[0:prin_count,:,:,:])
                 print(asd) """
@@ -1363,9 +1394,10 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                     #inp_flatten = inp_flatten.numpy()
                     
                 if flag_reach_use == True :
-                    #print(inp_flatten_org)
-                    inp_flatten_org = inp_flatten_org[:,:-1]
+                    
+                    inp_flatten_org = inp_flatten_org[:,:-vert_img_hgt]
                     #print(inp_flatten_org[0:2,:])
+                    #print(inp_flatten_org)
                     #print(asd)
                     if inp_lr_flag == 'left' or inp_lr_flag == 'right' :
                         inp_flatten_org = np.reshape(inp_flatten_org,(val_batch_size,time_step-1,vert_img_hgt,1))
@@ -1599,30 +1631,33 @@ if __name__ == "__main__":
     val_split_org = 3
     val_skip = 2
     tm_stp=3
-    strt=22
+    strt=23
     lr_pow=-3.0
     ad_pow=0
     vert_hgt=1
     vert_step_num=1
-    num_epochs=100
+    num_epochs=2
     lstm_layers=1
-    lstm_hidden_units=20
-    batch_size=512
+    lstm_hidden_units=50
+    batch_size= 1024
     inp_bnk='right'
     out_bnk='right'
     model_optim='SGD'
     loss_func='mse_loss'
     output_subtracted = False
+    train_shuffle = True
+    train_val_gap = False
 
 
     val_split = val_split_org + (tm_stp - 2)
-    model_name = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=num_epochs,
-        lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,
-        val_skip=val_skip,model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=False,load_file=None,skip_training=False,output_subtracted=output_subtracted)
 
-    objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=1,
-        lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split-(val_split_org-val_skip),
-        val_skip=0,model_optim=model_optim,loss_func=loss_func,save_mod=False,load_mod=True,load_file=model_name,skip_training=True,output_subtracted=output_subtracted)
+    model_name = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=num_epochs,train_shuffle=train_shuffle,
+        lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,
+        model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=False,load_file=None,skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap)
+
+    objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=1,train_shuffle=train_shuffle,
+        lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split-(val_split_org-val_skip),val_skip=0,
+        model_optim=model_optim,loss_func=loss_func,save_mod=False,load_mod=True,load_file='Sep28_23-45-05_DESKTOP-8SUO90F',skip_training=True,output_subtracted=output_subtracted,train_val_gap=train_val_gap)
 
           
 
