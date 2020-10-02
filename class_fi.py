@@ -10,7 +10,7 @@ from os.path import isfile, join
 import os
 import sys
 from torch.utils.tensorboard import SummaryWriter
-from models import CNN_Model,Baseline_ANN_Model,Baseline_LSTM_Model
+from models import CNN_Model, Baseline_Model,Baseline_ANN_Model
 from sklearn.metrics import mean_absolute_error, precision_score, recall_score, confusion_matrix, f1_score
 from sklearn.preprocessing import OneHotEncoder
 import matplotlib.pyplot as plt
@@ -822,7 +822,7 @@ def train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,fla
     prev_year_ids = []
     act_reach_ids = []
     act_year_ids = [] """
-    #model.eval()
+
     with torch.no_grad():
         for inp_flatten_org, year_id, reach_id, _, sdd_output in dataset_tr_pr:
             """ year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
@@ -968,7 +968,7 @@ def train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,fla
 
 
 def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,train_shuffle,get_train_mae,
-                lstm_layers,lstm_hidden_units,batch_size,inp_bnk,out_bnk,val_split,val_skip,model_type,
+                lstm_layers,lstm_hidden_units,batch_size,inp_bnk,out_bnk,val_split,val_skip,
                 model_optim,loss_func,save_mod,load_mod,load_file,skip_training,output_subtracted,train_val_gap):
     
     load_mod = load_mod
@@ -985,7 +985,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     lr_rate = 1*(10**lr_pow)
     vert_img_hgt = vert_hgt
     vert_step = vert_step_num            #vert skip step
-    #model_type = 'CNN_Model_dropout_reg'
+    model_type = 'CNN_Model_dropout_reg'
     wgt_seed_flag = True
     val_skip = val_skip
     
@@ -1133,7 +1133,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         output_lft_rgt_tag = out_lr_tag,
         output_mode = out_mode,
         flag_reach_use = flag_reach_use,
-        loss_function = loss_func,
+        loss_function = loss_func
         )
 
 
@@ -1225,13 +1225,9 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     #model = Baseline_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
     #                        vert_img_hgt, inp_lr_flag, lf_rt_tag, lstm_hidden_units)
 
-    if model_type == 'ANN':
-        model = Baseline_ANN_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
-                                vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units,flag_reach_use)
-    elif model_type == 'LSTM':
-        print('he')
-        model = Baseline_LSTM_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
-                                vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units)
+    model = Baseline_ANN_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
+                            vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units,flag_reach_use)
+
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
@@ -1300,12 +1296,6 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 """ prin_count = 30
                 print(inp_flatten[0:prin_count,:])
                 print(out_flatten[0:prin_count,:])
-                reach_info = inp_flatten[:,-1:]
-                print(reach_info.shape)
-                inp_flatten = inp_flatten[:,:-1]
-                inp_flatten = np.reshape(inp_flatten, (-1,(time_step-1),int(vert_img_hgt * 1)))
-                inp_flatten = np.concatenate((inp_flatten[:,:,0],reach_info))
-                print(inp_flatten[0:prin_count,:,:])
                 print(asd) """
 
                 if inp_mode == 'act' and flag_standardize_actual == True :
@@ -1357,13 +1347,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
             train_losses.append(avg_epoch_loss.item())
 
             if epoch == 0 :
-                if model_type == 'ANN' :
-                    writer.add_graph(model, inp_flatten)
-                elif model_type == 'LSTM' :
-                    #inp_flatten = inp_flatten[:,:-1]
-                    #inp_flatten = torch.reshape(inp_flatten, (-1,(time_step-1),int(vert_img_hgt * 1)))
-                    #writer.add_graph(model, inp_flatten)
-                    pass
+                writer.add_graph(model, inp_flatten)
 
             if epoch % log_hist == log_hist-1:
                 for name, param in model.named_parameters():
@@ -1683,37 +1667,32 @@ if __name__ == "__main__":
     #strt_list = [22,15,10,5,0]
 
     #for k in range(len(strt_list)) :
-    cross_val_nums = 1
+    cross_val_nums = 5
     #last validation index starting from end
     val_split_org = 3
     val_skip = val_split_org - 1
-    tm_stp=5
-
-    strt=0
-    change_start = False
-    
+    tm_stp=3
+    strt=24
     get_train_mae = 5
-    lr_pow=-3.5
+    lr_pow=-3.0
     #ad_pow=1*(10**-1.0)
     ad_pow=0
     vert_hgt=1
     vert_step_num=1
-    vert_out_one = True
-    num_epochs=50
+    num_epochs=30
     lstm_layers=1
-    lstm_hidden_units=50
-    batch_size= 32
+    lstm_hidden_units=30
+    batch_size= 256
     inp_bnk='right'
     out_bnk='right'
     model_optim='SGD'
     loss_func='mse_loss'
-    output_subtracted = True
+    output_subtracted = False
     train_shuffle = True
     train_val_gap = False
-    model_type = 'ANN'
 
-    #load_models_list = ['Oct02_13-39-46_DESKTOP-8SUO90F','Oct02_13-51-52_DESKTOP-8SUO90F',
-    #    'Oct02_13-57-44_DESKTOP-8SUO90F','Oct02_14-03-32_DESKTOP-8SUO90F','Oct02_14-09-18_DESKTOP-8SUO90F']
+    load_models_list = ['Oct02_00-09-56_DESKTOP-8SUO90F','Oct02_00-13-09_DESKTOP-8SUO90F',
+        'Oct02_00-16-10_DESKTOP-8SUO90F','Oct02_00-19-16_DESKTOP-8SUO90F','Oct02_00-22-17_DESKTOP-8SUO90F']
 
     crs_train_ls = []
     crs_val_ls = []
@@ -1725,8 +1704,8 @@ if __name__ == "__main__":
         val_split = val_split_org + (tm_stp - 2)
 
         model_name, train_losses, val_losses, train_maes, val_maes, hparam_def = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=num_epochs,train_shuffle=train_shuffle,
-        get_train_mae=get_train_mae,lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,model_type=model_type,
-        model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=False,load_file=None,skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap)
+        get_train_mae=get_train_mae,lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,
+        model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=True,load_file=None,skip_training=load_models_list[i],output_subtracted=output_subtracted,train_val_gap=train_val_gap)
 
         crs_train_ls.append(train_losses)
         crs_val_ls.append(val_losses)
@@ -1734,15 +1713,14 @@ if __name__ == "__main__":
         crs_val_maes.append(val_maes)
 
         _, _, _, _, test_val_maes, _ = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=1,train_shuffle=train_shuffle,get_train_mae=get_train_mae,
-            lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split-1,val_skip=val_skip-1,model_type=model_type,
+            lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split-1,val_skip=val_skip-1,
             model_optim=model_optim,loss_func=loss_func,save_mod=False,load_mod=True,load_file=model_name,skip_training=True,output_subtracted=output_subtracted,train_val_gap=train_val_gap)
         
         crs_test_maes.append(test_val_maes)
 
         val_split_org = val_split_org + 1
         val_skip = val_split_org - 1
-        if change_start == True :
-            strt = strt - 1
+        strt = strt - 1
         #print(asd)
 
     #print(crs_train_maes)

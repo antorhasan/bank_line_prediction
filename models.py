@@ -187,20 +187,21 @@ class CNN_Model(nn.Module):
 
 
 
-class Baseline_Model(nn.Module):
+class Baseline_LSTM_Model(nn.Module):
     def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,
                     inp_lr_flag, lf_rt_tag, lstm_hidden_units):
-        super(Baseline_Model, self).__init__()
+        super(Baseline_LSTM_Model, self).__init__()
         self.vert_img_hgt = vert_img_hgt
 
         self.lstm_dropout = 0
         self.device = 'cuda'
         self.batch_size = batch_size
-        self.val_batch_size = val_batch_size
+        self.val_batch_size = 1
         self.time_step = time_step
         self.num_lstm_layers = num_lstm_layers
         self.drop_out = drop_out
         self.lstm_hidden_units = lstm_hidden_units
+        self.flag_batch_norm = True
         
         
         #self.conv1 = nn.Conv2d(1,1,(3,1), padding=0)
@@ -214,7 +215,7 @@ class Baseline_Model(nn.Module):
         elif inp_lr_flag == 'both' :
             self.inp_num = 2
 
-        self.lstm = nn.LSTM( (vert_img_hgt *self.inp_num), self.lstm_hidden_units, num_layers=num_lstm_layers,dropout=self.lstm_dropout,batch_first=True)
+        self.lstm = nn.LSTM( ((vert_img_hgt *self.inp_num)+1), self.lstm_hidden_units, num_layers=num_lstm_layers,dropout=self.lstm_dropout,batch_first=True)
         
         if lf_rt_tag == 'left' or lf_rt_tag == 'right' :
             output_num = 1
@@ -222,54 +223,105 @@ class Baseline_Model(nn.Module):
             output_num = 2
         
         
+        self.fc2 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm2 = nn.BatchNorm1d(self.lstm_hidden_units)
+
+        self.fc3 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm3 = nn.BatchNorm1d(self.lstm_hidden_units)
+        
+        self.fc4 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm4 = nn.BatchNorm1d(self.lstm_hidden_units)
+
+        self.fc5 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm5 = nn.BatchNorm1d(self.lstm_hidden_units)
+
+        self.fc6 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm6 = nn.BatchNorm1d(self.lstm_hidden_units)
+
+        self.fc7 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm7 = nn.BatchNorm1d(self.lstm_hidden_units)
+
         #self.dropout1 = nn.Dropout(self.drop_out[10])
         self.fc1 = nn.Linear(self.lstm_hidden_units,(vert_img_hgt *output_num))
+
         #self.dropout2 = nn.Dropout(self.drop_out[11])
         #self.fc2 = nn.Linear(int(self.lstm_hidden_units/2), (vert_img_hgt *output_num))
         #self.fc3 = nn.Linear(100,100)
         #self.fc4 = nn.Linear(100,output_num)
 
     def forward(self, inputs):
-        #inputs = torch.reshape(inputs, (-1, self.vert_img_hgt, 2))
-
-        #x = torch.reshape(inputs, (-1, 1, self.vert_img_hgt, 1))
-
-        #print(x.size())
-        
-
-        #x = F.relu(self.conv1(x))
-        #x = F.relu(self.conv2(x))
-        #x = F.relu(self.conv3(x))
-        
-        #print(list(x.size()))
-        #print(asd)
-        #lstm_num_features = list(x.size())[2]
+        #print(inputs)
+        reach_info = inputs[:,-1:]
+        #print(reach_info)
+        inputs = inputs[:,:-1]
 
         #x = torch.reshape(x, (-1,(self.time_step-1),int(lstm_num_features) ))
         x = torch.reshape(inputs, (-1,(self.time_step-1),int(self.vert_img_hgt * self.inp_num)))
-        #print(x.size())
-        #print(asd)
-        if self.training:
+        reach_info = torch.reshape(reach_info, (-1,1,1))
+        reach_info = reach_info.expand(-1,(self.time_step-1),1)
+        x = torch.cat((x,reach_info), 2)
+        """ print(x)
+        print(reach_info)
+        print(x.size())
+        print(asd) """
+        """ if self.training:
             
             h0 = torch.zeros((self.num_lstm_layers, self.batch_size, self.lstm_hidden_units),device=self.device)
             c0 = torch.zeros((self.num_lstm_layers, self.batch_size, self.lstm_hidden_units),device=self.device)
         else:
             h0 = torch.zeros((self.num_lstm_layers, self.val_batch_size, self.lstm_hidden_units),device=self.device)
-            c0 = torch.zeros((self.num_lstm_layers, self.val_batch_size, self.lstm_hidden_units),device=self.device)
+            c0 = torch.zeros((self.num_lstm_layers, self.val_batch_size, self.lstm_hidden_units),device=self.device) """
 
         
-        _, (x, _) = self.lstm(x, (h0, c0))
+        _, (x, _) = self.lstm(x)
         x = x[-1,:,:]
         #print(hn.size())
         #output = output[:,-1,:]
         #print(output)
         #print(asd)
+        #print(x.size())
+        #print(asd)
         if self.training:
-            x = torch.reshape(x, (self.batch_size, self.lstm_hidden_units))
+            x = torch.reshape(x, (-1, self.lstm_hidden_units))
         else:
-            x = torch.reshape(x, (self.val_batch_size, self.lstm_hidden_units))
+            x = torch.reshape(x, (-1, self.lstm_hidden_units))
+        #print(x.size())
+        #print(asd)
+        x = self.fc2(x)
+        if self.flag_batch_norm == True :
+            x = self.batch_norm2(x)
+        x = F.relu(x)
 
-        
+        x = self.fc3(x)
+        if self.flag_batch_norm == True :
+            x = self.batch_norm3(x)
+        x = F.relu(x)
+
+        x = self.fc4(x)
+        if self.flag_batch_norm == True :
+            x = self.batch_norm4(x)
+        x = F.relu(x)
+
+        x = self.fc5(x)
+        if self.flag_batch_norm == True :
+            x = self.batch_norm5(x)
+        x = F.relu(x)
+
+        x = self.fc6(x)
+        if self.flag_batch_norm == True :
+            x = self.batch_norm6(x)
+        x = F.relu(x)
+
+        x = self.fc7(x)
+        if self.flag_batch_norm == True :
+            x = self.batch_norm7(x)
+        x = F.relu(x)
         #x = self.dropout1(hn)
         x = self.fc1(x)
         #print(x.size())
@@ -316,7 +368,10 @@ class Baseline_ANN_Model(nn.Module):
             output_num = 2
         
         if flag_reach_use == True :
-            input_layer_size = int(self.vert_img_hgt * (((self.time_step - 1) * self.inp_num) + 1))
+            if vert_img_hgt > 1 :
+                input_layer_size = int((self.vert_img_hgt * ((self.time_step - 1) * self.inp_num))+1)
+            elif vert_img_hgt == 1 :
+                input_layer_size = int(self.vert_img_hgt * (((self.time_step - 1) * self.inp_num) + 1))
         elif flag_reach_use == False :
             input_layer_size = int(self.vert_img_hgt * ((self.time_step - 1) * self.inp_num))
         #self.dropout1 = nn.Dropout(self.drop_out[10])
@@ -343,15 +398,15 @@ class Baseline_ANN_Model(nn.Module):
         if self.flag_batch_norm == True :
             self.batch_norm5 = nn.BatchNorm1d(self.lstm_hidden_units)
 
-        self.fc6 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        """ self.fc6 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
         if self.flag_batch_norm == True :
             self.batch_norm6 = nn.BatchNorm1d(self.lstm_hidden_units)
 
         self.fc7 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
         if self.flag_batch_norm == True :
-            self.batch_norm7 = nn.BatchNorm1d(self.lstm_hidden_units)
+            self.batch_norm7 = nn.BatchNorm1d(self.lstm_hidden_units) """
 
-        self.fc8 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        """ self.fc8 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
         if self.flag_batch_norm == True :
             self.batch_norm8 = nn.BatchNorm1d(self.lstm_hidden_units)
         
@@ -361,9 +416,9 @@ class Baseline_ANN_Model(nn.Module):
 
         self.fc10 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
         if self.flag_batch_norm == True :
-            self.batch_norm10 = nn.BatchNorm1d(self.lstm_hidden_units)
+            self.batch_norm10 = nn.BatchNorm1d(self.lstm_hidden_units) """
         
-        self.fc11 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        """ self.fc11 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
         if self.flag_batch_norm == True :
             self.batch_norm11 = nn.BatchNorm1d(self.lstm_hidden_units) 
 
@@ -377,9 +432,9 @@ class Baseline_ANN_Model(nn.Module):
 
         self.fc14 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
         if self.flag_batch_norm == True :
-            self.batch_norm14 = nn.BatchNorm1d(self.lstm_hidden_units)
+            self.batch_norm14 = nn.BatchNorm1d(self.lstm_hidden_units) """
         
-        self.fc15 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        """ self.fc15 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
         if self.flag_batch_norm == True :
             self.batch_norm15 = nn.BatchNorm1d(self.lstm_hidden_units)
 
@@ -387,7 +442,7 @@ class Baseline_ANN_Model(nn.Module):
         if self.flag_batch_norm == True :
             self.batch_norm16 = nn.BatchNorm1d(self.lstm_hidden_units)
         
-        """self.fc17 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        self.fc17 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
         if self.flag_batch_norm == True :
             self.batch_norm17 = nn.BatchNorm1d(self.lstm_hidden_units)
         
@@ -397,13 +452,13 @@ class Baseline_ANN_Model(nn.Module):
         
         self.fc19 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
         if self.flag_batch_norm == True :
-            self.batch_norm19 = nn.BatchNorm1d(self.lstm_hidden_units)
+            self.batch_norm19 = nn.BatchNorm1d(self.lstm_hidden_units) """
 
-        self.fc20 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        """ self.fc20 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
         if self.flag_batch_norm == True :
-            self.batch_norm20 = nn.BatchNorm1d(self.lstm_hidden_units) """
+            self.batch_norm20 = nn.BatchNorm1d(self.lstm_hidden_units)
         
-        """ self.fc21 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
+        self.fc21 = nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)
         if self.flag_batch_norm == True :
             self.batch_norm21 = nn.BatchNorm1d(self.lstm_hidden_units)
         
@@ -530,7 +585,7 @@ class Baseline_ANN_Model(nn.Module):
             x = self.batch_norm5(x)
         x = F.relu(x)
 
-        x = self.fc6(x)
+        """ x = self.fc6(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm6(x)
         x = F.relu(x)
@@ -538,9 +593,9 @@ class Baseline_ANN_Model(nn.Module):
         x = self.fc7(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm7(x)
-        x = F.relu(x)
+        x = F.relu(x) """
 
-        x = self.fc8(x)
+        """ x = self.fc8(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm8(x)
         x = F.relu(x)
@@ -553,9 +608,9 @@ class Baseline_ANN_Model(nn.Module):
         x = self.fc10(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm10(x)
-        x = F.relu(x)
+        x = F.relu(x) """
 
-        x = self.fc11(x)
+        """ x = self.fc11(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm11(x)
         x = F.relu(x) 
@@ -578,14 +633,14 @@ class Baseline_ANN_Model(nn.Module):
         x = self.fc15(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm15(x)
-        x = F.relu(x)
+        x = F.relu(x) """
 
-        x = self.fc16(x)
+        """ x = self.fc16(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm16(x)
         x = F.relu(x)
 
-        """ x = self.fc17(x)
+        x = self.fc17(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm17(x)
         x = F.relu(x)
@@ -603,14 +658,14 @@ class Baseline_ANN_Model(nn.Module):
         x = self.fc20(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm20(x)
-        x = F.relu(x)
-
-        x = self.fc21(x)
-        if self.flag_batch_norm == True :
-            x = self.batch_norm21(x)
         x = F.relu(x) """
 
-        """ x = self.fc22(x)
+        """ x = self.fc21(x)
+        if self.flag_batch_norm == True :
+            x = self.batch_norm21(x)
+        x = F.relu(x)
+
+        x = self.fc22(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm22(x)
         x = F.relu(x)
