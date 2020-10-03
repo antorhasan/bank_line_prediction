@@ -10,7 +10,7 @@ from os.path import isfile, join
 import os
 import sys
 from torch.utils.tensorboard import SummaryWriter
-from models import CNN_Model,Baseline_ANN_Model,Baseline_LSTM_Model
+from models import CNN_Model,Baseline_ANN_Model,Baseline_LSTM_Model,Baseline_ANN_Dynamic_Model
 from sklearn.metrics import mean_absolute_error, precision_score, recall_score, confusion_matrix, f1_score
 from sklearn.preprocessing import OneHotEncoder
 import matplotlib.pyplot as plt
@@ -397,6 +397,7 @@ def wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids,writ
 
 
     num_rows = int(pred_list.shape[0])
+    print(num_rows)
 
     actual_ers_lft = np.reshape(np.where(actual_list[:,iter_num,0]<prev_actual_list[:,iter_num,0], 1, 0),(actual_list[:,iter_num,0].shape[0],1))
     actual_ers_rht = np.reshape(np.where(actual_list[:,iter_num,1]>prev_actual_list[:,iter_num,1], 1, 0),(actual_list[:,iter_num,1].shape[0],1))
@@ -495,7 +496,7 @@ def wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids,writ
     writer.add_image(str(val_img_ids[iter_num]), img, dataformats='HWC')
     return combined_conf
 
-def process_prev(arr_list, num_val_img,prev_year_ids,prev_reach_ids,vert_img_hgt,inp_mode,
+def process_prev(arr_list, num_val_img,prev_year_ids,prev_reach_ids,vert_img_hgt,vert_step,inp_mode,
                 flag_standardize_actual,transform_constants):
     
     """ if inp_mode  == 'act_sdd' :
@@ -506,20 +507,44 @@ def process_prev(arr_list, num_val_img,prev_year_ids,prev_reach_ids,vert_img_hgt
         inp_std = act_sdd_constants['inp_std'] """
 
 
+    
+
+    #print(arr_list.shape)
+    #print(arr_list[0:10,:,:,:])
+    
+    #print(arr_list[:,0:10,:,:])
+    #print(arr_list.shape)
+    
+    
+    #total_rows = int(arr_list.shape[0] * arr_list.shape[1] * arr_list.shape[2])
+    #btach_n_iter = int(arr_list.shape[0] * arr_list.shape[1])
+    #num_rows_per_img = int(total_rows/num_val_img)
+    #arr_list = np.reshape(arr_list, (btach_n_iter,vert_img_hgt,2))
     arr_list = np.asarray(arr_list)
-    
-    total_rows = int(arr_list.shape[0] * arr_list.shape[1] * arr_list.shape[2])
-    btach_n_iter = int(arr_list.shape[0] * arr_list.shape[1])
-    num_rows_per_img = int(total_rows/num_val_img)
-    arr_list = np.reshape(arr_list, (btach_n_iter,vert_img_hgt,2))
+    arr_list = np.transpose(arr_list,[1,0,2,3])
+    total_rows = int(arr_list.shape[1] * arr_list.shape[2])
+    arr_list = np.reshape(arr_list, (num_val_img,total_rows,2))
+    arr_list = np.transpose(arr_list,[1,0,2])
 
-    
-
+    #print(arr_list.shape)
+    #print(asd)
     prev_year_ids = np.asarray(prev_year_ids)
-    prev_year_ids = np.reshape(prev_year_ids, (btach_n_iter,vert_img_hgt,1))
+    prev_year_ids = np.transpose(prev_year_ids,[1,0,2,3])
+    prev_year_ids = np.reshape(prev_year_ids, (num_val_img,total_rows,1))
+    prev_year_ids = np.transpose(prev_year_ids,[1,0,2])
+    #prev_year_ids = np.reshape(prev_year_ids, (total_rows,num_val_img,1))
+    #print(prev_year_ids.shape)
+    #print(asd)
 
     prev_reach_ids = np.asarray(prev_reach_ids)
-    prev_reach_ids = np.reshape(prev_reach_ids, (btach_n_iter,vert_img_hgt,1))
+    prev_reach_ids = np.transpose(prev_reach_ids,[1,0,2,3])
+    prev_reach_ids = np.reshape(prev_reach_ids, (num_val_img,total_rows,1))
+    prev_reach_ids = np.transpose(prev_reach_ids,[1,0,2])
+    #prev_reach_ids = np.reshape(prev_reach_ids, (total_rows,num_val_img,1))
+
+    #print(prev_reach_ids.shape)
+    #print(asd)
+
 
     """ if inp_mode == 'act_sdd' :
         for i in range(arr_list.shape[0]):
@@ -539,7 +564,7 @@ def process_prev(arr_list, num_val_img,prev_year_ids,prev_reach_ids,vert_img_hgt
     prev_reach_ids = np.transpose(prev_reach_ids,[1,0,2]) """
 
     #arr_list = np.reshape(arr_list, (num_val_img,num_rows_per_img,2),order='F')
-    arr_list = np.reshape(arr_list, (num_rows_per_img,num_val_img,2))
+    #arr_list = np.reshape(arr_list, (total_rows,num_val_img,2))
 
     #print(arr_list)
     #print(asd)
@@ -547,6 +572,14 @@ def process_prev(arr_list, num_val_img,prev_year_ids,prev_reach_ids,vert_img_hgt
     #arr_list = np.transpose(arr_list,[1,0,2])
     #print(arr_list.shape)
     #print(asd)
+
+    """ if output_subtracted == True:
+        arr_list = np.add(arr_list,prev_actual_list)
+    elif output_subtracted == False :
+        #print(arr_list.shape)
+        #arr_list[:,:,0] = 
+        pass """
+
 
     return arr_list
 
@@ -562,22 +595,27 @@ def process_diffs(arr_list, num_val_img, prev_actual_list,act_year_ids,act_reach
 
     #flag_standardize_actual = output_subtracted
 
-    if out_mode == 'act' and flag_standardize_actual == True:
+    """ if out_mode == 'act' and flag_standardize_actual == True:
         out_mean = transform_constants['out_mean']
-        out_std = transform_constants['out_std']
+        out_std = transform_constants['out_std'] """
 
 
-    arr_list = np.asarray(arr_list)
-    total_rows = int(arr_list.shape[0] * arr_list.shape[1] * arr_list.shape[2])
+    """ total_rows = int(arr_list.shape[0] * arr_list.shape[1] * arr_list.shape[2])
     btach_n_iter = int(arr_list.shape[0] * arr_list.shape[1])
     num_rows_per_img = int(total_rows/num_val_img)
-    arr_list = np.reshape(arr_list, (btach_n_iter,vert_img_hgt,2))
+    arr_list = np.reshape(arr_list, (btach_n_iter,vert_img_hgt,2)) """
+    arr_list = np.asarray(arr_list)
+    arr_list = np.transpose(arr_list,[1,0,2,3])
+    total_rows = int(arr_list.shape[1] * arr_list.shape[2])
+    arr_list = np.reshape(arr_list, (num_val_img,total_rows,2))
+    arr_list = np.transpose(arr_list,[1,0,2])
+    #print(asd)
 
-    act_year_ids = np.asarray(act_year_ids)
+    """ act_year_ids = np.asarray(act_year_ids)
     act_year_ids = np.reshape(act_year_ids, (btach_n_iter,vert_img_hgt,1))
 
     act_reach_ids = np.asarray(act_reach_ids)
-    act_reach_ids = np.reshape(act_reach_ids, (btach_n_iter,vert_img_hgt,1))
+    act_reach_ids = np.reshape(act_reach_ids, (btach_n_iter,vert_img_hgt,1)) """
 
     """ if out_mode == 'diff_sdd' or out_mode == 'act_sdd' :
         for i in range(arr_list.shape[0]):
@@ -589,7 +627,7 @@ def process_diffs(arr_list, num_val_img, prev_actual_list,act_year_ids,act_reach
     #print(arr_list.shape)
 
     
-    if out_mode == 'act' and flag_standardize_actual == True :
+    """ if out_mode == 'act' and flag_standardize_actual == True :
         out_mean = np.reshape(out_mean,(vert_img_hgt,1))
         out_std = np.reshape(out_std,(vert_img_hgt,1))
         #for i in range(arr_list.shape[0]):
@@ -597,7 +635,7 @@ def process_diffs(arr_list, num_val_img, prev_actual_list,act_year_ids,act_reach
         #        arr_list[i,j,:] = np.add(np.multiply(arr_list[i,j,:], out_std), out_mean)
 
         for i in range(arr_list.shape[0]):
-            arr_list[i,:,:] = np.add(np.multiply(arr_list[i,:,:], out_std), out_mean)
+            arr_list[i,:,:] = np.add(np.multiply(arr_list[i,:,:], out_std), out_mean) """
 
 
     #print(asd)
@@ -610,8 +648,22 @@ def process_diffs(arr_list, num_val_img, prev_actual_list,act_year_ids,act_reach
 
     #arr_list = np.reshape(arr_list, (num_val_img,num_rows_per_img,2),order='F')
     #arr_list = np.transpose(arr_list,[1,0,2])
-    arr_list = np.reshape(arr_list, (num_rows_per_img,num_val_img,2))
+    #arr_list = np.reshape(arr_list, (num_rows_per_img,num_val_img,2))
     #arr_list = np.transpose(arr_list,[1,0,2])
+
+    act_year_ids = np.asarray(act_year_ids)
+    act_year_ids = np.transpose(act_year_ids,[1,0,2,3])
+    act_year_ids = np.reshape(act_year_ids, (num_val_img,total_rows,1))
+    act_year_ids = np.transpose(act_year_ids,[1,0,2])
+    #prev_year_ids = np.reshape(prev_year_ids, (total_rows,num_val_img,1))
+    #print(prev_year_ids.shape)
+    #print(asd)
+
+    act_reach_ids = np.asarray(act_reach_ids)
+    act_reach_ids = np.transpose(act_reach_ids,[1,0,2,3])
+    act_reach_ids = np.reshape(act_reach_ids, (num_val_img,total_rows,1))
+    act_reach_ids = np.transpose(act_reach_ids,[1,0,2])
+
 
 
     if out_mode == 'diff_sdd' or (out_mode=='act' and output_subtracted == True):
@@ -758,7 +810,7 @@ def process_tf_dataset(input_tensor_org, year_id, reach_id, sdd_output,inp_mode,
     
     #print(inp_flatten[0:20,:])
     #print(asd)
-    return inp_flatten, out_flatten
+    return inp_flatten, out_flatten, input_tensor, sdd_output
 
 
 
@@ -770,9 +822,22 @@ def custom_mean_sdd(dataset_f,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_stan
 
     prox_counter = 0
     for input_tensor_org, year_id, reach_id, _, sdd_output in dataset_f:
-        
-        inp_flatten, out_flatten = process_tf_dataset(input_tensor_org, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
+
+
+        inp_flatten, out_flatten, inp_tensor, out_tensor = process_tf_dataset(input_tensor_org, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
             out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted)
+
+        if prox_counter == 0 :
+        
+            prin_count = 5
+            print('batch,time_step,vert_hgt,banks format input/output view ........')
+            print(inp_tensor[0:prin_count,:,:,:])
+            print(out_tensor[0:prin_count,:,:,:])
+            print('flatten input/output view ............')
+            print(inp_flatten[0:prin_count,:])
+            print(out_flatten[0:prin_count,:])
+
+            #print(asd) 
 
         inp_list.append(inp_flatten)
         out_list.append(out_flatten)
@@ -792,9 +857,8 @@ def custom_mean_sdd(dataset_f,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_stan
     #print(out_list[0:4,:])
     #print(inp_list.shape)
     #print(out_list.shape)
-    
-    
     #print(asd)
+
     inp_list_mean = np.mean(inp_list,axis=0)
     inp_list_std = np.std(inp_list,axis=0)
 
@@ -817,30 +881,14 @@ def train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,fla
 
     pred_list = []
     actual_list = []
-    #prev_actual_list = []
-    """ prev_reach_ids = []
-    prev_year_ids = []
-    act_reach_ids = []
-    act_year_ids = [] """
-    #model.eval()
+    
+    model.eval()
     with torch.no_grad():
         for inp_flatten_org, year_id, reach_id, _, sdd_output in dataset_tr_pr:
-            """ year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
-            reach_id = np.reshape(reach_id, (batch_size,time_step,vert_img_hgt,1))
-            for i in range(year_id.shape[0]):
-                print(year_id[i,:,:,:])
-                print(reach_id[i,:,:,:])
-                print(inp_flatten_org[i,:,:,:])
 
-            print(asd) """
-            
-            inp_flatten_org, out_flatten = process_tf_dataset(inp_flatten_org, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
+            inp_flatten_org, out_flatten,_,_ = process_tf_dataset(inp_flatten_org, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
                 out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted)
 
-            """ prin_count = 30
-            print(inp_flatten_org[0:prin_count,:])
-            print(out_flatten[0:prin_count,:])
-            print(asd) """
 
             if (inp_mode == 'act') and (flag_standardize_actual == True) :
                 inp_flatten = (inp_flatten_org - inp_mean) / inp_std 
@@ -849,17 +897,6 @@ def train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,fla
             inp_flatten = torch.Tensor(inp_flatten).cuda()                
             #out_flatten = torch.Tensor(out_flatten).cuda()
             pred = model(inp_flatten)
-
-            """ if loss_func == 'l1_loss' :
-                loss = F.l1_loss(pred, out_flatten,reduction='mean')
-            elif loss_func == 'mse_loss' :
-                loss = F.mse_loss(pred, out_flatten,reduction='mean')
-            elif loss_func == 'huber_loss' :
-                loss = F.smooth_l1_loss(pred, out_flatten,reduction='mean') """
-
-
-            #val_epoch_loss = val_epoch_loss+loss
-            #counter_val += 1
 
                 
             if flag_reach_use == True :
@@ -877,53 +914,8 @@ def train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,fla
             elif flag_reach_use == False :
                 prev_inp_flatten = inp_flatten_org[:,-1]
 
-            
-
-            #out_flatten = out_flatten.cpu()
-            #out_flatten = out_flatten.numpy()
-
             pred_np = pred.cpu()
-            pred_np = pred_np.numpy()
-
-            #year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
-            #reach_id = np.reshape(reach_id, (batch_size,time_step,vert_img_hgt,1))
-
-            """ year_id_prev = year_id[:,time_step-2:time_step-1,:,:]
-            reach_id_prev = reach_id[:,time_step-2:time_step-1,:,:]
-            year_id_act = year_id[:,time_step-1:time_step,:,:]
-            reach_id_act = reach_id[:,time_step-1:time_step,:,:] """
-
-            """ if out_lr_tag == 'left' or out_lr_tag == 'right':
-                val_extra_dim = 1
-            elif out_lr_tag == 'both' :
-                val_extra_dim = 2
-
-            prev_time_step = np.reshape(prev_inp_flatten,(batch_size,-1,val_extra_dim))
-            year_id_prev = np.reshape(year_id_prev,(batch_size,-1,1))
-            reach_id_prev = np.reshape(reach_id_prev,(batch_size,-1,1))
-            year_id_act = np.reshape(year_id_act,(batch_size,-1,1))
-            reach_id_act = np.reshape(reach_id_act,(batch_size,-1,1)) """
-
-
-            """ out_flatten = np.reshape(out_flatten,(batch_size,-1,val_extra_dim))
-            pred_np = np.reshape(pred_np,(batch_size,-1,val_extra_dim))
-
-            prev_year_ids.append(year_id_prev)
-            prev_reach_ids.append(reach_id_prev)
-            act_year_ids.append(year_id_act)
-            act_reach_ids.append(reach_id_act)
-
-            if out_lr_tag == 'left' :
-                np_zero = np.zeros((batch_size,vert_img_hgt,val_extra_dim))
-                prev_time_step = np.concatenate((prev_time_step,np_zero),axis=2) 
-                out_flatten = np.concatenate((out_flatten,np_zero),axis=2)
-                pred_np = np.concatenate((pred_np,np_zero),axis=2)
-            elif out_lr_tag == 'right' :
-                np_zero = np.zeros((batch_size,vert_img_hgt,val_extra_dim))
-                prev_time_step = np.concatenate((np_zero,prev_time_step),axis=2) 
-                out_flatten = np.concatenate((np_zero,out_flatten),axis=2)
-                pred_np = np.concatenate((np_zero,pred_np),axis=2) """
-            
+            pred_np = pred_np.numpy()            
 
             if output_subtracted == True :
                 out_flatten = np.add(out_flatten,prev_inp_flatten)
@@ -936,39 +928,76 @@ def train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,fla
             actual_list.append(out_flatten)
             pred_list.append(pred_np)
 
-            """ print(prev_inp_flatten[0:30,:])
-            print(out_flatten[0:30,:])
-            print(pred_np[0:30,:])
-            print(asd) """
-
-
-        """ prev_actual_list = process_prev(prev_actual_list,num_val_img,prev_year_ids,prev_reach_ids,vert_img_hgt,inp_mode,flag_standardize_actual,transform_constants)
-        actual_list = process_diffs(actual_list,num_val_img, prev_actual_list,act_year_ids,act_reach_ids,vert_img_hgt,out_mode,flag_standardize_actual,transform_constants)
-        pred_list = process_diffs(pred_list,num_val_img, prev_actual_list,act_year_ids,act_reach_ids,vert_img_hgt,out_mode,flag_standardize_actual,transform_constants) """
-
-
 
         actual_list = np.asarray(actual_list)
         pred_list = np.asarray(pred_list)
         actual_list = np.reshape(actual_list,(actual_list.shape[0]*actual_list.shape[1],-1))
         pred_list = np.reshape(pred_list,(pred_list.shape[0]*pred_list.shape[1],-1))
 
-        #actual_list = np.add(np.multiply(actual_list,out_std),out_mean)
-
-
-        """ print(actual_list[0:30,:])
-        print(pred_list[0:30,:]) """
         train_mae = np.mean(np.absolute(actual_list-pred_list))
-        """ print(train_mae)
-        print(asd) """
+        
         return train_mae
 
+def create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
+            vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle):
+
+    dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(0)+'_'+str(5)+'.tfrecords'))
+
+    dataset_f = dataset_f.window(size=data_div_step, shift=total_time_step, stride=1, drop_remainder=False)
+    dataset_f = dataset_f.map(lambda x: x.skip(start_indx))
+
+    dataset_f = dataset_f.window(size=reach_win_size, shift=reach_shift_cons, stride=1, drop_remainder=False)
+    dataset_f = dataset_f.map(lambda x: x.skip(reach_start_indx))
+    dataset_f = dataset_f.flat_map(lambda x: x)
+
+    dataset_f = dataset_f.window(size=vert_img_hgt, shift=vert_step, stride=vert_step,drop_remainder=True)
+    dataset_f = dataset_f.map(lambda x: x.flat_map(lambda x1: x1))
+    dataset_f = dataset_f.map(lambda x: x.window(size=vert_img_hgt,shift=1,stride=end_indx-start_indx+1,drop_remainder=True))
+    dataset_f = dataset_f.map(lambda x: x.window(size=time_step, shift=time_win_shift, stride=1,drop_remainder=True))
+    dataset_f = dataset_f.flat_map(lambda x: x)
+    dataset_f = dataset_f.flat_map(lambda x: x.flat_map(lambda x1: x1))
+
+    dataset_f = dataset_f.map(_parse_function_org_).batch(vert_img_hgt).batch(time_step)
     
+    if train_shuffle == True :
+        dataset_f = dataset_f.shuffle(50000, reshuffle_each_iteration=True)
+    elif train_shuffle == False :
+        pass
+    dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
+
+    return dataset_f
+
+def create_val_dataset(total_time_step,val_split,val_skip,reach_win_size,reach_shift_cons,reach_start_indx,vert_img_hgt,vert_step,
+        val_img_range,time_step,val_batch_size):
+
+    dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(0)+'_'+str(5)+'.tfrecords'))
+    
+    dataseti1 = dataseti1.window(size=total_time_step, shift=total_time_step, stride=1, drop_remainder=False)
+    dataseti1 = dataseti1.map(lambda x: x.skip(total_time_step-(val_split+1)))
+    dataseti1 = dataseti1.map(lambda x: x.take(val_split-val_skip+1))
+    
+    dataseti1 = dataseti1.window(size=reach_win_size, shift=reach_shift_cons, stride=1, drop_remainder=False)
+    dataseti1 = dataseti1.map(lambda x: x.skip(reach_start_indx))
+    dataseti1 = dataseti1.flat_map(lambda x: x)
+
+    dataseti1 = dataseti1.window(size=vert_img_hgt, shift=vert_step, stride=1,drop_remainder=True)
+    dataseti1 = dataseti1.map(lambda x: x.flat_map(lambda x1: x1))
+    dataseti1 = dataseti1.map(lambda x: x.window(size=vert_img_hgt,shift=1,stride=val_img_range,drop_remainder=True))
+    dataseti1 = dataseti1.map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
+    dataseti1 = dataseti1.flat_map(lambda x: x)
+    dataseti1 = dataseti1.flat_map(lambda x: x.flat_map(lambda x1: x1))
+
+    dataseti1 = dataseti1.map(_parse_function_org_).batch(vert_img_hgt).batch(time_step)
+
+    dataseti1 = dataseti1.batch(val_batch_size, drop_remainder=True)
+
+    return dataseti1
+
 
 
 
 def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,train_shuffle,get_train_mae,
-                lstm_layers,lstm_hidden_units,batch_size,inp_bnk,out_bnk,val_split,val_skip,model_type,
+                lstm_layers,lstm_hidden_units,batch_size,inp_bnk,out_bnk,val_split,val_skip,model_type,num_layers,
                 model_optim,loss_func,save_mod,load_mod,load_file,skip_training,output_subtracted,train_val_gap):
     
     load_mod = load_mod
@@ -988,7 +1017,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     #model_type = 'CNN_Model_dropout_reg'
     wgt_seed_flag = True
     val_skip = val_skip
-    
+    #print(val_skip)
 
     model_optim = model_optim
     
@@ -1023,23 +1052,25 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     val_split = val_split
     
     val_numbers_id = (val_split+1) - (time_step-1)
-    """ print(val_numbers_id)
-    print(val_skip) """
+    print(val_numbers_id)
+    print(val_skip)
+    
     if (skip_training == False) and (val_skip == 0) :
         val_img_ids = val_img_ids[-(val_numbers_id):]
     elif skip_training == False :
         val_img_ids = val_img_ids[-(val_numbers_id):-(val_skip)]
-    elif skip_training == True and (val_skip == 0):
+    elif (skip_training == True) and (val_skip == 0):
         val_img_ids = val_img_ids[-(val_numbers_id):]
-    elif skip_training == True :
+    elif (skip_training == True) and (val_skip > 0):
         val_img_ids = val_img_ids[-(val_numbers_id):-(val_skip)]
 
 
-    #print(val_img_ids)
+    print(val_img_ids)
     #print(asd)
     total_time_step = 33    ###number of total year images
     num_val_img = len(val_img_ids)
-    #print(num_val_img)
+    print('number of val images.')
+    print(num_val_img)
     #print(asd)
     val_batch_size = num_val_img
 
@@ -1060,6 +1091,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     adm_wd = ad_pow
     #adm_wd = 0
     val_img_range = time_step+num_val_img-1
+    print(val_img_range)
     #output_vert_indx = int((vert_img_hgt-1)/2)
     time_win_shift = 1
 
@@ -1134,108 +1166,43 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         output_mode = out_mode,
         flag_reach_use = flag_reach_use,
         loss_function = loss_func,
+        num_layers = num_layers
         )
 
 
-    if inp_mode == 'act_sdd' :
-        dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_sdd_'+str(start_indx)+'_'+str(val_split)+'.tfrecords'))
-    elif inp_mode == 'act' :
-        dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(0)+'_'+str(5)+'.tfrecords'))
 
-    dataset_f = dataset_f.window(size=data_div_step, shift=total_time_step, stride=1, drop_remainder=False)
-    dataset_f = dataset_f.map(lambda x: x.skip(start_indx))
-
-    dataset_f = dataset_f.window(size=reach_win_size, shift=reach_shift_cons, stride=1, drop_remainder=False)
-    dataset_f = dataset_f.map(lambda x: x.skip(reach_start_indx))
-    dataset_f = dataset_f.flat_map(lambda x: x)
-
-    dataset_f = dataset_f.window(size=vert_img_hgt, shift=vert_step, stride=1,drop_remainder=True)
-    dataset_f = dataset_f.map(lambda x: x.flat_map(lambda x1: x1))
-    dataset_f = dataset_f.map(lambda x: x.window(size=vert_img_hgt,shift=1,stride=end_indx-start_indx+1,drop_remainder=True))
-    dataset_f = dataset_f.map(lambda x: x.window(size=time_step, shift=time_win_shift, stride=1,drop_remainder=True))
-    dataset_f = dataset_f.flat_map(lambda x: x)
-    dataset_f = dataset_f.flat_map(lambda x: x.flat_map(lambda x1: x1))
-
-    if inp_mode == 'act_sdd' :
-        dataset_f = dataset_f.map(_parse_function_).batch(vert_img_hgt).batch(time_step)
-    elif inp_mode == 'act' :
-        dataset_f = dataset_f.map(_parse_function_org_).batch(vert_img_hgt).batch(time_step)
-    
-    if train_shuffle == True :
-        dataset_f = dataset_f.shuffle(50000, reshuffle_each_iteration=True)
-    elif train_shuffle == False :
-        pass
-    dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
+    dataset_f = create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
+            vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle)
 
 
-    if inp_mode == 'act_sdd' :
-        dataset_tr_pr = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_sdd_'+str(start_indx)+'_'+str(val_split)+'.tfrecords'))
-    elif inp_mode == 'act' :
-        dataset_tr_pr = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(0)+'_'+str(5)+'.tfrecords'))
-    dataset_tr_pr = dataset_tr_pr.window(size=data_div_step, shift=total_time_step, stride=1, drop_remainder=False)
-    dataset_tr_pr = dataset_tr_pr.map(lambda x: x.skip(start_indx))
-    dataset_tr_pr = dataset_tr_pr.window(size=reach_win_size, shift=reach_shift_cons, stride=1, drop_remainder=False)
-    dataset_tr_pr = dataset_tr_pr.map(lambda x: x.skip(reach_start_indx))
-    dataset_tr_pr = dataset_tr_pr.flat_map(lambda x: x)
-    dataset_tr_pr = dataset_tr_pr.window(size=vert_img_hgt, shift=vert_step, stride=1,drop_remainder=True)
-    dataset_tr_pr = dataset_tr_pr.map(lambda x: x.flat_map(lambda x1: x1))
-    dataset_tr_pr = dataset_tr_pr.map(lambda x: x.window(size=vert_img_hgt,shift=1,stride=end_indx-start_indx+1,drop_remainder=True))
-    dataset_tr_pr = dataset_tr_pr.map(lambda x: x.window(size=time_step, shift=time_win_shift, stride=1,drop_remainder=True))
-    dataset_tr_pr = dataset_tr_pr.flat_map(lambda x: x)
-    dataset_tr_pr = dataset_tr_pr.flat_map(lambda x: x.flat_map(lambda x1: x1))
-    if inp_mode == 'act_sdd' :
-        dataset_tr_pr = dataset_tr_pr.map(_parse_function_).batch(vert_img_hgt).batch(time_step)
-    elif inp_mode == 'act' :
-        dataset_tr_pr = dataset_tr_pr.map(_parse_function_org_).batch(vert_img_hgt).batch(time_step)
-    dataset_tr_pr = dataset_tr_pr.batch(batch_size, drop_remainder=True)
+    dataset_tr_pr = create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
+            vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle=False)
 
 
+    dataseti1 = create_val_dataset(total_time_step,val_split,val_skip,reach_win_size,reach_shift_cons,reach_start_indx,vert_img_hgt,vert_step,
+            val_img_range,time_step,val_batch_size)
 
-
-    if inp_mode == 'act_sdd' :
-        dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_sdd_'+str(start_indx)+'_'+str(val_split)+'.tfrecords'))
-    elif inp_mode == 'act' :
-        dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(0)+'_'+str(5)+'.tfrecords'))
-    
-    dataseti1 = dataseti1.window(size=total_time_step, shift=total_time_step, stride=1, drop_remainder=False)
-    dataseti1 = dataseti1.map(lambda x: x.skip(total_time_step-(val_split+1)))
-    dataseti1 = dataseti1.map(lambda x: x.take(val_split-val_skip+1))
-    
-    dataseti1 = dataseti1.window(size=reach_win_size, shift=reach_shift_cons, stride=1, drop_remainder=False)
-    dataseti1 = dataseti1.map(lambda x: x.skip(reach_start_indx))
-    dataseti1 = dataseti1.flat_map(lambda x: x)
-
-    dataseti1 = dataseti1.window(size=vert_img_hgt, shift=vert_img_hgt, stride=1,drop_remainder=True)
-    dataseti1 = dataseti1.map(lambda x: x.flat_map(lambda x1: x1))
-    dataseti1 = dataseti1.map(lambda x: x.window(size=vert_img_hgt,shift=1,stride=val_img_range,drop_remainder=True))
-    dataseti1 = dataseti1.map(lambda x: x.window(size=time_step, shift=1, stride=1,drop_remainder=True))
-    dataseti1 = dataseti1.flat_map(lambda x: x)
-    dataseti1 = dataseti1.flat_map(lambda x: x.flat_map(lambda x1: x1))
-
-    if inp_mode == 'act_sdd' :
-        dataseti1 = dataseti1.map(_parse_function_).batch(vert_img_hgt).batch(time_step)
-    elif inp_mode == 'act' :
-        dataseti1 = dataseti1.map(_parse_function_org_).batch(vert_img_hgt).batch(time_step)
-
-    dataseti1 = dataseti1.batch(val_batch_size, drop_remainder=True)
 
     if wgt_seed_flag :
         torch.manual_seed(0)
 
-    #model = Baseline_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
-    #                        vert_img_hgt, inp_lr_flag, lf_rt_tag, lstm_hidden_units)
 
     if model_type == 'ANN':
-        model = Baseline_ANN_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
-                                vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units,flag_reach_use)
+        model = Baseline_ANN_Dynamic_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
+                                vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units,flag_reach_use,num_layers)
     elif model_type == 'LSTM':
-        print('he')
         model = Baseline_LSTM_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
                                 vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units)
+
+
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     model = model.to(device)
+
+    print('Model layers and properties ........')
+    print(model)
+    #print(asd)
 
     if model_optim == 'SGD' :
         optimizer = torch.optim.SGD(model.parameters(), lr=lr_rate, weight_decay=adm_wd)
@@ -1255,21 +1222,13 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     global_train_counter = 0
 
 
-    transform_constants = custom_mean_sdd(dataset_f,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_standardize_actual,
+    transform_constants = custom_mean_sdd(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_standardize_actual,
                     flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted)
 
     inp_mean = transform_constants['inp_mean']
     inp_std = transform_constants['inp_std']
     out_mean = transform_constants['out_mean']
     out_std = transform_constants['out_std']
-
-    """ print(inp_mean)
-    print(inp_std)
-    print(out_mean)
-    print(out_std)
-    print(asd) """
-
-    #print(asd)
 
     train_losses = []
     val_losses = []
@@ -1291,10 +1250,10 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 """ prin_count = 30
                 print(inp_flatten[0:prin_count,:,:,:])
                 print(year_id[0:prin_count,:,:,:])
-                print(reach_id[0:prin_count,:,:,:])
-                print(asd) """
+                print(reach_id[0:prin_count,:,:,:]) """
+                #print(asd)
 
-                inp_flatten, out_flatten = process_tf_dataset(inp_flatten, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
+                inp_flatten, out_flatten, _, _ = process_tf_dataset(inp_flatten, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
                     out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted)
 
                 """ prin_count = 30
@@ -1390,17 +1349,21 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
             act_reach_ids = []
             act_year_ids = []
 
+            counter_temp = 0
+
             for inp_flatten_org, year_id, reach_id, _, sdd_output in dataseti1:
                 year_id = np.reshape(year_id, (val_batch_size,time_step,vert_img_hgt,1))
                 reach_id = np.reshape(reach_id, (val_batch_size,time_step,vert_img_hgt,1))
                 
-                """ prin_count = 30
-                print(inp_flatten_org[0:prin_count,:,:,:])
-                print(year_id[0:prin_count,:,:,:])
-                print(reach_id[0:prin_count,:,:,:])
-                print(asd) """
+                if counter_temp == 0:
+                    prin_count = 30
+                    print(inp_flatten_org[:,:,:,:])
+                    print(year_id[:,:,:,:])
+                    print(reach_id[:,:,:,:])
+                #print(asd)
+                counter_temp += 1
                 
-                inp_flatten_org, out_flatten = process_tf_dataset(inp_flatten_org, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
+                inp_flatten_org, out_flatten, _, _ = process_tf_dataset(inp_flatten_org, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
                     out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,val_batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted)
 
                 """ prin_count = 30
@@ -1428,12 +1391,9 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 val_epoch_loss = val_epoch_loss+loss
                 counter_val += 1
 
-                #if epoch % log_performance == log_performance-1:
-                    #inp_flatten = inp_flatten.cpu()
-                    #inp_flatten = inp_flatten.numpy()
                     
                 if flag_reach_use == True :
-                    
+                    #print(inp_flatten_org)
                     if vert_img_hgt > 1 :
                         inp_flatten_org = inp_flatten_org[:,:-1]
                     elif vert_img_hgt == 1 :
@@ -1453,7 +1413,9 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                     else : """
                     inp_flatten_org = inp_flatten_org[:,-1,:,:]
                     #print(inp_flatten_org)
-                    prev_inp_flatten = np.reshape(inp_flatten_org,(val_batch_size,-1))
+                    
+                    #prev_inp_flatten = np.reshape(inp_flatten_org,(val_batch_size,-1))
+                    prev_inp_flatten = inp_flatten_org
                     #print(prev_inp_flatten)
                     #print(asd)
                     #prev_inp_flatten = inp_flatten_org[:,-2]
@@ -1504,11 +1466,12 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 print(year_id_prev.shape)
                 print(reach_id_prev.shape)
                 print(prev_time_step.shape) """
+                #print(prev_time_step.shape)
                 #print(asd)
-                prev_year_ids.append(year_id_prev)
-                prev_reach_ids.append(reach_id_prev)
-                act_year_ids.append(year_id_act)
-                act_reach_ids.append(reach_id_act)
+                prev_year_ids.append(year_id_prev[:,0:vert_step,:])
+                prev_reach_ids.append(reach_id_prev[:,0:vert_step,:])
+                act_year_ids.append(year_id_act[:,0:vert_step,:])
+                act_reach_ids.append(reach_id_act[:,0:vert_step,:])
 
 
                 if out_lr_tag == 'left' :
@@ -1526,12 +1489,36 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                     out_flatten = np.concatenate((np_zero,out_flatten),axis=2)
                     pred_np = np.concatenate((np_zero,pred_np),axis=2)
 
-                prev_actual_list.append(prev_time_step)
-                actual_list.append(out_flatten)
-                pred_list.append(pred_np)
+                #print(prev_time_step.shape)
+                #print(out_flatten.shape)
+                #print(out_flatten)
+                #out_mean = np.reshape(out_mean,(out_mean.shape[0],1))
+                #print(out_mean.shape)
+
+                rescale_out = True
+                if rescale_out == True :
+                    if out_lr_tag == 'right' :  
+                        out_flatten[:,:,1] = np.add(np.multiply(out_flatten[:,:,1], out_std), out_mean)
+                        pred_np[:,:,1] = np.add(np.multiply(pred_np[:,:,1], out_std), out_mean)
+                    elif out_lr_tag == 'left' :
+                        out_flatten[:,:,0] = np.add(np.multiply(out_flatten[:,:,0], out_std), out_mean)
+                        pred_np[:,:,0] = np.add(np.multiply(pred_np[:,:,0], out_std), out_mean)
+                    elif out_lr_tag == 'both' :
+                        out_mean = np.reshape(out_mean,(vert_img_hgt,2))
+                        out_std = np.reshape(out_std,(vert_img_hgt,2))
+                        out_flatten = np.add(np.multiply(out_flatten, out_std), out_mean)
+                        pred_np = np.add(np.multiply(pred_np, out_std), out_mean)
+                #print(out_flatten.shape)
+                #print(out_flatten)
+                #print(asd)
+
+                prev_actual_list.append(prev_time_step[:,0:vert_step,:])
+                actual_list.append(out_flatten[:,0:vert_step,:])
+                pred_list.append(pred_np[:,0:vert_step,:])
         
                 #print(prev_time_step)
                 #print(asd)
+            #print(prev_time_step.shape)
 
             avg_val_epoch_loss = val_epoch_loss / counter_val
             template = 'Epoch {}, Val_Loss: {}'
@@ -1560,11 +1547,12 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
             
             ###logging performance metrics
             if epoch % log_performance == log_performance-1 :
-                """ print(prev_actual_list[0:10])
-                print(actual_list[0:10])
-                print(pred_list[0:10])
-                print(asd) """
-                prev_actual_list = process_prev(prev_actual_list,num_val_img,prev_year_ids,prev_reach_ids,vert_img_hgt,inp_mode,
+                #print(prev_actual_list)
+                #print(actual_list)
+                #print(pred_list)
+                #print(actual_list.shape)
+                #print(asd)
+                prev_actual_list = process_prev(prev_actual_list,num_val_img,prev_year_ids,prev_reach_ids,vert_img_hgt,vert_step,inp_mode,
                                     flag_standardize_actual,transform_constants)
                 actual_list = process_diffs(actual_list,num_val_img, prev_actual_list,act_year_ids,act_reach_ids,vert_img_hgt,out_mode,
                                     flag_standardize_actual,transform_constants,output_subtracted)
@@ -1579,10 +1567,11 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                         actual_list[:,:,1] = 0
                         pred_list[:,:,1] = 0 
                 
-                """ print(prev_actual_list)
-                print(actual_list)
-                print(pred_list)
-                print(asd) """
+                print(prev_actual_list.shape)
+                #print(actual_list)
+                print(pred_list.shape)
+                print(actual_list.shape)
+                #print(asd)
                 test_logs, test_logs_scores, imp_val_logs = log_performance_metrics(pred_list,actual_list,prev_actual_list,
                                                     num_val_img, epoch, val_img_ids,writer)
                 
@@ -1686,20 +1675,20 @@ if __name__ == "__main__":
     cross_val_nums = 1
     #last validation index starting from end
     val_split_org = 3
-    val_skip = val_split_org - 1
-    tm_stp=5
+    val_skip = 2
+    tm_stp=3
 
-    strt=0
+    strt=24
     change_start = False
     
     get_train_mae = 5
-    lr_pow=-3.5
+    lr_pow=-3.0
     #ad_pow=1*(10**-1.0)
     ad_pow=0
     vert_hgt=1
     vert_step_num=1
     vert_out_one = True
-    num_epochs=50
+    num_epochs=1
     lstm_layers=1
     lstm_hidden_units=50
     batch_size= 32
@@ -1711,6 +1700,7 @@ if __name__ == "__main__":
     train_shuffle = True
     train_val_gap = False
     model_type = 'ANN'
+    num_layers = 4
 
     #load_models_list = ['Oct02_13-39-46_DESKTOP-8SUO90F','Oct02_13-51-52_DESKTOP-8SUO90F',
     #    'Oct02_13-57-44_DESKTOP-8SUO90F','Oct02_14-03-32_DESKTOP-8SUO90F','Oct02_14-09-18_DESKTOP-8SUO90F']
@@ -1725,7 +1715,7 @@ if __name__ == "__main__":
         val_split = val_split_org + (tm_stp - 2)
 
         model_name, train_losses, val_losses, train_maes, val_maes, hparam_def = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=num_epochs,train_shuffle=train_shuffle,
-        get_train_mae=get_train_mae,lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,model_type=model_type,
+        get_train_mae=get_train_mae,lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,model_type=model_type,num_layers=num_layers,
         model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=False,load_file=None,skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap)
 
         crs_train_ls.append(train_losses)
@@ -1734,7 +1724,7 @@ if __name__ == "__main__":
         crs_val_maes.append(val_maes)
 
         _, _, _, _, test_val_maes, _ = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=1,train_shuffle=train_shuffle,get_train_mae=get_train_mae,
-            lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split-1,val_skip=val_skip-1,model_type=model_type,
+            lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=(val_split-1),val_skip=(val_skip-1),model_type=model_type,num_layers=num_layers,
             model_optim=model_optim,loss_func=loss_func,save_mod=False,load_mod=True,load_file=model_name,skip_training=True,output_subtracted=output_subtracted,train_val_gap=train_val_gap)
         
         crs_test_maes.append(test_val_maes)
@@ -1743,7 +1733,7 @@ if __name__ == "__main__":
         val_skip = val_split_org - 1
         if change_start == True :
             strt = strt - 1
-        #print(asd)
+        print(asd)
 
     #print(crs_train_maes)
     #print(crs_val_ls)

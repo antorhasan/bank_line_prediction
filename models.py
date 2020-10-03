@@ -332,6 +332,85 @@ class Baseline_LSTM_Model(nn.Module):
         #print(asd)
         return x
 
+class Baseline_ANN_Dynamic_Model(nn.Module):
+    def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,
+                    inp_lr_flag, lf_rt_tag, lstm_hidden_units, flag_reach_use, num_layers):
+
+        super(Baseline_ANN_Dynamic_Model, self).__init__()
+        self.vert_img_hgt = vert_img_hgt
+
+        self.lstm_dropout = 0
+        self.device = 'cuda'
+        self.batch_size = batch_size
+        self.val_batch_size = val_batch_size
+        self.time_step = time_step
+        self.num_lstm_layers = num_lstm_layers
+        self.drop_out = drop_out
+        self.lstm_hidden_units = lstm_hidden_units
+        self.flag_batch_norm = True
+        self.num_layers = num_layers
+
+        if inp_lr_flag == 'left' or inp_lr_flag == 'right' :
+            self.inp_num = 1
+        elif inp_lr_flag == 'both' :
+            self.inp_num = 2
+
+
+        if lf_rt_tag == 'left' or lf_rt_tag == 'right' :
+            output_num = 1
+        elif lf_rt_tag == 'both' :
+            output_num = 2
+        
+        if flag_reach_use == True :
+            if vert_img_hgt > 1 :
+                input_layer_size = int((self.vert_img_hgt * ((self.time_step - 1) * self.inp_num))+1)
+            elif vert_img_hgt == 1 :
+                input_layer_size = int(self.vert_img_hgt * (((self.time_step - 1) * self.inp_num) + 1))
+        elif flag_reach_use == False :
+            input_layer_size = int(self.vert_img_hgt * ((self.time_step - 1) * self.inp_num))
+
+
+        self.fc_in = nn.Linear(input_layer_size, self.lstm_hidden_units)
+        if self.flag_batch_norm == True :
+            self.batch_norm1 = nn.BatchNorm1d(self.lstm_hidden_units)
+
+        if num_layers > 0 :
+
+            self.linear_batchnm = nn.ModuleDict({})
+
+            for i in range(num_layers) :
+                if self.flag_batch_norm == True :
+                    self.linear_batchnm.update([
+                        ['fc_'+str(i+2), nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)],
+                        ['batch_norm_'+str(i+2), nn.BatchNorm1d(self.lstm_hidden_units)]
+                    ])
+                
+                elif self.flag_batch_norm == False :
+                    self.linear_batchnm.update([
+                        ['fc_'+str(i+2), nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)],
+                    ])
+
+        self.fc_out = nn.Linear(self.lstm_hidden_units,(self.vert_img_hgt *output_num))
+
+    def forward(self, x) :
+        x = self.fc_in(x)
+        if self.flag_batch_norm == True :
+            x = self.batch_norm1(x)
+        x = F.relu(x)
+
+        if self.num_layers > 0 :
+            for i in range(self.num_layers):
+                x = self.linear_batchnm['fc_'+str(i+2)](x)
+                if self.flag_batch_norm == True :
+                    x = self.linear_batchnm['batch_norm_'+str(i+2)](x)
+                x = F.relu(x)
+
+        x = self.fc_out(x)
+
+        return x
+
+
+
 
 class Baseline_ANN_Model(nn.Module):
     def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,
