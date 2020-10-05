@@ -709,10 +709,10 @@ def custom_mean_sdd(dataset_f,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_stan
 
         if prox_counter == 0 :
         
-            prin_count = 5
-            print('batch,time_step,vert_hgt,banks format input/output view ........')
+            prin_count = 1
+            """ print('batch,time_step,vert_hgt,banks format input/output view ........')
             print(inp_tensor[0:prin_count,:,:,:])
-            print(out_tensor[0:prin_count,:,:,:])
+            print(out_tensor[0:prin_count,:,:,:]) """
             print('flatten input/output view ............')
             print(inp_flatten[0:prin_count,:])
             print(out_flatten[0:prin_count,:])
@@ -837,13 +837,15 @@ def create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size
     dataset_f = dataset_f.flat_map(lambda x: x)
     dataset_f = dataset_f.flat_map(lambda x: x.flat_map(lambda x1: x1))
 
-    dataset_f = dataset_f.map(_parse_function_org_).batch(vert_img_hgt).batch(time_step)
+    dataset_f = dataset_f.map(_parse_function_org_,num_parallel_calls=tf.data.experimental.AUTOTUNE).batch(vert_img_hgt).batch(time_step)
     
     if train_shuffle == True :
-        dataset_f = dataset_f.shuffle(50000, reshuffle_each_iteration=True)
+        dataset_f = dataset_f.cache()
+        dataset_f = dataset_f.shuffle(30000, reshuffle_each_iteration=True)
     elif train_shuffle == False :
         pass
     dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
+    dataset_f = dataset_f.prefetch(int(2*batch_size))
 
     return dataset_f
 
@@ -867,7 +869,7 @@ def create_val_dataset(total_time_step,val_split,val_skip,reach_win_size,reach_s
     dataseti1 = dataseti1.flat_map(lambda x: x)
     dataseti1 = dataseti1.flat_map(lambda x: x.flat_map(lambda x1: x1))
 
-    dataseti1 = dataseti1.map(_parse_function_org_).batch(vert_img_hgt).batch(time_step)
+    dataseti1 = dataseti1.map(_parse_function_org_,num_parallel_calls=tf.data.experimental.AUTOTUNE).batch(vert_img_hgt).batch(time_step)
 
     dataseti1 = dataseti1.batch(val_batch_size, drop_remainder=True)
 
@@ -923,7 +925,8 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     #batch_size = batch_size
     
     
-    log_performance = 1 ###number of epochs after which performance metrics are calculated
+    log_performance = get_train_mae ###number of epochs after which performance metrics are calculated
+    log_val_loss_at = get_train_mae
     early_stop_flag = False
     early_stop_thresh = 30
     path_to_val_img = os.path.join('./data/img/up_rgb/')
@@ -1220,239 +1223,240 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                         writer.add_histogram('parameters_'+str(name), param.data, epoch + 1)
                         writer.add_histogram('gradients'+str(name), param.grad, epoch + 1)
 
-            if (save_mod == True) and (epoch % model_save_at == 0) :
-                model_save(model, optimizer, model_name)
+            """ if (save_mod == True) and (epoch % model_save_at == 0) :
+                model_save(model, optimizer, model_name) """
 
         model.eval()
 
         val_epoch_loss = 0
         counter_val = 0
         
-        with torch.no_grad():
-            #print('hel')
-            #if epoch % log_performance == log_performance-1:
-            pred_list = []
-            actual_list = []
-            prev_actual_list = []
-            prev_reach_ids = []
-            prev_year_ids = []
-            act_reach_ids = []
-            act_year_ids = []
+        if epoch % log_val_loss_at == log_val_loss_at-1 :
+            with torch.no_grad():
+                #print('hel')
+                #if epoch % log_performance == log_performance-1:
+                pred_list = []
+                actual_list = []
+                prev_actual_list = []
+                prev_reach_ids = []
+                prev_year_ids = []
+                act_reach_ids = []
+                act_year_ids = []
 
-            counter_temp = 0
+                counter_temp = 0
 
-            
-            prev_sum_temp = []
-
-            for inp_flatten_org, year_id, reach_id, _, sdd_output in dataseti1:
-                year_id = np.reshape(year_id, (val_batch_size,time_step,vert_img_hgt,1))
-                reach_id = np.reshape(reach_id, (val_batch_size,time_step,vert_img_hgt,1))
                 
-                """ if counter_temp == 0:
-                    prin_count = 30
-                    print(inp_flatten_org[:,:,:,:])
-                    print(year_id[:,:,:,:])
-                    print(reach_id[:,:,:,:])
-                #print(asd)
-                counter_temp += 1 """
-                
-                inp_flatten_org, out_flatten, _, _ = process_tf_dataset(inp_flatten_org, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
-                    out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,val_batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid)
+                prev_sum_temp = []
 
-                """ prin_count = 30
-                print(inp_flatten_org[0:prin_count,:])
-                print(out_flatten[0:prin_count,:])
-                print(asd) """
-
-                if (inp_mode == 'act') and (flag_standardize_actual == True) :
-                    inp_flatten = (inp_flatten_org - inp_mean) / inp_std 
-                    out_flatten = (out_flatten - out_mean) / out_std 
-                
-                inp_flatten = torch.Tensor(inp_flatten).cuda()                
-                out_flatten = torch.Tensor(out_flatten).cuda()
-                pred = model(inp_flatten)
-                #print(pred.size())
-                #print(input_tensor.size())                
-                if loss_func == 'l1_loss' :
-                    loss = F.l1_loss(pred, out_flatten,reduction='mean')
-                elif loss_func == 'mse_loss' :
-                    loss = F.mse_loss(pred, out_flatten,reduction='mean')
-                elif loss_func == 'huber_loss' :
-                    loss = F.smooth_l1_loss(pred, out_flatten,reduction='mean')
-
-
-                val_epoch_loss = val_epoch_loss+loss
-                counter_val += 1
-
+                for inp_flatten_org, year_id, reach_id, _, sdd_output in dataseti1:
+                    year_id = np.reshape(year_id, (val_batch_size,time_step,vert_img_hgt,1))
+                    reach_id = np.reshape(reach_id, (val_batch_size,time_step,vert_img_hgt,1))
                     
-                if flag_reach_use == True :
-                    #print(inp_flatten_org)
-                    if vert_img_hgt > 1 :
-                        inp_flatten_org = inp_flatten_org[:,:-1]
-                    elif vert_img_hgt == 1 :
-                        inp_flatten_org = inp_flatten_org[:,:-vert_img_hgt]
-                    #print(inp_flatten_org[0:2,:])
-                    #print(inp_flatten_org)
+                    """ if counter_temp == 0:
+                        prin_count = 30
+                        print(inp_flatten_org[:,:,:,:])
+                        print(year_id[:,:,:,:])
+                        print(reach_id[:,:,:,:])
                     #print(asd)
-                    if inp_lr_flag == 'left' or inp_lr_flag == 'right' :
-                        inp_flatten_org = np.reshape(inp_flatten_org,(val_batch_size,time_step-1,vert_img_hgt,1))
-                    elif inp_lr_flag == 'both' :
-                        inp_flatten_org = np.reshape(inp_flatten_org,(val_batch_size,time_step-1,vert_img_hgt,2))
+                    counter_temp += 1 """
                     
-                    #print(inp_flatten_org)
+                    inp_flatten_org, out_flatten, _, _ = process_tf_dataset(inp_flatten_org, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
+                        out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,val_batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid)
+
+                    """ prin_count = 30
+                    print(inp_flatten_org[0:prin_count,:])
+                    print(out_flatten[0:prin_count,:])
+                    print(asd) """
+
+                    if (inp_mode == 'act') and (flag_standardize_actual == True) :
+                        inp_flatten = (inp_flatten_org - inp_mean) / inp_std 
+                        out_flatten = (out_flatten - out_mean) / out_std 
+                    
+                    inp_flatten = torch.Tensor(inp_flatten).cuda()                
+                    out_flatten = torch.Tensor(out_flatten).cuda()
+                    pred = model(inp_flatten)
+                    #print(pred.size())
+                    #print(input_tensor.size())                
+                    if loss_func == 'l1_loss' :
+                        loss = F.l1_loss(pred, out_flatten,reduction='mean')
+                    elif loss_func == 'mse_loss' :
+                        loss = F.mse_loss(pred, out_flatten,reduction='mean')
+                    elif loss_func == 'huber_loss' :
+                        loss = F.smooth_l1_loss(pred, out_flatten,reduction='mean')
+
+
+                    val_epoch_loss = val_epoch_loss+loss
+                    counter_val += 1
+
+                        
+                    if flag_reach_use == True :
+                        #print(inp_flatten_org)
+                        if vert_img_hgt > 1 :
+                            inp_flatten_org = inp_flatten_org[:,:-1]
+                        elif vert_img_hgt == 1 :
+                            inp_flatten_org = inp_flatten_org[:,:-vert_img_hgt]
+                        #print(inp_flatten_org[0:2,:])
+                        #print(inp_flatten_org)
+                        #print(asd)
+                        if inp_lr_flag == 'left' or inp_lr_flag == 'right' :
+                            inp_flatten_org = np.reshape(inp_flatten_org,(val_batch_size,time_step-1,vert_img_hgt,1))
+                        elif inp_lr_flag == 'both' :
+                            inp_flatten_org = np.reshape(inp_flatten_org,(val_batch_size,time_step-1,vert_img_hgt,2))
+                        
+                        #print(inp_flatten_org)
+                        #print(asd)
+                        """ if int(vert_img_hgt/2) == 0 :
+                            inp_flatten_org = inp_flatten_org[:,-2,0:int(vert_img_hgt/2)+1,:]
+                        else : """
+                        inp_flatten_org = inp_flatten_org[:,-1,:,:]
+                        #print(inp_flatten_org)
+                        
+                        #prev_inp_flatten = np.reshape(inp_flatten_org,(val_batch_size,-1))
+                        prev_inp_flatten = inp_flatten_org
+                        #print(prev_inp_flatten)
+                        #print(asd)
+                        #prev_inp_flatten = inp_flatten_org[:,-2]
+                    elif flag_reach_use == False :
+                        prev_inp_flatten = inp_flatten_org[:,-1]
+
+                    #print(prev_inp_flatten.shape)
+
                     #print(asd)
-                    """ if int(vert_img_hgt/2) == 0 :
-                        inp_flatten_org = inp_flatten_org[:,-2,0:int(vert_img_hgt/2)+1,:]
-                    else : """
-                    inp_flatten_org = inp_flatten_org[:,-1,:,:]
-                    #print(inp_flatten_org)
-                    
-                    #prev_inp_flatten = np.reshape(inp_flatten_org,(val_batch_size,-1))
-                    prev_inp_flatten = inp_flatten_org
-                    #print(prev_inp_flatten)
-                    #print(asd)
-                    #prev_inp_flatten = inp_flatten_org[:,-2]
-                elif flag_reach_use == False :
-                    prev_inp_flatten = inp_flatten_org[:,-1]
 
-                #print(prev_inp_flatten.shape)
+                    out_flatten = out_flatten.cpu()
+                    out_flatten = out_flatten.numpy()
 
-                #print(asd)
+                    pred_np = pred.cpu()
+                    pred_np = pred_np.numpy()
+                    #print(year_id)
+                    #print(reach_id)
+                    year_id = np.reshape(year_id, (val_batch_size,time_step,vert_img_hgt,1))
+                    reach_id = np.reshape(reach_id, (val_batch_size,time_step,vert_img_hgt,1))
+                    #print(year_id)
 
-                out_flatten = out_flatten.cpu()
-                out_flatten = out_flatten.numpy()
+                    year_id_prev = year_id[:,time_step-2:time_step-1,:,:]
+                    reach_id_prev = reach_id[:,time_step-2:time_step-1,:,:]
+                    year_id_act = year_id[:,time_step-1:time_step,:,:]
+                    reach_id_act = reach_id[:,time_step-1:time_step,:,:]
 
-                pred_np = pred.cpu()
-                pred_np = pred_np.numpy()
-                #print(year_id)
-                #print(reach_id)
-                year_id = np.reshape(year_id, (val_batch_size,time_step,vert_img_hgt,1))
-                reach_id = np.reshape(reach_id, (val_batch_size,time_step,vert_img_hgt,1))
-                #print(year_id)
-
-                year_id_prev = year_id[:,time_step-2:time_step-1,:,:]
-                reach_id_prev = reach_id[:,time_step-2:time_step-1,:,:]
-                year_id_act = year_id[:,time_step-1:time_step,:,:]
-                reach_id_act = reach_id[:,time_step-1:time_step,:,:]
-
-                if out_lr_tag == 'left' or out_lr_tag == 'right':
-                    val_extra_dim = 1
-                elif out_lr_tag == 'both' :
-                    val_extra_dim = 2
-                #print(year_id_prev)
-                #print(asd)
-
-                prev_time_step = np.reshape(prev_inp_flatten,(val_batch_size,-1,val_extra_dim))
-                year_id_prev = np.reshape(year_id_prev,(val_batch_size,-1,1))
-                reach_id_prev = np.reshape(reach_id_prev,(val_batch_size,-1,1))
-                year_id_act = np.reshape(year_id_act,(val_batch_size,-1,1))
-                reach_id_act = np.reshape(reach_id_act,(val_batch_size,-1,1))
-
-
-                out_flatten = np.reshape(out_flatten,(val_batch_size,-1,val_extra_dim))
-                pred_np = np.reshape(pred_np,(val_batch_size,-1,val_extra_dim))
-
-                #print(out_flatten.shape)
-                """ print(pred_np.shape)
-                print(prev_time_step.shape)
-                print(asd)
-                print(year_id_prev.shape)
-                print(reach_id_prev.shape)
-                print(prev_time_step.shape) """
-                #print(prev_time_step.shape)
-                #print(asd)
-
-                if out_lr_tag == 'left' :
-                    if out_use_mid == True :
-                        np_zero_out = np.zeros((val_batch_size,1,val_extra_dim))
-
-                    np_zero = np.zeros((val_batch_size,vert_img_hgt,val_extra_dim))
-                    
-                    prev_time_step = np.concatenate((prev_time_step,np_zero),axis=2) 
-                    if out_use_mid == True :
-                        out_flatten = np.concatenate((out_flatten,np_zero_out),axis=2)
-                        pred_np = np.concatenate((pred_np,np_zero_out),axis=2)
-                    elif out_use_mid == False :
-                        out_flatten = np.concatenate((out_flatten,np_zero),axis=2)
-                        pred_np = np.concatenate((pred_np,np_zero),axis=2)
-
-                elif out_lr_tag == 'right' :
-                    if out_use_mid == True :
-                        np_zero_out = np.zeros((val_batch_size,1,val_extra_dim))
-
-                    np_zero = np.zeros((val_batch_size,vert_img_hgt,val_extra_dim))
-
-
-                    prev_time_step = np.concatenate((np_zero,prev_time_step),axis=2) 
-
-                    if out_use_mid == True :
-                        out_flatten = np.concatenate((np_zero_out,out_flatten),axis=2)
-                        pred_np = np.concatenate((np_zero_out,pred_np),axis=2)
-                    elif out_use_mid == False :
-                        out_flatten = np.concatenate((np_zero,out_flatten),axis=2)  
-                        pred_np = np.concatenate((np_zero,pred_np),axis=2)
-
-                #print(prev_time_step.shape)
-                #print(out_flatten.shape)
-                #print(asd)
-                #print(out_flatten)
-                #out_mean = np.reshape(out_mean,(out_mean.shape[0],1))
-                #print(out_mean.shape)
-
-                rescale_out = True
-                if rescale_out == True :
-                    if out_lr_tag == 'right' :  
-                        out_flatten[:,:,1] = np.add(np.multiply(out_flatten[:,:,1], out_std), out_mean)
-                        pred_np[:,:,1] = np.add(np.multiply(pred_np[:,:,1], out_std), out_mean)
-                    elif out_lr_tag == 'left' :
-                        out_flatten[:,:,0] = np.add(np.multiply(out_flatten[:,:,0], out_std), out_mean)
-                        pred_np[:,:,0] = np.add(np.multiply(pred_np[:,:,0], out_std), out_mean)
+                    if out_lr_tag == 'left' or out_lr_tag == 'right':
+                        val_extra_dim = 1
                     elif out_lr_tag == 'both' :
-                        out_mean = np.reshape(out_mean,(vert_img_hgt,2))
-                        out_std = np.reshape(out_std,(vert_img_hgt,2))
-                        out_flatten = np.add(np.multiply(out_flatten, out_std), out_mean)
-                        pred_np = np.add(np.multiply(pred_np, out_std), out_mean)
-                #print(out_flatten.shape)
-                #print(out_flatten)
-                #print(asd)
-                """ running_sum = False
-                if (running_sum == True) and (vert_step==1) and (vert_img_hgt==3) :
-                    if len(prev_sum_temp) != 0 :
-                        first_items = [item[0] for item in prev_sum_temp]
-                        first_items.append(prev_time_step[:,0:vert_step,:])
+                        val_extra_dim = 2
+                    #print(year_id_prev)
+                    #print(asd)
 
-                    elif len(prev_sum_temp) == 0 : """
-
-                if out_use_mid == True :
-                    prev_actual_list.append(prev_time_step[:,int((vert_img_hgt-1)/2):int((vert_img_hgt-1)/2)+1,:])
-                elif out_use_mid == False :
-                    prev_actual_list.append(prev_time_step[:,0:vert_step,:])
-                actual_list.append(out_flatten[:,0:vert_step,:])
-                pred_list.append(pred_np[:,0:vert_step,:])
-
-                prev_year_ids.append(year_id_prev[:,0:vert_step,:])
-                prev_reach_ids.append(reach_id_prev[:,0:vert_step,:])
-                act_year_ids.append(year_id_act[:,0:vert_step,:])
-                act_reach_ids.append(reach_id_act[:,0:vert_step,:])
+                    prev_time_step = np.reshape(prev_inp_flatten,(val_batch_size,-1,val_extra_dim))
+                    year_id_prev = np.reshape(year_id_prev,(val_batch_size,-1,1))
+                    reach_id_prev = np.reshape(reach_id_prev,(val_batch_size,-1,1))
+                    year_id_act = np.reshape(year_id_act,(val_batch_size,-1,1))
+                    reach_id_act = np.reshape(reach_id_act,(val_batch_size,-1,1))
 
 
-                #print(prev_time_step)
-                #print(asd)
-            #print(prev_time_step.shape)
+                    out_flatten = np.reshape(out_flatten,(val_batch_size,-1,val_extra_dim))
+                    pred_np = np.reshape(pred_np,(val_batch_size,-1,val_extra_dim))
 
-            avg_val_epoch_loss = val_epoch_loss / counter_val
-            template = 'Epoch {}, Val_Loss: {}'
-            print(template.format(epoch+1,avg_val_epoch_loss))
+                    #print(out_flatten.shape)
+                    """ print(pred_np.shape)
+                    print(prev_time_step.shape)
+                    print(asd)
+                    print(year_id_prev.shape)
+                    print(reach_id_prev.shape)
+                    print(prev_time_step.shape) """
+                    #print(prev_time_step.shape)
+                    #print(asd)
 
-            writer.add_scalar('Loss/Val', avg_val_epoch_loss, epoch+1)
-            val_losses.append(avg_val_epoch_loss.item())
+                    if out_lr_tag == 'left' :
+                        if out_use_mid == True :
+                            np_zero_out = np.zeros((val_batch_size,1,val_extra_dim))
 
-            #writer.add_scalar('Loss/variance', (avg_epoch_loss - avg_val_epoch_loss), epoch+1)
-            if skip_training == False :
-                writer.add_scalars('Loss/train_val', {'train':avg_epoch_loss,
-                                        'val':avg_val_epoch_loss}, epoch+1)
-            elif skip_training == True :
-                pass
+                        np_zero = np.zeros((val_batch_size,vert_img_hgt,val_extra_dim))
+                        
+                        prev_time_step = np.concatenate((prev_time_step,np_zero),axis=2) 
+                        if out_use_mid == True :
+                            out_flatten = np.concatenate((out_flatten,np_zero_out),axis=2)
+                            pred_np = np.concatenate((pred_np,np_zero_out),axis=2)
+                        elif out_use_mid == False :
+                            out_flatten = np.concatenate((out_flatten,np_zero),axis=2)
+                            pred_np = np.concatenate((pred_np,np_zero),axis=2)
+
+                    elif out_lr_tag == 'right' :
+                        if out_use_mid == True :
+                            np_zero_out = np.zeros((val_batch_size,1,val_extra_dim))
+
+                        np_zero = np.zeros((val_batch_size,vert_img_hgt,val_extra_dim))
+
+
+                        prev_time_step = np.concatenate((np_zero,prev_time_step),axis=2) 
+
+                        if out_use_mid == True :
+                            out_flatten = np.concatenate((np_zero_out,out_flatten),axis=2)
+                            pred_np = np.concatenate((np_zero_out,pred_np),axis=2)
+                        elif out_use_mid == False :
+                            out_flatten = np.concatenate((np_zero,out_flatten),axis=2)  
+                            pred_np = np.concatenate((np_zero,pred_np),axis=2)
+
+                    #print(prev_time_step.shape)
+                    #print(out_flatten.shape)
+                    #print(asd)
+                    #print(out_flatten)
+                    #out_mean = np.reshape(out_mean,(out_mean.shape[0],1))
+                    #print(out_mean.shape)
+
+                    rescale_out = True
+                    if rescale_out == True :
+                        if out_lr_tag == 'right' :  
+                            out_flatten[:,:,1] = np.add(np.multiply(out_flatten[:,:,1], out_std), out_mean)
+                            pred_np[:,:,1] = np.add(np.multiply(pred_np[:,:,1], out_std), out_mean)
+                        elif out_lr_tag == 'left' :
+                            out_flatten[:,:,0] = np.add(np.multiply(out_flatten[:,:,0], out_std), out_mean)
+                            pred_np[:,:,0] = np.add(np.multiply(pred_np[:,:,0], out_std), out_mean)
+                        elif out_lr_tag == 'both' :
+                            out_mean = np.reshape(out_mean,(vert_img_hgt,2))
+                            out_std = np.reshape(out_std,(vert_img_hgt,2))
+                            out_flatten = np.add(np.multiply(out_flatten, out_std), out_mean)
+                            pred_np = np.add(np.multiply(pred_np, out_std), out_mean)
+                    #print(out_flatten.shape)
+                    #print(out_flatten)
+                    #print(asd)
+                    """ running_sum = False
+                    if (running_sum == True) and (vert_step==1) and (vert_img_hgt==3) :
+                        if len(prev_sum_temp) != 0 :
+                            first_items = [item[0] for item in prev_sum_temp]
+                            first_items.append(prev_time_step[:,0:vert_step,:])
+
+                        elif len(prev_sum_temp) == 0 : """
+
+                    if out_use_mid == True :
+                        prev_actual_list.append(prev_time_step[:,int((vert_img_hgt-1)/2):int((vert_img_hgt-1)/2)+1,:])
+                    elif out_use_mid == False :
+                        prev_actual_list.append(prev_time_step[:,0:vert_step,:])
+                    actual_list.append(out_flatten[:,0:vert_step,:])
+                    pred_list.append(pred_np[:,0:vert_step,:])
+
+                    prev_year_ids.append(year_id_prev[:,0:vert_step,:])
+                    prev_reach_ids.append(reach_id_prev[:,0:vert_step,:])
+                    act_year_ids.append(year_id_act[:,0:vert_step,:])
+                    act_reach_ids.append(reach_id_act[:,0:vert_step,:])
+
+
+                    #print(prev_time_step)
+                    #print(asd)
+                #print(prev_time_step.shape)
+
+                avg_val_epoch_loss = val_epoch_loss / counter_val
+                template = 'Epoch {}, Val_Loss: {}'
+                print(template.format(epoch+1,avg_val_epoch_loss))
+
+                writer.add_scalar('Loss/Val', avg_val_epoch_loss, epoch+1)
+                val_losses.append(avg_val_epoch_loss.item())
+
+                #writer.add_scalar('Loss/variance', (avg_epoch_loss - avg_val_epoch_loss), epoch+1)
+                if skip_training == False :
+                    writer.add_scalars('Loss/train_val', {'train':avg_epoch_loss,
+                                            'val':avg_val_epoch_loss}, epoch+1)
+                elif skip_training == True :
+                    pass
             #writer.add_scalars('Loss/bias_variance', {'bias':avg_epoch_loss,
             #                        'variance':(avg_epoch_loss - avg_val_epoch_loss)}, epoch+1)
             """ if epoch == 0 :
@@ -1497,11 +1501,11 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 
                 val_maes.append(test_logs['reach_mae'])
 
-        if early_stop_flag:
+        """ if early_stop_flag:
             if early_stop_counter > early_stop_thresh :
                 print('early stopping as val loss is not improving ........')
                 #model_save(model, optimizer, model_name)
-                break
+                break """
         
         if epoch % get_train_mae == get_train_mae-1 :
             train_mae = train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,
@@ -1588,12 +1592,12 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
 
 if __name__ == "__main__":
 
-    super_epochs = 10
-    num_epochs = 15
+    super_epochs = 4
+    num_epochs = 10
 
     def objtv(trial):
-        super_epochs = 10
-        num_epochs = 15
+        super_epochs = 4
+        num_epochs = 10
 
         load_models_list = []
         tm_stp=trial.suggest_int('time_step', 3, 7, 1)
@@ -1616,7 +1620,7 @@ if __name__ == "__main__":
             batch_size = 2**batch_size_pow
             change_start = False
             #batch_size = 2**batch_size_pow
-            get_train_mae = 5
+            get_train_mae = num_epochs
             #lr_pow=-3.0
             #ad_pow=1*(10**-1.0)
             ad_pow=0
@@ -1625,8 +1629,8 @@ if __name__ == "__main__":
             #num_epochs=num_epochs
             lstm_layers=1
             #neurons_per_layer_list = [20,50,70,]
-            inp_bnk='right'
-            out_bnk='right'
+            inp_bnk='left'
+            out_bnk='left'
             model_optim='SGD'
             #loss_func='mse_loss'
             output_subtracted = True
@@ -1658,12 +1662,13 @@ if __name__ == "__main__":
 
                 load_models_list.append(model_name)
 
+                #print(val_losses)
                 crs_train_ls.append(train_losses)
                 crs_val_ls.append(val_losses)
                 crs_train_maes.append(train_maes)
                 crs_val_maes.append(val_maes)
 
-                _, _, _, _, test_val_maes, _ = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=1,train_shuffle=train_shuffle,get_train_mae=get_train_mae,
+                _, _, _, _, test_val_maes, _ = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=1,train_shuffle=train_shuffle,get_train_mae=1,
                     lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split-(val_split_org-val_skip),val_skip=(val_skip-1),model_type=model_type,num_layers=num_layers,
                     model_optim=model_optim,loss_func=loss_func,save_mod=False,load_mod=True,load_file=model_name,skip_training=True,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid)
                 
@@ -1681,14 +1686,17 @@ if __name__ == "__main__":
             crs_val_maes = np.mean(np.asarray(crs_val_maes),axis=0)
             crs_test_mae = np.mean(np.asarray(crs_test_maes),axis=0)
 
-            #print(crs_test_mae)
+            #print(crs_val_ls)
 
             writer = SummaryWriter()
 
             for i in range(crs_train_ls.shape[0]) :
-                #print(i)
-                writer.add_scalars('cross_val/train_val', {'train':crs_train_ls[i],
-                                                'val':crs_val_ls[i]}, i+1)
+                
+                writer.add_scalar('cross_val/train',crs_train_ls[i], i+1)
+            
+            for i in range(crs_val_ls.shape[0]) :
+                
+                writer.add_scalar('cross_val/val', crs_val_ls[i], (i+1)*get_train_mae)
 
             if out_bnk == 'right' :
                 crs_val_maes = crs_val_maes[:,1]
@@ -1737,9 +1745,8 @@ if __name__ == "__main__":
         return crs_val_ls[-1]
 
 
-    study = optuna.create_study(study_name='temp1',storage='sqlite:///data\\sqdb\\sqlite_full.db',direction='minimize',sampler=TPESampler(),pruner=HyperbandPruner(
-        min_resource=1, max_resource=int(super_epochs*num_epochs), reduction_factor=3
-    ))
+    study = optuna.create_study(study_name='temp1',storage='sqlite:///data\\sqdb\\sq_lit_left.db',load_if_exists=True,direction='minimize',sampler=TPESampler(),
+            pruner=HyperbandPruner(min_resource=1, max_resource=int(super_epochs*num_epochs), reduction_factor=3))
 
     study.optimize(objtv)
 
