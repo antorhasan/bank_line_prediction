@@ -10,7 +10,7 @@ from os.path import isfile, join
 import os
 import sys
 from torch.utils.tensorboard import SummaryWriter
-from models import CNN_Model,Baseline_LSTM_Model,Baseline_ANN_Dynamic_Model
+from models import CNN_Model,Baseline_LSTM_Dynamic_Model,Baseline_ANN_Dynamic_Model
 from sklearn.metrics import mean_absolute_error, precision_score, recall_score, confusion_matrix, f1_score
 from sklearn.preprocessing import OneHotEncoder
 import matplotlib.pyplot as plt
@@ -239,6 +239,147 @@ def regress_erro(act_err_bin, act_reg, pred_reg, prev_reg, iter_num, side,writer
 
     return mean_pos_dev, pos_std, mean_neg_dev, neg_std, ero_mae, comb_std, non_ero_mae, non_std, reach_mae, reach_std, reach_diff, mean_ero_diff,mean_act_overfit,reach_overfit
 
+def regress_erro_up(act_err_bin, act_reg, pred_reg, prev_reg, iter_num, side,writer, val_img_ids,epoch):
+    #print(pred_reg)
+    #print(act_reg)
+    #print(asd)
+
+    temp_arr = pred_reg - act_reg
+    temp_ero_diff = act_reg - prev_reg
+    overfit_error = pred_reg - prev_reg
+    if side == 'left' :
+        temp_arr = temp_arr
+    elif side == 'right' :
+        temp_arr = -temp_arr
+
+
+
+    """ counter_pos = 0
+    counter_neg = 0 
+    counter_non = 0
+    #pos_deviation = 0
+    #neg_deviation = 0
+
+    pos_list = []
+    neg_list = []
+    non_ero_list = []
+    ero_diff = []
+    overfit_error_list = []
+
+    for i in range(act_err_bin.shape[0]):
+        if act_err_bin[i] == 1 and temp_arr[i]>=0 :
+            pos_list.append(temp_arr[i])
+            #actual_ero_abs.append(abs(temp_arr[i]))
+            #pos_deviation = pos_deviation + temp_arr[i]
+            counter_pos += 1
+        elif act_err_bin[i] == 1 and temp_arr[i]<0 :
+            neg_list.append(-temp_arr[i])
+            #actual_ero_abs.append(abs(temp_arr[i]))
+            #neg_deviation = neg_deviation + (-temp_arr[i])
+            counter_neg += 1
+        elif act_err_bin[i] != 1 :
+            non_ero_list.append(abs(temp_arr[i]))
+            counter_non += 1
+
+        if act_err_bin[i] == 1 :
+            ero_diff.append(abs(temp_ero_diff[i]))
+            overfit_error_list.append(abs(overfit_error[i]))
+
+
+    pos_np = np.asarray(pos_list)
+    neg_np = np.asarray(neg_list)
+    comb_np = np.asarray(pos_list+neg_list)
+    non_np = np.asarray(non_ero_list)
+    ero_diff_np = np.asarray(ero_diff)
+
+    pos_sum = np.sum(pos_np)
+    neg_sum = np.sum(neg_np)
+    comb_sum = np.sum(comb_np)
+    non_sum = np.sum(non_np)
+    ero_diff_sum = np.sum(ero_diff_np)
+    overfit_error_sum = np.sum(np.asarray(overfit_error_list))
+
+    try :
+        pos_std = np.std(pos_np)
+        neg_std = np.std(neg_np)
+        comb_std = np.std(comb_sum)
+        non_std = np.std(non_np)
+    except FloatingPointError :
+        pos_std = 0
+        neg_std = 0
+        comb_std = 0
+        non_std = 0
+        #print('error raised')
+
+    if len(pos_list) != 0 :
+        pos_max = np.amax(np.asarray(pos_list))
+        writer.add_scalar(str(val_img_ids[iter_num])+'/max_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), pos_max, epoch+1)
+
+    if len(neg_list) != 0 :
+        neg_max = np.amax(np.asarray(neg_list))
+        writer.add_scalar(str(val_img_ids[iter_num])+'/max_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), neg_max, epoch+1)
+
+    #np.seterr(all='raise')
+    #print(counter_pos)
+    try :
+        mean_pos_dev = pos_sum/counter_pos
+    except :
+        mean_pos_dev = pos_sum/.0001
+
+    #print(asd)
+    try:
+        mean_neg_dev = neg_sum/counter_neg
+        #print(mean_neg_dev)
+    except:
+        mean_neg_dev = neg_sum/.0001
+    try:
+        ero_mae = comb_sum/(counter_pos + counter_neg)
+        #print(ero_mae)
+    except:
+        ero_mae = comb_sum/.0001
+    try:
+        non_ero_mae = non_sum/counter_non
+    except:
+        non_ero_mae = non_sum/.0001
+    try:
+        mean_ero_diff = ero_diff_sum/(counter_pos + counter_neg)
+    except:
+        mean_ero_diff = ero_diff_sum/.0001
+    
+    try:
+        mean_act_overfit = overfit_error_sum/(counter_pos + counter_neg)
+    except:
+        mean_act_overfit = overfit_error_sum/.0001 """
+
+    reach_mae = np.mean(np.absolute(temp_arr))
+    reach_std = np.std(np.absolute(temp_arr))
+    
+    """ reach_diff = np.mean(np.absolute(temp_ero_diff))
+    reach_overfit = np.mean(np.absolute(overfit_error))
+    non_ero_mae = 0.0
+    writer.add_scalar(str(val_img_ids[iter_num])+'/mean_abs_pos_error_for_actual_'+side+'_erosion_'+str(val_img_ids[iter_num]), mean_pos_dev, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/mean_abs_neg_error_for_actual_'+side+'_erosion_'+str(val_img_ids[iter_num]), mean_neg_dev, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/mae_for_actual_'+side+'_erosion_'+str(val_img_ids[iter_num]), ero_mae, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/mae_for_non_error_'+side+str(val_img_ids[iter_num]), non_ero_mae, epoch+1) """
+    writer.add_scalar(str(val_img_ids[iter_num])+'/reach_mae'+side+str(val_img_ids[iter_num]), reach_mae, epoch+1)
+    """ writer.add_scalar(str(val_img_ids[iter_num])+'/mean_reach_diff'+side+str(val_img_ids[iter_num]), reach_diff, epoch+1)
+    #writer.add_scalar(str(val_img_ids[iter_num])+'/mean_act_ero_diff'+side+str(val_img_ids[iter_num]), mean_ero_diff, epoch+1)
+    #writer.add_scalar(str(val_img_ids[iter_num])+'/mean_act_overfit_'+side+str(val_img_ids[iter_num]), mean_act_overfit, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/mean_reach_overfit_'+side+str(val_img_ids[iter_num]), reach_overfit, epoch+1) """
+
+
+    """ writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_pos_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), pos_std, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_neg_error_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), neg_std, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_comb_for_actual_'+side+'_erosion'+str(val_img_ids[iter_num]), comb_std, epoch+1)
+    writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_non_error_'+side+str(val_img_ids[iter_num]), non_std, epoch+1) """
+    writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_reach_error'+side+str(val_img_ids[iter_num]), reach_std, epoch+1)
+
+    mean_ero_diff = 0.0
+    mean_act_overfit = 0.0
+
+    #return mean_pos_dev, pos_std, mean_neg_dev, neg_std, ero_mae, comb_std, non_ero_mae, non_std, reach_mae, reach_std, reach_diff, mean_ero_diff,mean_act_overfit,reach_overfit
+    return reach_mae, reach_std
+
 def log_perform_lef_rght(log_item, left_comp, right_comp, writer, val_img_ids, iter_num, epoch):
     '''log the various mae and std in calc_fscore'''
     writer.add_scalar('left_'+log_item+'_for_actual_erosion'+str(val_img_ids[iter_num]), left_comp, epoch+1)
@@ -261,17 +402,22 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     actual_ers_rht = np.reshape(np.where(act_right>prev_right, 1, 0),(act_right.shape[0],1))
 
 
-    left_mae_pos,left_std_pos,left_mae_neg,left_std_neg,lft_cm_m,lft_cm_std,lft_non_m,lft_non_s,lft_r_m,lft_r_s,lft_reach_diff,lft_ero_dif,lft_ove_act,lft_ove_rea = regress_erro(actual_ers_lft, act_left, pred_left, prev_left, iter_num, 'left',writer,val_img_ids,epoch)
-    right_mae_pos,right_std_pos,right_mae_neg,right_std_neg,rg_cm_m,rg_cm_std,rg_non_m,rg_non_s,rg_r_m,rg_r_s,rg_reach_diff,rg_ero_dif,rg_ove_act,rg_ove_rea = regress_erro(actual_ers_rht, act_right, pred_right, prev_right, iter_num, 'right',writer,val_img_ids,epoch)
+    #left_mae_pos,left_std_pos,left_mae_neg,left_std_neg,lft_cm_m,lft_cm_std,lft_non_m,lft_non_s,lft_r_m,lft_r_s,lft_reach_diff,lft_ero_dif,lft_ove_act,lft_ove_rea = regress_erro(actual_ers_lft, act_left, pred_left, prev_left, iter_num, 'left',writer,val_img_ids,epoch)
+    #right_mae_pos,right_std_pos,right_mae_neg,right_std_neg,rg_cm_m,rg_cm_std,rg_non_m,rg_non_s,rg_r_m,rg_r_s,rg_reach_diff,rg_ero_dif,rg_ove_act,rg_ove_rea = regress_erro(actual_ers_rht, act_right, pred_right, prev_right, iter_num, 'right',writer,val_img_ids,epoch)
     #print(asd)
+    
+    lft_r_m,lft_r_s = regress_erro_up(actual_ers_lft, act_left, pred_left, prev_left, iter_num, 'left',writer,val_img_ids,epoch)
+    rg_r_m,rg_r_s = regress_erro_up(actual_ers_rht, act_right, pred_right, prev_right, iter_num, 'right',writer,val_img_ids,epoch)
 
-    log_dic_lef_rght = {'pos_mae': [left_mae_pos,right_mae_pos], 'pos_std':[left_std_pos,right_std_pos],
+    """ log_dic_lef_rght = {'pos_mae': [left_mae_pos,right_mae_pos], 'pos_std':[left_std_pos,right_std_pos],
     'neg_mae':[left_mae_neg,right_mae_neg],'neg_std':[left_std_neg,right_std_neg],
     'full_act_mae':[lft_cm_m,rg_cm_m],'full_act_std':[lft_cm_std,rg_cm_std],
     'full_non_erosion_mae':[lft_non_m,rg_non_m],'full_non_erosion_std':[lft_non_s,rg_non_s],
     'reach_mae':[lft_r_m,rg_r_m],'reach_std':[lft_r_s,rg_r_s],
     'reach_diff':[lft_reach_diff,rg_reach_diff],'mean_ero_diff':[lft_ero_dif,rg_ero_dif],
-    'reach_overfit_diff':[lft_ove_rea,rg_ove_rea],'act_overfit_diff':[lft_ove_act,rg_ove_act]}
+    'reach_overfit_diff':[lft_ove_rea,rg_ove_rea],'act_overfit_diff':[lft_ove_act,rg_ove_act]} """
+
+    log_dic_lef_rght = {'reach_mae':[lft_r_m,rg_r_m],'reach_std':[lft_r_s,rg_r_s]}
 
     #for i,j in zip(log_dic_lef_rght.keys(),log_dic_lef_rght.values()):
     #    log_perform_lef_rght(i, j[0], j[1], writer, val_img_ids, iter_num, epoch)
@@ -283,25 +429,25 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     conf_mat_rht = confusion_matrix(actual_ers_rht, pred_ers_rht)
     combined_conf = conf_mat_lft + conf_mat_rht """
 
-    act_th_ers_lft = np.reshape(np.where((prev_left-act_left)>3, 1, 0),(act_left.shape[0],1))
-    act_th_ers_rht = np.reshape(np.where((act_right-prev_right)>3, 1, 0),(act_right.shape[0],1))
+    #act_th_ers_lft = np.reshape(np.where((prev_left-act_left)>3, 1, 0),(act_left.shape[0],1))
+    #act_th_ers_rht = np.reshape(np.where((act_right-prev_right)>3, 1, 0),(act_right.shape[0],1))
 
-    pred_th_ers_lft = np.reshape(np.where((prev_left-pred_left)>3, 1, 0),(pred_left.shape[0],1))
-    pred_th_ers_rht = np.reshape(np.where((pred_right-prev_right)>3, 1, 0),(pred_right.shape[0],1))
+    #pred_th_ers_lft = np.reshape(np.where((prev_left-pred_left)>3, 1, 0),(pred_left.shape[0],1))
+    #red_th_ers_rht = np.reshape(np.where((pred_right-prev_right)>3, 1, 0),(pred_right.shape[0],1))
 
-    prec_th_lft = precision_score(act_th_ers_lft, pred_th_ers_lft, average='binary')
+    """ prec_th_lft = precision_score(act_th_ers_lft, pred_th_ers_lft, average='binary')
     recall_th_lft = recall_score(act_th_ers_lft, pred_th_ers_lft, average='binary')
     #f1_th_lft = f1_score(act_th_ers_lft, pred_th_ers_lft, average='binary')
 
     prec_th_rht = precision_score(act_th_ers_rht, pred_th_ers_rht, average='binary')
-    recall_th_rht = recall_score(act_th_ers_rht, pred_th_ers_rht, average='binary')
+    recall_th_rht = recall_score(act_th_ers_rht, pred_th_ers_rht, average='binary') """
     #f1_th_rht = f1_score(act_th_ers_rht, pred_th_ers_rht, average='binary')
 
-    writer.add_scalar(str(val_img_ids[iter_num])+'/left_precision_th_'+ str(val_img_ids[iter_num]), prec_th_lft, epoch+1)
-    writer.add_scalar(str(val_img_ids[iter_num])+'/left_recall_th_'+ str(val_img_ids[iter_num]), recall_th_lft, epoch+1)
+    #writer.add_scalar(str(val_img_ids[iter_num])+'/left_precision_th_'+ str(val_img_ids[iter_num]), prec_th_lft, epoch+1)
+    #writer.add_scalar(str(val_img_ids[iter_num])+'/left_recall_th_'+ str(val_img_ids[iter_num]), recall_th_lft, epoch+1)
     #writer.add_scalar(str(val_img_ids[iter_num])+'/left_f1_th_'+ str(val_img_ids[iter_num]), f1_th_lft, epoch+1)
-    writer.add_scalar(str(val_img_ids[iter_num])+'/right_precision_th_'+ str(val_img_ids[iter_num]), prec_th_rht, epoch+1)
-    writer.add_scalar(str(val_img_ids[iter_num])+'/right_recall_th'+ str(val_img_ids[iter_num]), recall_th_rht, epoch+1)
+    #writer.add_scalar(str(val_img_ids[iter_num])+'/right_precision_th_'+ str(val_img_ids[iter_num]), prec_th_rht, epoch+1)
+    #writer.add_scalar(str(val_img_ids[iter_num])+'/right_recall_th'+ str(val_img_ids[iter_num]), recall_th_rht, epoch+1)
     #writer.add_scalar(str(val_img_ids[iter_num])+'/right_f1_th_'+ str(val_img_ids[iter_num]), f1_th_rht, epoch+1)
 
     y_true = np.concatenate((actual_ers_lft,actual_ers_rht), axis = 0)
@@ -320,8 +466,8 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     #f1_rht = f1_score(actual_ers_rht, pred_ers_rht, average='binary')
 
     
-    writer.add_scalar(str(val_img_ids[iter_num])+'/precision_'+ str(val_img_ids[iter_num]), precision_comb, epoch+1)
-    writer.add_scalar(str(val_img_ids[iter_num])+'/recall_'+ str(val_img_ids[iter_num]), recall_comb, epoch+1)
+    #writer.add_scalar(str(val_img_ids[iter_num])+'/precision_'+ str(val_img_ids[iter_num]), precision_comb, epoch+1)
+    #writer.add_scalar(str(val_img_ids[iter_num])+'/recall_'+ str(val_img_ids[iter_num]), recall_comb, epoch+1)
     #writer.add_scalar(str(val_img_ids[iter_num])+'/f1_score_'+ str(val_img_ids[iter_num]), f1_comb, epoch+1)
 
     writer.add_scalar(str(val_img_ids[iter_num])+'/left_precision_'+ str(val_img_ids[iter_num]), precision_comb, epoch+1)
@@ -333,18 +479,18 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     #writer.add_scalar(str(val_img_ids[iter_num])+'/right_f1_score_'+ str(val_img_ids[iter_num]), f1_comb, epoch+1)
 
     avg_reach_mae = (lft_r_m + rg_r_m) / 2
-    left_overfit_metric = abs(lft_reach_diff - lft_ove_rea) 
-    right_overfit_metric = abs(rg_reach_diff - rg_ove_rea)
-    avg_overfit_metric = (left_overfit_metric + right_overfit_metric) / 2
-    augmented_metric = avg_reach_mae + avg_overfit_metric
+    #left_overfit_metric = abs(lft_reach_diff - lft_ove_rea) 
+    #right_overfit_metric = abs(rg_reach_diff - rg_ove_rea)
+    #avg_overfit_metric = (left_overfit_metric + right_overfit_metric) / 2
+    #augmented_metric = avg_reach_mae + avg_overfit_metric
     #lr_f1_score = f1_comb
-    lft_aug_metric = left_overfit_metric + lft_r_m
-    rgt_aug_metric = right_overfit_metric + rg_r_m
+    #lft_aug_metric = left_overfit_metric + lft_r_m
+    #rgt_aug_metric = right_overfit_metric + rg_r_m
     
 
-    writer.add_scalar('AM_score/'+str(val_img_ids[iter_num])+'_augmented_metric_', augmented_metric, epoch+1)
-    writer.add_scalar('AM_score/'+str(val_img_ids[iter_num])+'_left_augmented_metric_', lft_aug_metric, epoch+1)
-    writer.add_scalar('AM_score/'+str(val_img_ids[iter_num])+'_right_augmented_metric_', rgt_aug_metric, epoch+1)
+    #writer.add_scalar('AM_score/'+str(val_img_ids[iter_num])+'_augmented_metric_', augmented_metric, epoch+1)
+    #writer.add_scalar('AM_score/'+str(val_img_ids[iter_num])+'_left_augmented_metric_', lft_aug_metric, epoch+1)
+    #writer.add_scalar('AM_score/'+str(val_img_ids[iter_num])+'_right_augmented_metric_', rgt_aug_metric, epoch+1)
     #writer.add_scalar('F1_score/'+str(val_img_ids[iter_num])+'_f1_score_', lr_f1_score, epoch+1)
     writer.add_scalar('Reach_MAE/'+str(val_img_ids[iter_num])+'_lr_reach_mae_', avg_reach_mae, epoch+1)
 
@@ -358,12 +504,17 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     'left_prec_th':prec_th_lft,'left_recall_th':recall_th_lft,'left_f1_th':f1_th_lft,
     'right_prec_th':prec_th_rht,'right_recall_th':recall_th_rht,'right_f1_th':f1_th_rht} """
 
-    log_dic_scores = {'AM_score':augmented_metric, 'Left_AM_Score': lft_aug_metric,'Right_AM_Score':rgt_aug_metric,'lr_reach_mae':avg_reach_mae,
+    """ log_dic_scores = {'AM_score':augmented_metric, 'Left_AM_Score': lft_aug_metric,'Right_AM_Score':rgt_aug_metric,'lr_reach_mae':avg_reach_mae,
     'left_precision':precision_lft,'left_recall':recall_lft,
     'right_precision':precision_rht,'right_recall':recall_rht,
     'lft_rgt_precision':precision_comb,'lft_rgt_recall':recall_comb,
     'left_prec_th':prec_th_lft,'left_recall_th':recall_th_lft,
-    'right_prec_th':prec_th_rht,'right_recall_th':recall_th_rht}
+    'right_prec_th':prec_th_rht,'right_recall_th':recall_th_rht} """
+
+    log_dic_scores = {'lr_reach_mae':avg_reach_mae,
+    'left_precision':precision_lft,'left_recall':recall_lft,
+    'right_precision':precision_rht,'right_recall':recall_rht
+    }
 
     """ imp_val_log = {str(val_img_ids[iter_num])+'_augmented_metric':augmented_metric, str(val_img_ids[iter_num])+'_lr_f1_score':lr_f1_score,
                 str(val_img_ids[iter_num])+'_lr_reach_mae':avg_reach_mae,
@@ -376,15 +527,20 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
                 str(val_img_ids[iter_num])+'_left_f1_th':f1_th_lft, str(val_img_ids[iter_num])+'_right_f1_th':f1_th_rht,
                 str(val_img_ids[iter_num])+'_left_act_overfit_diff':lft_ove_act,str(val_img_ids[iter_num])+'_right_act_overfit_diff':rg_ove_act} """
 
-    imp_val_log = {str(val_img_ids[iter_num])+'_augmented_metric':augmented_metric,
+    """ imp_val_log = {str(val_img_ids[iter_num])+'_augmented_metric':augmented_metric,
     str(val_img_ids[iter_num])+'_lr_reach_mae':avg_reach_mae,
     str(val_img_ids[iter_num])+'_left_overfit_metric':left_overfit_metric,str(val_img_ids[iter_num])+'_right_overfit_metric':right_overfit_metric,
     str(val_img_ids[iter_num])+'_left_AM_metric':left_overfit_metric+lft_r_m,str(val_img_ids[iter_num])+'_right_AM_metric':right_overfit_metric+rg_r_m,
     str(val_img_ids[iter_num])+'_left_reach_mae':lft_r_m, str(val_img_ids[iter_num])+'_right_reach_mae':rg_r_m,
     str(val_img_ids[iter_num])+'_left_erosion_diff':lft_ero_dif, str(val_img_ids[iter_num])+'_right_erosion_diff':rg_ero_dif,
     str(val_img_ids[iter_num])+'_left_act_erosion_mae':lft_cm_m, str(val_img_ids[iter_num])+'_right_act_erosion_mae':rg_cm_m,
-    str(val_img_ids[iter_num])+'_left_act_overfit_diff':lft_ove_act,str(val_img_ids[iter_num])+'_right_act_overfit_diff':rg_ove_act}
+    str(val_img_ids[iter_num])+'_left_act_overfit_diff':lft_ove_act,str(val_img_ids[iter_num])+'_right_act_overfit_diff':rg_ove_act} """
     #return avg_mae_pos, avg_std_pos, avg_mae_neg, avg_std_neg, precision_comb, recall_comb, f1_comb
+
+    imp_val_log = {
+    str(val_img_ids[iter_num])+'_lr_reach_mae':avg_reach_mae,
+    str(val_img_ids[iter_num])+'_left_reach_mae':lft_r_m, str(val_img_ids[iter_num])+'_right_reach_mae':rg_r_m,
+    }
 
     return log_dic_lef_rght, log_dic_scores, imp_val_log
 
@@ -505,8 +661,9 @@ def process_prev(arr_list, num_val_img,prev_year_ids,prev_reach_ids,vert_img_hgt
                 flag_standardize_actual,transform_constants):
 
     arr_list = np.asarray(arr_list)
-    arr_list = np.transpose(arr_list,[1,0,2,3])
     total_rows = int(arr_list.shape[1] * arr_list.shape[2])
+    arr_list = np.transpose(arr_list,[1,0,2,3])
+    
     arr_list = np.reshape(arr_list, (num_val_img,total_rows,2))
     arr_list = np.transpose(arr_list,[1,0,2])
 
@@ -526,11 +683,12 @@ def process_diffs(arr_list, num_val_img, prev_actual_list,act_year_ids,act_reach
                     vert_img_hgt,out_mode,flag_standardize_actual,transform_constants,output_subtracted):
 
     arr_list = np.asarray(arr_list)
+    total_rows = int(arr_list.shape[1] * arr_list.shape[2])
     #print(arr_list.shape)
     #print(asd)
 
     arr_list = np.transpose(arr_list,[1,0,2,3])
-    total_rows = int(arr_list.shape[1] * arr_list.shape[2])
+    
     arr_list = np.reshape(arr_list, (num_val_img,total_rows,2))
     arr_list = np.transpose(arr_list,[1,0,2])
 
@@ -696,7 +854,7 @@ def process_tf_dataset(input_tensor_org, year_id, reach_id, sdd_output,inp_mode,
 
 def custom_mean_sdd(dataset_f,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_standardize_actual,
                     flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid):
-    
+    print('calculating standardization constants .........')
     inp_list = []
     out_list = []
 
@@ -840,12 +998,14 @@ def create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size
     dataset_f = dataset_f.map(_parse_function_org_,num_parallel_calls=tf.data.experimental.AUTOTUNE).batch(vert_img_hgt).batch(time_step)
     
     if train_shuffle == True :
+        #print(dataset_f.cardinality().numpy())
+        #rint(asd)
         dataset_f = dataset_f.cache()
-        dataset_f = dataset_f.shuffle(30000, reshuffle_each_iteration=True)
+        dataset_f = dataset_f.shuffle(10000, reshuffle_each_iteration=True)
     elif train_shuffle == False :
         pass
     dataset_f = dataset_f.batch(batch_size, drop_remainder=True)
-    dataset_f = dataset_f.prefetch(int(2*batch_size))
+    dataset_f = dataset_f.prefetch(int(10*batch_size))
 
     return dataset_f
 
@@ -872,16 +1032,17 @@ def create_val_dataset(total_time_step,val_split,val_skip,reach_win_size,reach_s
     dataseti1 = dataseti1.map(_parse_function_org_,num_parallel_calls=tf.data.experimental.AUTOTUNE).batch(vert_img_hgt).batch(time_step)
 
     dataseti1 = dataseti1.batch(val_batch_size, drop_remainder=True)
+    #dataseti1 = dataseti1.prefetch(int(25*val_batch_size))
 
     return dataseti1
 
 
 
 
-def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,train_shuffle,get_train_mae,
+def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,train_shuffle,get_train_mae,transform_constants,
                 lstm_layers,lstm_hidden_units,batch_size,inp_bnk,out_bnk,val_split,val_skip,model_type,num_layers,
                 model_optim,loss_func,save_mod,load_mod,load_file,skip_training,output_subtracted,train_val_gap,
-                out_use_mid):
+                out_use_mid,trail_id):
     
     load_mod = load_mod
     load_file = load_file
@@ -957,8 +1118,10 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     #print('number of val images.')
     #print(num_val_img)
     #print(asd)
-    val_batch_size = num_val_img
 
+    #val_batch_size = num_val_img
+    tr_pr_batch_size = 2222 - (2*(int((vert_img_hgt-1)/2)))
+    val_batch_size = tr_pr_batch_size
     #print(val_img_ids)
     #print(num_val_img)
     #print(asd)
@@ -1059,17 +1222,22 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         num_layers = num_layers,
         num_neurons_per_layer = lstm_hidden_units,
         out_use_mid = out_use_mid,
-        model_loaded_from = loaded_from
+        model_loaded_from = loaded_from,
+        trail_id = trail_id,
+        output_subtracted= output_subtracted
         )
 
 
+    if skip_training == False :
+        dataset_f = create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
+                vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle,batch_size)
 
-    dataset_f = create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
-            vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle,batch_size)
 
+    
 
-    dataset_tr_pr = create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
-            vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle=False,batch_size=batch_size)
+    if skip_training == False :
+        dataset_tr_pr = create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
+                vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle=False,batch_size=tr_pr_batch_size)
 
 
     dataseti1 = create_val_dataset(total_time_step,val_split,val_skip,reach_win_size,reach_shift_cons,reach_start_indx,vert_img_hgt,vert_step,
@@ -1084,8 +1252,8 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         model = Baseline_ANN_Dynamic_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
                                 vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units,flag_reach_use,num_layers,out_use_mid)
     elif model_type == 'LSTM':
-        model = Baseline_LSTM_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
-                                vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units)
+        model = Baseline_LSTM_Dynamic_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
+                                vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units,flag_reach_use,num_layers,out_use_mid)
 
 
 
@@ -1103,6 +1271,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate, weight_decay=adm_wd)
 
     if (load_mod == True) and (load_file != None):
+        print('loading model .......')
         checkpoint = torch.load(os.path.join('./data/model/'+ load_file +'.pt'))
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -1114,14 +1283,18 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     early_stop_counter = 0
     global_train_counter = 0
 
+    if transform_constants == None :
+        transform_constants = custom_mean_sdd(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_standardize_actual,
+                        flag_reach_use,tr_pr_batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid)
 
-    transform_constants = custom_mean_sdd(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_standardize_actual,
-                    flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid)
 
     inp_mean = transform_constants['inp_mean']
     inp_std = transform_constants['inp_std']
     out_mean = transform_constants['out_mean']
     out_std = transform_constants['out_std']
+
+    #print(inp_mean)
+    #print(out_mean)
 
     train_losses = []
     val_losses = []
@@ -1230,9 +1403,13 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
 
         val_epoch_loss = 0
         counter_val = 0
+
+        
         
         if epoch % log_val_loss_at == log_val_loss_at-1 :
+            print('starting validation .......')
             with torch.no_grad():
+                
                 #print('hel')
                 #if epoch % log_performance == log_performance-1:
                 pred_list = []
@@ -1507,12 +1684,12 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 #model_save(model, optimizer, model_name)
                 break """
         
-        if epoch % get_train_mae == get_train_mae-1 :
+        """ if epoch % get_train_mae == get_train_mae-1 :
             train_mae = train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,
                 batch_size,time_step,vert_img_hgt,flag_sdd_act_data,inp_mean,inp_std,out_mean,out_std,model,loss_func,
                 transform_constants,num_val_img,output_subtracted,out_use_mid)
             writer.add_scalar('Loss/Train_MAE', train_mae, epoch+1)
-            train_maes.append(train_mae)
+            train_maes.append(train_mae) """
 
         
     #print(actual_list[0:20,0,:])
@@ -1520,16 +1697,17 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
 
 
     #print(asd)
-    for iter_num in range((num_val_img)):
-        temp_conf = wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids, writer,smooth_flag,
-                    reach_start_indx,out_use_mid,vert_img_hgt)
+    if skip_training == True :
+        for iter_num in range((num_val_img)):
+            temp_conf = wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids, writer,smooth_flag,
+                        reach_start_indx,out_use_mid,vert_img_hgt)
 
-        if iter_num == 0 :
-            final_conf = temp_conf
-        else :
-            final_conf = final_conf + temp_conf
+            if iter_num == 0 :
+                final_conf = temp_conf
+            else :
+                final_conf = final_conf + temp_conf
         
-    plt_conf_mat(final_conf, 'total_test_confusion_matrix', writer) #'trial_name':str(model_name),
+        plt_conf_mat(final_conf, 'total_test_confusion_matrix', writer) #'trial_name':str(model_name),
     hyperparameter_defaults.update(epochs=epoch+1)
     hyperparameter_defaults.update(trial_name=model_name)
     
@@ -1544,19 +1722,23 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         'hparam/left_act_ero_diff':test_logs['mean_ero_diff'][0],'hparam/right_act_ero_diff':test_logs['mean_ero_diff'][1],
         'hparam/left_act_overfit_dif':test_logs['act_overfit_diff'][0],'hparam/right_act_overfit_dif':test_logs['act_overfit_diff'][1]}
     """    
-    train_mae = train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,
-        batch_size,time_step,vert_img_hgt,flag_sdd_act_data,inp_mean,inp_std,out_mean,out_std,model,loss_func,
-        transform_constants,num_val_img,output_subtracted,out_use_mid)
+    if skip_training == False :
+        train_mae = train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,
+            tr_pr_batch_size,time_step,vert_img_hgt,flag_sdd_act_data,inp_mean,inp_std,out_mean,out_std,model,loss_func,
+            transform_constants,num_val_img,output_subtracted,out_use_mid)
+        train_maes.append(train_mae)
+    
 
     if skip_training == False :
-        temp_hparam = {'hparam/train_loss':avg_epoch_loss}
+        temp_hparam = {'hparam/train_loss':avg_epoch_loss,'hparam/train_mae':train_mae}
     elif skip_training == True :
+        train_maes = [0]
         pass
     
 
 
-    hparam_logs = {'hparam/val_loss':avg_val_epoch_loss,
-        'hparam/augmented_metric':test_logs_scores['AM_score'],'hparam/train_mae':train_mae,
+    """ hparam_logs = {'hparam/val_loss':avg_val_epoch_loss,
+        'hparam/augmented_metric':test_logs_scores['AM_score'],
         'hparam/Left_AM_Metric':test_logs_scores['Left_AM_Score'],
         'hparam/Right_AM_Metric':test_logs_scores['Right_AM_Score'],
         'hparam/lr_reach_mae':test_logs_scores['lr_reach_mae'],
@@ -1569,7 +1751,13 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         'hparam/left_neg_mae':test_logs['neg_mae'][0],'hparam/right_neg_mae':test_logs['neg_mae'][1],
         'hparam/left_pos_neg_mae':test_logs['full_act_mae'][0],'hparam/right_pos_neg_mae':test_logs['full_act_mae'][1],
         'hparam/left_act_ero_diff':test_logs['mean_ero_diff'][0],'hparam/right_act_ero_diff':test_logs['mean_ero_diff'][1],
-        'hparam/left_act_overfit_dif':test_logs['act_overfit_diff'][0],'hparam/right_act_overfit_dif':test_logs['act_overfit_diff'][1]}
+        'hparam/left_act_overfit_dif':test_logs['act_overfit_diff'][0],'hparam/right_act_overfit_dif':test_logs['act_overfit_diff'][1]} """
+
+    hparam_logs = {'hparam/val_loss':avg_val_epoch_loss,
+        'hparam/lr_reach_mae':test_logs_scores['lr_reach_mae'],
+        'hparam/left_reach_mae':test_logs['reach_mae'][0],'hparam/right_reach_mae':test_logs['reach_mae'][1],
+        'hparam/left_precision':test_logs_scores['left_precision'],'hparam/right_precision':test_logs_scores['right_precision'],
+        'hparam/left_recall':test_logs_scores['left_recall'],'hparam/right_recall':test_logs_scores['right_recall']}
 
     """ 'hparam/left_F1Score':float(2*((test_logs_scores['left_precision']*test_logs_scores['left_recall'])/(test_logs_scores['left_precision']+test_logs_scores['left_recall']))),
         'hparam/Right_F1Score':float(2*((test_logs_scores['right_precision']*test_logs_scores['right_recall'])/(test_logs_scores['right_precision']+test_logs_scores['right_recall']))), """
@@ -1586,29 +1774,33 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     if save_mod == True:
         model_save(model, optimizer, model_name)
 
-    avg_act_ero_mae = (test_logs['full_act_mae'][0] + test_logs['full_act_mae'][1] ) / 2 
+    #avg_act_ero_mae = (test_logs['full_act_mae'][0] + test_logs['full_act_mae'][1] ) / 2 
 
-    return model_name, train_losses, val_losses, train_maes, val_maes, hyperparameter_defaults
+    return model_name, train_losses, val_losses, train_maes, val_maes, hyperparameter_defaults,transform_constants
 
 if __name__ == "__main__":
 
     super_epochs = 4
-    num_epochs = 10
+    num_epochs = 20
 
     def objtv(trial):
         super_epochs = 4
-        num_epochs = 10
+        num_epochs = 20
 
+        trail_id = trial.number
         load_models_list = []
-        tm_stp=trial.suggest_int('time_step', 3, 7, 1)
+        transform_constants_list = []
+        tm_stp=trial.suggest_int('time_step', 3, 6, 1)
         lr_pow = trial.suggest_discrete_uniform('learning_rate', -5.0, -1.0, 0.5)
         lstm_hidden_units = trial.suggest_int('neurons_per_layer', 25, 150, 25 )
         batch_size_pow = trial.suggest_int('batch_size_power', 5, 11 , 1)
-        num_layers = trial.suggest_int('num_of_layers', 1, 15, 2)
+        num_layers = trial.suggest_int('num_of_layers', 1, 19, 2)
         strt = trial.suggest_int('starting_year', 0, 20, 5)
         vert_hgt = trial.suggest_int('vertical_window_size', 1, 29, 4)
         loss_func = trial.suggest_categorical('loss_function', ['mse_loss', 'l1_loss', 'huber_loss'])
-        
+        output_subtracted = trial.suggest_categorical('output_subtracted', [True, False])
+        lstm_layers = trial.suggest_int('lstm_depth_layers', 1, 3, 1)
+        model_type = trial.suggest_categorical('model_type', ['ANN', 'LSTM'])
 
         for j in range(super_epochs):
 
@@ -1627,16 +1819,16 @@ if __name__ == "__main__":
             #vert_hgt=1
             vert_step_num=1
             #num_epochs=num_epochs
-            lstm_layers=1
+            #lstm_layers=1
             #neurons_per_layer_list = [20,50,70,]
-            inp_bnk='left'
-            out_bnk='left'
+            inp_bnk='right'
+            out_bnk='right'
             model_optim='SGD'
             #loss_func='mse_loss'
-            output_subtracted = True
+            #output_subtracted = False
             train_shuffle = True
             train_val_gap = False
-            model_type = 'ANN'
+            #model_type = 'ANN'
             #num_layers_list = [1,3,5,7,9,12,14]
     
 
@@ -1650,27 +1842,28 @@ if __name__ == "__main__":
                 val_split = val_split_org + (tm_stp - 2)
 
                 if j == 0 :
-                    model_name, train_losses, val_losses, train_maes, val_maes, hparam_def = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=num_epochs,train_shuffle=train_shuffle,
-                    get_train_mae=get_train_mae,lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,model_type=model_type,num_layers=num_layers,
-                    model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=False,load_file=None,skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid)
+                    model_name, train_losses, val_losses, train_maes, val_maes, hparam_def, transform_constants = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=num_epochs,train_shuffle=train_shuffle,
+                    get_train_mae=get_train_mae,transform_constants=None,lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,model_type=model_type,num_layers=num_layers,
+                    model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=False,load_file=None,skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id)
                 elif j > 0 :
-                    model_name, train_losses, val_losses, train_maes, val_maes, hparam_def = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=num_epochs,train_shuffle=train_shuffle,
-                    get_train_mae=get_train_mae,lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,model_type=model_type,num_layers=num_layers,
-                    model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=True,load_file=load_models_list[0],skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid)
+                    model_name, train_losses, val_losses, train_maes, val_maes, hparam_def, transform_constants = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=num_epochs,train_shuffle=train_shuffle,
+                    get_train_mae=get_train_mae,transform_constants=transform_constants_list[i],lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,model_type=model_type,num_layers=num_layers,
+                    model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=True,load_file=load_models_list[0],skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id)
 
                     load_models_list.pop(0)
 
                 load_models_list.append(model_name)
-
+                if j == 0 :
+                    transform_constants_list.append(transform_constants)
                 #print(val_losses)
                 crs_train_ls.append(train_losses)
                 crs_val_ls.append(val_losses)
                 crs_train_maes.append(train_maes)
                 crs_val_maes.append(val_maes)
 
-                _, _, _, _, test_val_maes, _ = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=1,train_shuffle=train_shuffle,get_train_mae=1,
+                _, _, _, _, test_val_maes, _, _ = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=1,train_shuffle=train_shuffle,get_train_mae=1,transform_constants=transform_constants,
                     lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split-(val_split_org-val_skip),val_skip=(val_skip-1),model_type=model_type,num_layers=num_layers,
-                    model_optim=model_optim,loss_func=loss_func,save_mod=False,load_mod=True,load_file=model_name,skip_training=True,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid)
+                    model_optim=model_optim,loss_func=loss_func,save_mod=False,load_mod=True,load_file=model_name,skip_training=True,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id)
                 
                 crs_test_maes.append(test_val_maes)
 
@@ -1678,6 +1871,13 @@ if __name__ == "__main__":
                 val_skip = val_split_org - 1
                 if change_start == True :
                     strt = strt - 1
+
+                """ print(crs_train_ls)
+                print(crs_val_ls)
+                print(crs_train_maes)
+                print(crs_val_maes) """
+
+                
 
 
             crs_train_ls = np.mean(np.asarray(crs_train_ls),axis=0)
@@ -1742,10 +1942,10 @@ if __name__ == "__main__":
                 raise optuna.TrialPruned()
 
 
-        return crs_val_ls[-1]
+        return crs_val_maes[-1]
 
 
-    study = optuna.create_study(study_name='temp1',storage='sqlite:///data\\sqdb\\sq_lit_left.db',load_if_exists=True,direction='minimize',sampler=TPESampler(),
+    study = optuna.create_study(study_name='temp1',storage='sqlite:///data\\sqdb\\sq_lit_left_mae.db',load_if_exists=True,direction='minimize',sampler=TPESampler(),
             pruner=HyperbandPruner(min_resource=1, max_resource=int(super_epochs*num_epochs), reduction_factor=3))
 
     study.optimize(objtv)
