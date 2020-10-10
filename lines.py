@@ -1,4 +1,4 @@
-import tensorflow as tf
+#import tensorflow as tf
 import torch.nn as nn
 import torch
 import numpy as np
@@ -10,7 +10,7 @@ from os.path import isfile, join
 import os
 import sys
 from torch.utils.tensorboard import SummaryWriter
-from models import CNN_Model,Baseline_LSTM_Dynamic_Model,Baseline_ANN_Dynamic_Model
+from models import Baseline_LSTM_Dynamic_Model,Baseline_ANN_Dynamic_Model,CNN_LSTM_Dynamic_Model
 from sklearn.metrics import mean_absolute_error, precision_score, recall_score, confusion_matrix, f1_score
 from sklearn.preprocessing import OneHotEncoder
 import matplotlib.pyplot as plt
@@ -21,6 +21,8 @@ from optuna.samplers import TPESampler,RandomSampler
 from optuna.pruners import HyperbandPruner
 from operator import add
 from random import randrange
+from torch.utils.data import Dataset, DataLoader
+
 
 
 def _parse_function_(example_proto):
@@ -51,7 +53,8 @@ def _parse_function_org_(example_proto):
             'year_id': tf.io.FixedLenFeature((), tf.string),
             'reach_id': tf.io.FixedLenFeature((), tf.string),
             'bin_class': tf.io.FixedLenFeature((), tf.string),
-            'reach_diff':tf.io.FixedLenFeature((), tf.string)
+            'reach_diff':tf.io.FixedLenFeature((), tf.string),
+            'concat_img':tf.io.FixedLenFeature((), tf.string)
         }
 
     parsed_features = tf.io.parse_single_example(example_proto, features)
@@ -61,8 +64,9 @@ def _parse_function_org_(example_proto):
     reach_id = tf.io.decode_raw(parsed_features["reach_id"],  tf.float32)
     bin_class = tf.io.decode_raw(parsed_features["bin_class"],  tf.float32)
     sdd_output = tf.io.decode_raw(parsed_features["reach_diff"],  tf.float32)
+    concat_img = tf.io.decode_raw(parsed_features["concat_img"],  tf.float32)
     
-    return input_tensor, year_id, reach_id, bin_class, sdd_output
+    return input_tensor, year_id, reach_id, bin_class, sdd_output, concat_img
 
 
 def plt_conf_mat(conf_mat, title, writer):
@@ -778,13 +782,20 @@ def write_inp_tf(input_tensor,reach_id,year_id,batch_size,time_step,inp_std,inp_
 
 def process_tf_dataset(input_tensor_org, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,out_mode,out_lr_tag,
     flag_standardize_actual,flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,
-    out_use_mid):
+    out_use_mid,concat_img):
 
-    year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
+    #year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
     reach_id = np.reshape(reach_id, (batch_size,time_step,vert_img_hgt,1))
 
-    input_tensor = np.reshape(input_tensor_org, (batch_size,time_step,vert_img_hgt,2))
     
+    #input_type = 'img' 
+    if inp_lr_flag == 'img' :
+        input_tensor = np.reshape(concat_img, (batch_size,time_step,vert_img_hgt,745,7))
+    else :
+        input_tensor = np.reshape(input_tensor_org, (batch_size,time_step,vert_img_hgt,2))
+
+    
+
     if inp_lr_flag == 'left' :
         input_tensor = input_tensor[:,0:time_step-1,:,0:1]
         input_tensor_sub = np.reshape(input_tensor[:,-1,:,:],(batch_size,1,vert_img_hgt,1))
@@ -809,6 +820,15 @@ def process_tf_dataset(input_tensor_org, year_id, reach_id, sdd_output,inp_mode,
         if flag_reach_use :
             reach_id = reach_id[:,0,:,:]
 
+    elif (inp_lr_flag == 'img') and (output_subtracted == True) and (out_lr_tag == 'both'):
+        input_tensor = input_tensor[:,0:time_step-1,:,:,:]
+
+        input_tensor_sub = np.reshape(input_tensor_org, (batch_size,time_step,vert_img_hgt,2))
+        input_tensor_sub = input_tensor_sub[:,0:time_step-1,:,:]
+        input_tensor_sub = np.reshape(input_tensor_sub[:,-1,:,:],(batch_size,1,vert_img_hgt,2))
+
+
+
 
     if out_mode == 'diff_sdd' :
         sdd_output = np.reshape(sdd_output, (batch_size,time_step,vert_img_hgt,2))
@@ -829,82 +849,142 @@ def process_tf_dataset(input_tensor_org, year_id, reach_id, sdd_output,inp_mode,
 
     if (inp_mode == 'act') and (flag_standardize_actual == True) :
         if flag_sdd_act_data == True :
-            inp_flatten = np.reshape(input_tensor, (batch_size, -1))
+            
+            if inp_lr_flag != 'img' :
+                inp_flatten = np.reshape(input_tensor, (batch_size, -1))
             out_flatten = np.reshape(sdd_output, (batch_size, -1))
 
             #out_use_mid = True
             if out_use_mid == True :
                 out_flatten = out_flatten[:,int((vert_img_hgt-1)/2):int((vert_img_hgt-1)/2)+1]
 
-            if flag_reach_use == True :
-                reach_id = np.reshape(reach_id, (batch_size, -1))
-                if vert_img_hgt > 1 :
-                    reach_id = reach_id[:,0]
+            if inp_lr_flag != 'img' :
+                if flag_reach_use == True :
                     reach_id = np.reshape(reach_id, (batch_size, -1))
-                    inp_flatten = np.concatenate((inp_flatten,reach_id),axis=1)
-                elif vert_img_hgt == 1 :
-                    inp_flatten = np.concatenate((inp_flatten,reach_id),axis=1)
+                    if vert_img_hgt > 1 :
+                        reach_id = reach_id[:,0]
+                        reach_id = np.reshape(reach_id, (batch_size, -1))
+                        inp_flatten = np.concatenate((inp_flatten,reach_id),axis=1)
+                    elif vert_img_hgt == 1 :
+                        inp_flatten = np.concatenate((inp_flatten,reach_id),axis=1)
     
     #print(inp_flatten[0:20,:])
     #print(out_flatten[0:20,:])
     #print(asd)
+
+    if inp_lr_flag == 'img' :
+        inp_flatten = input_tensor
+
     return inp_flatten, out_flatten, input_tensor, sdd_output
+
+
+def process_py_imgs(concat_img,lines):
+
+    concat_img = concat_img[:,:-1,:,:]
+    lines = lines[:,-1:,:,:]
+
+
 
 
 
 def custom_mean_sdd(dataset_f,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_standardize_actual,
-                    flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid):
+                    flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,
+                    out_use_mid,dataset_type,dataset_dic):
     print('calculating standardization constants .........')
     inp_list = []
     out_list = []
 
     prox_counter = 0
-    for input_tensor_org, year_id, reach_id, _, sdd_output in dataset_f:
+
+    #dataset_type = 'pydic'
+
+    if dataset_type == 'tfrecord':
+        for input_tensor_org, year_id, reach_id, _, sdd_output, concat_img in dataset_f:
+
+            inp_flatten, out_flatten, inp_tensor, out_tensor = process_tf_dataset(input_tensor_org, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
+                out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid,concat_img)
+
+            if prox_counter == 0 :
+            
+                prin_count = 1
+                """ print('batch,time_step,vert_hgt,banks format input/output view ........')
+                print(inp_tensor[0:prin_count,:,:,:])
+                print(out_tensor[0:prin_count,:,:,:]) """
+                print('flatten input/output view ............')
+                if inp_lr_flag != 'img' :
+                    print(inp_flatten[0:prin_count,:])
+                elif inp_lr_flag == 'img' :
+                    print(inp_tensor[0,:,:,:,:])
+                    print(inp_tensor.shape)
+
+                print(out_flatten[0:prin_count,:])
 
 
-        inp_flatten, out_flatten, inp_tensor, out_tensor = process_tf_dataset(input_tensor_org, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
-            out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid)
+            if inp_lr_flag != 'img' :
+                inp_list.append(inp_flatten)
+            out_list.append(out_flatten)
 
-        if prox_counter == 0 :
+            prox_counter += 1
+
         
-            prin_count = 1
-            """ print('batch,time_step,vert_hgt,banks format input/output view ........')
-            print(inp_tensor[0:prin_count,:,:,:])
-            print(out_tensor[0:prin_count,:,:,:]) """
-            print('flatten input/output view ............')
-            print(inp_flatten[0:prin_count,:])
-            print(out_flatten[0:prin_count,:])
+        if inp_lr_flag != 'img' :
+            inp_list = np.asarray(inp_list,dtype=np.float32)
+            inp_list = np.reshape(inp_list,(batch_size*prox_counter, -1))        
 
-            #print(asd) 
+        out_list = np.asarray(out_list,dtype=np.float32)
+        out_list = np.reshape(out_list,(batch_size*prox_counter, -1))
+        
+        #np.savetxt(os.path.join('./data/right_bank_inp.csv'), inp_list, delimiter=",")
+        #np.savetxt(os.path.join('./data/right_bank_out.csv'), out_list, delimiter=",")
+        #print(inp_list[0:4,:])
+        #print(out_list[0:4,:])
+        #print(inp_list.shape)
+        #print(out_list.shape)
+        #print(asd)
 
-        inp_list.append(inp_flatten)
-        out_list.append(out_flatten)
+        if inp_lr_flag != 'img' :
+            inp_list_mean = np.mean(inp_list,axis=0)
+            inp_list_std = np.std(inp_list,axis=0)
+        elif inp_lr_flag == 'img' :
+            inp_list_mean = None
+            inp_list_std = None
 
-        prox_counter += 1
+        out_list_mean = np.mean(out_list,axis=0)
+        out_list_std = np.std(out_list,axis=0)
+
+        transform_constants = {'inp_mean':inp_list_mean,'inp_std':inp_list_std,
+                            'out_mean':out_list_mean,'out_std':out_list_std}
+
+        
+    elif dataset_type == 'pydic' :
+        for i_batch, sample_batched in enumerate(dataset_f) :
+            print('reading all output for mean/std .......')
+            print(i_batch)
+            #concat_img = sample_batched['img']
+            lines = sample_batched['lines']
+            #year_id = sample_batched['years']
+            #reach_id = sample_batched['reaches']
+            
+            
+            print(lines.shape)
+
+            if prox_counter == 0 :
+                print(lines[0:1,:,:,:])
+        
+        lines_last = lines[:,-1:,int((vert_img_hgt-1)/2):int((vert_img_hgt-1)/2)+1,:]
+        lines_prev = lines[:,-2:-1,int((vert_img_hgt-1)/2):int((vert_img_hgt-1)/2)+1,:]
+
+        lines_last = np.asarray(np.reshape(lines_last, (lines_last.shape[0], 2)))
+        lines_prev = np.asarray(np.reshape(lines_prev, (lines_prev.shape[0], 2)))
+
+        lines_sub = lines_last - lines_prev
+
+        out_list_mean = np.mean(lines_sub,axis=0)
+        out_list_std = np.std(lines_sub,axis=0) 
+
+        transform_constants = {'inp_mean':None,'inp_std':None,
+                    'out_mean':out_list_mean,'out_std':out_list_std}
     
-
-    inp_list = np.asarray(inp_list,dtype=np.float32)
-    inp_list = np.reshape(inp_list,(batch_size*prox_counter, -1))        
-
-    out_list = np.asarray(out_list,dtype=np.float32)
-    out_list = np.reshape(out_list,(batch_size*prox_counter, -1))
-    
-    #np.savetxt(os.path.join('./data/right_bank_inp.csv'), inp_list, delimiter=",")
-    #np.savetxt(os.path.join('./data/right_bank_out.csv'), out_list, delimiter=",")
-    #print(inp_list[0:4,:])
-    #print(out_list[0:4,:])
-    #print(inp_list.shape)
-    #print(out_list.shape)
-    #print(asd)
-
-    inp_list_mean = np.mean(inp_list,axis=0)
-    inp_list_std = np.std(inp_list,axis=0)
-
-    out_list_mean = np.mean(out_list,axis=0)
-    out_list_std = np.std(out_list,axis=0)
-
-    transform_constants = {'inp_mean':inp_list_mean,'inp_std':inp_list_std,
-                        'out_mean':out_list_mean,'out_std':out_list_std}
 
     return transform_constants
     
@@ -922,10 +1002,10 @@ def train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,fla
     
     model.eval()
     with torch.no_grad():
-        for inp_flatten_org, year_id, reach_id, _, sdd_output in dataset_tr_pr:
+        for inp_flatten_org, year_id, reach_id, _, sdd_output, concat_img in dataset_tr_pr:
 
             inp_flatten_org, out_flatten,_,_ = process_tf_dataset(inp_flatten_org, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
-                out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid)
+            out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid,concat_img)
 
 
             if (inp_mode == 'act') and (flag_standardize_actual == True) :
@@ -979,7 +1059,9 @@ def train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,fla
 def create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
             vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle,batch_size):
 
-    dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(0)+'_'+str(5)+'.tfrecords'))
+    #dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(0)+'_'+str(5)+'.tfrecords'))
+    dataset_f = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/img_lines_comp.tfrecords'))
+
 
     dataset_f = dataset_f.window(size=data_div_step, shift=total_time_step, stride=1, drop_remainder=False)
     dataset_f = dataset_f.map(lambda x: x.skip(start_indx))
@@ -1012,8 +1094,9 @@ def create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size
 def create_val_dataset(total_time_step,val_split,val_skip,reach_win_size,reach_shift_cons,reach_start_indx,vert_img_hgt,vert_step,
         val_img_range,time_step,val_batch_size):
 
-    dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(0)+'_'+str(5)+'.tfrecords'))
-    
+    #dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/lines_'+str(0)+'_'+str(5)+'.tfrecords'))
+    dataseti1 = tf.data.TFRecordDataset(os.path.join('./data/tfrecord/img_lines_comp.tfrecords'))
+
     dataseti1 = dataseti1.window(size=total_time_step, shift=total_time_step, stride=1, drop_remainder=False)
     dataseti1 = dataseti1.map(lambda x: x.skip(total_time_step-(val_split+1)))
     dataseti1 = dataseti1.map(lambda x: x.take(val_split-val_skip+1))
@@ -1037,12 +1120,103 @@ def create_val_dataset(total_time_step,val_split,val_skip,reach_win_size,reach_s
     return dataseti1
 
 
+class Pytorch_Dataset(Dataset):
+
+    def __init__(self, data_ids, data_dic, time_step, vert_img_hgt):
+
+        self.data_ids = data_ids
+        self.data_dic = data_dic
+        self.time_step = time_step
+        self.vert_img_hgt = vert_img_hgt
+
+    def __len__(self):
+        return len(self.data_ids)
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        img_data = self.data_dic['imgs']
+        year_data = self.data_dic['years']
+        reach_data = self.data_dic['reaches']
+        lines_data = self.data_dic['lines']
+
+        data_id = self.data_ids[idx]
+        year_idx = data_id[0]
+        reach_idx = data_id[1]
+
+        year_id = year_data[year_idx : year_idx + self.time_step]
+        reach_id = reach_data[year_idx, reach_idx : reach_idx + self.vert_img_hgt]
+
+        image = img_data[year_idx:year_idx+self.time_step, reach_idx:reach_idx+self.vert_img_hgt, :,:]
+        lines = lines_data[year_idx:year_idx+self.time_step, reach_idx:reach_idx+self.vert_img_hgt,:]
+
+        sample = {'img':image,'lines':lines,'years':year_id,'reaches':reach_id}
+
+        return sample
+
+
+
+def create_dic_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
+            vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle,batch_size,dataset_dic):
+
+    
+    time_step_start = start_indx
+    time_step_end = data_div_step
+    time_step_values = np.arange(time_step_start, time_step_end, 1)
+    time_step_values = time_step_values[:-(time_step-1)]
+
+    reach_start = reach_start_indx
+    reach_end = reach_win_size
+    reach_values = np.arange(reach_start, reach_end, 1)
+    reach_values = reach_values[:-(vert_img_hgt-1)]
+
+    data_ids = []
+
+    for i in time_step_values:
+        for j in reach_values:
+            data_ids.append([i,j])
+
+    pytorch_dataset = Pytorch_Dataset(data_ids,dataset_dic,time_step,vert_img_hgt)
+
+    if train_shuffle == True :   
+        dataloader = DataLoader(pytorch_dataset, batch_size=batch_size, shuffle=train_shuffle, num_workers=0,drop_last=True)
+    elif train_shuffle == False :
+        dataloader = DataLoader(pytorch_dataset, batch_size=batch_size, shuffle=train_shuffle, num_workers=0,drop_last=False)
+    
+    return dataloader
+
+def create_dic_val_dataset(total_time_step,val_split,val_skip,reach_win_size,reach_shift_cons,reach_start_indx,
+        vert_img_hgt,vert_step,val_img_range,time_step,val_batch_size,dataset_dic):
+
+    time_step_start = total_time_step - (val_split+1)
+    time_step_end = total_time_step - val_skip
+    time_step_values = np.arange(time_step_start, time_step_end, 1)
+    time_step_values = time_step_values[:-(time_step-1)]
+
+    reach_start = reach_start_indx
+    reach_end = reach_win_size
+    reach_values = np.arange(reach_start, reach_end, 1)
+    reach_values = reach_values[:-(vert_img_hgt-1)]
+
+    data_ids = []
+
+    for i in time_step_values:
+        for j in reach_values:
+            data_ids.append([i,j])
+
+    pytorch_dataset = Pytorch_Dataset(data_ids,dataset_dic,time_step,vert_img_hgt)
+
+    dataloader = DataLoader(pytorch_dataset, batch_size=val_batch_size, shuffle=False, num_workers=0)
+    
+    return dataloader
+
 
 
 def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,train_shuffle,get_train_mae,transform_constants,
                 lstm_layers,lstm_hidden_units,batch_size,inp_bnk,out_bnk,val_split,val_skip,model_type,num_layers,
                 model_optim,loss_func,save_mod,load_mod,load_file,skip_training,output_subtracted,train_val_gap,
-                out_use_mid,trail_id):
+                out_use_mid,trail_id,flag_batch_norm,dataset_dic,num_cnn_layers):
     
     load_mod = load_mod
     load_file = load_file
@@ -1066,20 +1240,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
 
     model_optim = model_optim
     
-    dr_1 = 0
-    dr_2 = 0
-    dr_3 = 0
-    dr_4 = 0
-    dr_5 = 0
-    dr_6 = 0
-    dr_7 = 0
-    dr_8 = 0
-    dr_9 = 0
-    dr_10 = 0
-    dr_11 = 0
-    dr_12 = 0
-
-    drop_rate = [dr_1,dr_2,dr_3,dr_4,dr_5,dr_6,dr_7,dr_8,dr_9,dr_10,dr_11,dr_12]
+    drop_rate = []
     smooth_flag = False
     time_step = tm_stp
     #atch_size = int(int((500/time_step) - 2)/vert_img_hgt)
@@ -1157,22 +1318,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     flag_standardize_actual = True
     loss_func = loss_func
 
-    reach_id_list = []
-    for i in range(reach_start_indx, reach_win_size, 1) :
-        reach_id_list.append(i)
-
-    #print(reach_id_list)
-
-    """ if flag_reach_use == True :
-        reach_id_list = np.reshape(np.asarray(reach_id_list),(len(reach_id_list),1))
-        reach_id_mean = np.mean(reach_id_list,axis=0)
-        reach_id_std = np.std(reach_id_list,axis=0) """
-
-    #reach_id_list = (reach_id_list - reach_id_mean) / reach_id_std
-
-    #print(reach_id_list)
-
-    #print(asd)
+    
 
     ###out_mode == act_sdd or diff_sdd or act
     out_mode = 'act'
@@ -1185,18 +1331,6 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
 
 
     hyperparameter_defaults = dict(
-        drop_1 = dr_1,
-        drop_2 = dr_2,
-        drop_3 = dr_3,
-        drop_4 = dr_4,
-        drop_5 = dr_5,
-        drop_6 = dr_6,
-        drop_7 = dr_7,
-        drop_8 = dr_8,
-        drop_9 = dr_9,
-        drop_10 = dr_10,
-        drop_11 = dr_11,
-        drop_12 = dr_12,
         adam_wdecay = adm_wd,
         num_channels = num_channels,
         batch_size = batch_size,
@@ -1224,24 +1358,39 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         out_use_mid = out_use_mid,
         model_loaded_from = loaded_from,
         trail_id = trail_id,
-        output_subtracted= output_subtracted
+        output_subtracted= output_subtracted,
+        flag_batch_norm = flag_batch_norm
         )
 
+    if skip_training == False :
+        if data_mode == 'imgs' :
+            dataset_f = create_dic_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
+                vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle,batch_size,dataset_dic)
+        else :
+            dataset_f = create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
+                    vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle,batch_size)
 
     if skip_training == False :
-        dataset_f = create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
-                vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle,batch_size)
+        if data_mode == 'imgs' :
+            time_step_start = start_indx
+            time_step_end = data_div_step
+            time_step_values = np.arange(time_step_start, time_step_end, 1)
+            time_step_values = time_step_values[:-(time_step-1)]
 
+            tr_pr_batch_size = int(tr_pr_batch_size * len(time_step_values))
+            print(tr_pr_batch_size)
+            dataset_tr_pr = create_dic_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
+                vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle=False,batch_size=tr_pr_batch_size,dataset_dic=dataset_dic)
+        else :
+            dataset_tr_pr = create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
+                    vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle=False,batch_size=tr_pr_batch_size)
 
-    
-
-    if skip_training == False :
-        dataset_tr_pr = create_train_dataset(data_div_step,total_time_step,start_indx,reach_win_size,reach_shift_cons,reach_start_indx,
-                vert_img_hgt,vert_step,end_indx,time_step,time_win_shift,train_shuffle=False,batch_size=tr_pr_batch_size)
-
-
-    dataseti1 = create_val_dataset(total_time_step,val_split,val_skip,reach_win_size,reach_shift_cons,reach_start_indx,vert_img_hgt,vert_step,
-            val_img_range,time_step,val_batch_size)
+    if data_mode == 'imgs' :
+        dataseti1 = create_dic_val_dataset(total_time_step,val_split,val_skip,reach_win_size,reach_shift_cons,reach_start_indx,
+                vert_img_hgt,vert_step,val_img_range,time_step,val_batch_size,dataset_dic)
+    else:
+        dataseti1 = create_val_dataset(total_time_step,val_split,val_skip,reach_win_size,reach_shift_cons,reach_start_indx,vert_img_hgt,vert_step,
+                val_img_range,time_step,val_batch_size)
 
 
     if wgt_seed_flag :
@@ -1250,11 +1399,13 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
 
     if model_type == 'ANN':
         model = Baseline_ANN_Dynamic_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
-                                vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units,flag_reach_use,num_layers,out_use_mid)
+                                vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units,flag_reach_use,num_layers,out_use_mid,flag_batch_norm)
     elif model_type == 'LSTM':
         model = Baseline_LSTM_Dynamic_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
-                                vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units,flag_reach_use,num_layers,out_use_mid)
-
+                                vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units,flag_reach_use,num_layers,out_use_mid,flag_batch_norm)
+    elif (model_type == 'CNN_LSTM') and (inp_lr_flag == 'img'):
+        model = CNN_LSTM_Dynamic_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
+                                vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units,flag_reach_use,num_layers,out_use_mid,flag_batch_norm,num_cnn_layers)
 
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -1277,15 +1428,13 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
     
-
-    #trns_constants = {'inp_mean':inp_mean,'inp_std':inp_std,'out_mean':out_mean,'out_std':out_std}
-    #print(asd)
     early_stop_counter = 0
     global_train_counter = 0
 
+    dataset_type = 'pydic'
     if transform_constants == None :
         transform_constants = custom_mean_sdd(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_standardize_actual,
-                        flag_reach_use,tr_pr_batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid)
+                        flag_reach_use,tr_pr_batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid,dataset_type,dataset_dic)
 
 
     inp_mean = transform_constants['inp_mean']
@@ -1309,33 +1458,44 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         #print(dataset_f)
 
         if skip_training == False :
-            for inp_flatten, year_id, reach_id, _, sdd_output in dataset_f:
-                year_id = np.reshape(year_id, (batch_size,time_step,vert_img_hgt,1))
-                reach_id = np.reshape(reach_id, (batch_size,time_step,vert_img_hgt,1))
-                
-                """ prin_count = 30
-                print(inp_flatten[0:prin_count,:,:,:])
-                print(year_id[0:prin_count,:,:,:])
-                print(reach_id[0:prin_count,:,:,:])
+            for i_batch, sample_batched in enumerate(dataset_f) :
+
+                inp_flatten = sample_batched['img']
+                out_flatten = sample_batched['lines']
+                year_id = sample_batched['years']
+                reach_id = sample_batched['reaches']
+
+                inp_flatten = inp_flatten[:,:-1,:,:,:]
+                #out_flatten = out_flatten[:,-1:,int((vert_img_hgt-1)/2):int((vert_img_hgt-1)/2)+1,:] 
+
+                lines_last = out_flatten[:,-1:,int((vert_img_hgt-1)/2):int((vert_img_hgt-1)/2)+1,:]
+                lines_prev = out_flatten[:,-2:-1,int((vert_img_hgt-1)/2):int((vert_img_hgt-1)/2)+1,:]
+
+                lines_last = np.asarray(np.reshape(lines_last, (lines_last.shape[0], 2)))
+                lines_prev = np.asarray(np.reshape(lines_prev, (lines_prev.shape[0], 2)))
+
+                out_flatten = lines_last - lines_prev
+
+                #print(out_flatten)
+                #print(asd)
+                """ print(concat_img.shape)
+                print(lines.shape)
+                print(year_id.shape)
+                print(reach_id.shape)
                 print(asd) """
+                """ inp_flatten, out_flatten, _, _ = process_tf_dataset(inp_flatten, year_id, reach_id, 
+                            sdd_output,inp_mode,inp_lr_flag, out_mode,out_lr_tag,flag_standardize_actual,
+                            flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,
+                            output_subtracted,out_use_mid,concat_img) """
+        
 
-                inp_flatten, out_flatten, _, _ = process_tf_dataset(inp_flatten, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
-                    out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid)
+                """ if inp_mode == 'act' and flag_standardize_actual == True :
+                    if inp_lr_flag != 'img' :
+                        inp_flatten = (inp_flatten - inp_mean) / inp_std 
+                    elif inp_lr_flag == 'img' : """
+                inp_flatten = inp_flatten / 255.0
 
-                """ prin_count = 30
-                print(inp_flatten[0:prin_count,:])
-                print(out_flatten[0:prin_count,:])
-                reach_info = inp_flatten[:,-1:]
-                print(reach_info.shape)
-                inp_flatten = inp_flatten[:,:-1]
-                inp_flatten = np.reshape(inp_flatten, (-1,(time_step-1),int(vert_img_hgt * 1)))
-                inp_flatten = np.concatenate((inp_flatten[:,:,0],reach_info))
-                print(inp_flatten[0:prin_count,:,:])
-                print(asd) """
-
-                if inp_mode == 'act' and flag_standardize_actual == True :
-                    inp_flatten = (inp_flatten - inp_mean) / inp_std 
-                    out_flatten = (out_flatten - out_mean) / out_std 
+                out_flatten = (out_flatten - out_mean) / out_std 
 
                 
                 #print(inp_flatten[0:prin_count,:])
@@ -1348,6 +1508,8 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 #print(out_flatten.shape)
 
                 #print(asd)
+                inp_flatten = np.asarray(inp_flatten, dtype=np.float32)
+                out_flatten = np.asarray(out_flatten, dtype=np.float32)
                 inp_flatten = torch.Tensor(inp_flatten).cuda().requires_grad_(False)
                 out_flatten = torch.Tensor(out_flatten).cuda().requires_grad_(False)
                 #out_flatten = torch.reshape(out_flatten, (batch_size,-1))
@@ -1426,8 +1588,8 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 prev_sum_temp = []
 
                 for inp_flatten_org, year_id, reach_id, _, sdd_output in dataseti1:
-                    year_id = np.reshape(year_id, (val_batch_size,time_step,vert_img_hgt,1))
-                    reach_id = np.reshape(reach_id, (val_batch_size,time_step,vert_img_hgt,1))
+                    #year_id = np.reshape(year_id, (val_batch_size,time_step,vert_img_hgt,1))
+                    #reach_id = np.reshape(reach_id, (val_batch_size,time_step,vert_img_hgt,1))
                     
                     """ if counter_temp == 0:
                         prin_count = 30
@@ -1437,8 +1599,8 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                     #print(asd)
                     counter_temp += 1 """
                     
-                    inp_flatten_org, out_flatten, _, _ = process_tf_dataset(inp_flatten_org, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
-                        out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,val_batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid)
+                    """ inp_flatten_org, out_flatten, _, _ = process_tf_dataset(inp_flatten_org, year_id, reach_id, sdd_output,inp_mode,inp_lr_flag,
+                        out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,val_batch_size,time_step,vert_img_hgt,flag_sdd_act_data,output_subtracted,out_use_mid) """
 
                     """ prin_count = 30
                     print(inp_flatten_org[0:prin_count,:])
@@ -1507,14 +1669,14 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                     pred_np = pred_np.numpy()
                     #print(year_id)
                     #print(reach_id)
-                    year_id = np.reshape(year_id, (val_batch_size,time_step,vert_img_hgt,1))
-                    reach_id = np.reshape(reach_id, (val_batch_size,time_step,vert_img_hgt,1))
+                    """ year_id = np.reshape(year_id, (val_batch_size,time_step,vert_img_hgt,1))
+                    reach_id = np.reshape(reach_id, (val_batch_size,time_step,vert_img_hgt,1)) """
                     #print(year_id)
 
-                    year_id_prev = year_id[:,time_step-2:time_step-1,:,:]
+                    """ year_id_prev = year_id[:,time_step-2:time_step-1,:,:]
                     reach_id_prev = reach_id[:,time_step-2:time_step-1,:,:]
                     year_id_act = year_id[:,time_step-1:time_step,:,:]
-                    reach_id_act = reach_id[:,time_step-1:time_step,:,:]
+                    reach_id_act = reach_id[:,time_step-1:time_step,:,:] """
 
                     if out_lr_tag == 'left' or out_lr_tag == 'right':
                         val_extra_dim = 1
@@ -1524,10 +1686,10 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                     #print(asd)
 
                     prev_time_step = np.reshape(prev_inp_flatten,(val_batch_size,-1,val_extra_dim))
-                    year_id_prev = np.reshape(year_id_prev,(val_batch_size,-1,1))
+                    """ year_id_prev = np.reshape(year_id_prev,(val_batch_size,-1,1))
                     reach_id_prev = np.reshape(reach_id_prev,(val_batch_size,-1,1))
                     year_id_act = np.reshape(year_id_act,(val_batch_size,-1,1))
-                    reach_id_act = np.reshape(reach_id_act,(val_batch_size,-1,1))
+                    reach_id_act = np.reshape(reach_id_act,(val_batch_size,-1,1)) """
 
 
                     out_flatten = np.reshape(out_flatten,(val_batch_size,-1,val_extra_dim))
@@ -1611,10 +1773,10 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                     actual_list.append(out_flatten[:,0:vert_step,:])
                     pred_list.append(pred_np[:,0:vert_step,:])
 
-                    prev_year_ids.append(year_id_prev[:,0:vert_step,:])
+                    """ prev_year_ids.append(year_id_prev[:,0:vert_step,:])
                     prev_reach_ids.append(reach_id_prev[:,0:vert_step,:])
                     act_year_ids.append(year_id_act[:,0:vert_step,:])
-                    act_reach_ids.append(reach_id_act[:,0:vert_step,:])
+                    act_reach_ids.append(reach_id_act[:,0:vert_step,:]) """
 
 
                     #print(prev_time_step)
@@ -1778,29 +1940,105 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
 
     return model_name, train_losses, val_losses, train_maes, val_maes, hyperparameter_defaults,transform_constants
 
+
+def get_all_data():
+
+    data_type = 'img'
+
+    npy_path = os.path.join('./data/img/up_npy/')
+    rgb_path = os.path.join('./data/img/up_rgb/')
+    rgb_list = [f for f in listdir(rgb_path) if isfile(join(rgb_path, f))]
+    rgb_list = [int(f.split('.')[0]) for f in rgb_list]
+    rgb_list.sort()
+    rgb_list = [str(f) for f in rgb_list]
+
+    infra_path = os.path.join('./data/img/up_infra/')
+    msk_path = os.path.join('./data/img/up_msk/')
+
+    concat_img_list = []
+    year_id_list = []
+    reach_id_list = []
+    lines_list = []
+
+    for i in range(len(rgb_list)):
+        print(i)
+        rgb_img = cv2.imread(rgb_path+rgb_list[i]+'.png',1)
+        infra_img = cv2.imread(infra_path+rgb_list[i]+'.png',1)
+        msk_img = cv2.imread(msk_path+rgb_list[i]+'.png',0)
+        msk_img = np.reshape(msk_img, (msk_img.shape[0],msk_img.shape[1],1))
+
+        concat_img = np.concatenate((rgb_img,infra_img,msk_img), axis=2)
+        concat_img_list.append(concat_img)
+
+        year_id = np.asarray(int(rgb_list[i]))
+        year_id_list.append(year_id)
+
+        reach_id = np.arange(2222)
+        reach_id_list.append(reach_id)
+
+        line_npy = np.load(npy_path+rgb_list[i]+'.npy')
+        lines_list.append(line_npy)
+        #if i == 0 :
+        #    break
+
+
+    concat_img_list = np.asarray(concat_img_list, dtype=np.uint8)
+    year_id_list = np.asarray(year_id_list)
+    reach_id_list = np.asarray(reach_id_list)
+    lines_list = np.asarray(lines_list)
+
+    print(concat_img_list.shape)
+    print(year_id_list.shape)
+    print(reach_id_list.shape)
+    print(lines_list.shape)
+
+    dataset_dict = {'imgs':concat_img_list, 'years':year_id_list,
+            'reaches':reach_id_list, 'lines':lines_list}
+
+    return dataset_dict
+
+
+
 if __name__ == "__main__":
 
     super_epochs = 4
     num_epochs = 20
 
     def objtv(trial):
+
+        dataset_dic = get_all_data()
+        #print(asd)
+
         super_epochs = 4
         num_epochs = 20
 
         trail_id = trial.number
         load_models_list = []
         transform_constants_list = []
-        tm_stp=trial.suggest_int('time_step', 3, 6, 1)
+        #tm_stp=trial.suggest_int('time_step', 3, 15, 2)
+        tm_stp = 3
         lr_pow = trial.suggest_discrete_uniform('learning_rate', -5.0, -1.0, 0.5)
-        lstm_hidden_units = trial.suggest_int('neurons_per_layer', 25, 150, 25 )
-        batch_size_pow = trial.suggest_int('batch_size_power', 5, 11 , 1)
-        num_layers = trial.suggest_int('num_of_layers', 1, 19, 2)
-        strt = trial.suggest_int('starting_year', 0, 20, 5)
-        vert_hgt = trial.suggest_int('vertical_window_size', 1, 29, 4)
-        loss_func = trial.suggest_categorical('loss_function', ['mse_loss', 'l1_loss', 'huber_loss'])
-        output_subtracted = trial.suggest_categorical('output_subtracted', [True, False])
+        #lstm_hidden_units = trial.suggest_int('neurons_per_layer', 25, 150, 25 )
+        lstm_hidden_units = 50
+        #batch_size_pow = trial.suggest_int('batch_size_power', 5, 11 , 1)
+        batch_size_pow = 5
+        #num_layers = trial.suggest_int('num_of_layers', 1, 19, 2)
+        num_layers = 3
+        num_cnn_layers = 6
+        #strt = trial.suggest_int('starting_year', 0, 20, 5)
+        strt = 20
+        #vert_hgt = trial.suggest_int('vertical_window_size', 1, 29, 4)
+        vert_hgt = 3
+        #loss_func = trial.suggest_categorical('loss_function', ['mse_loss', 'l1_loss', 'huber_loss'])
+        loss_func = 'l1_loss'
+        #output_subtracted = trial.suggest_categorical('output_subtracted', [0,False])
         lstm_layers = trial.suggest_int('lstm_depth_layers', 1, 3, 1)
-        model_type = trial.suggest_categorical('model_type', ['ANN', 'LSTM'])
+        #model_type = trial.suggest_categorical('model_type', ['ANN', 'LSTM'])
+        model_type = 'CNN_LSTM'
+        #flag_batch_norm_bin = trial.suggest_int('batch_norm', 0, 1, 1)
+        flag_batch_norm_bin = 0
+
+
 
         for j in range(super_epochs):
 
@@ -1821,13 +2059,15 @@ if __name__ == "__main__":
             #num_epochs=num_epochs
             #lstm_layers=1
             #neurons_per_layer_list = [20,50,70,]
-            inp_bnk='right'
-            out_bnk='right'
+            inp_bnk='img'
+            out_bnk='both'
             model_optim='SGD'
             #loss_func='mse_loss'
-            #output_subtracted = False
+            output_subtracted = True
             train_shuffle = True
             train_val_gap = False
+            flg_btch_list = [False, True]
+            flag_batch_norm = flg_btch_list[int(flag_batch_norm_bin)]
             #model_type = 'ANN'
             #num_layers_list = [1,3,5,7,9,12,14]
     
@@ -1844,11 +2084,13 @@ if __name__ == "__main__":
                 if j == 0 :
                     model_name, train_losses, val_losses, train_maes, val_maes, hparam_def, transform_constants = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=num_epochs,train_shuffle=train_shuffle,
                     get_train_mae=get_train_mae,transform_constants=None,lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,model_type=model_type,num_layers=num_layers,
-                    model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=False,load_file=None,skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id)
+                    model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=False,load_file=None,skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id,flag_batch_norm=flag_batch_norm,dataset_dic=dataset_dic,
+                    num_cnn_layers=num_cnn_layers)
                 elif j > 0 :
                     model_name, train_losses, val_losses, train_maes, val_maes, hparam_def, transform_constants = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=num_epochs,train_shuffle=train_shuffle,
                     get_train_mae=get_train_mae,transform_constants=transform_constants_list[i],lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,model_type=model_type,num_layers=num_layers,
-                    model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=True,load_file=load_models_list[0],skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id)
+                    model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=True,load_file=load_models_list[0],skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id,flag_batch_norm=flag_batch_norm,dataset_dic=dataset_dic,
+                    num_cnn_layers=num_cnn_layers)
 
                     load_models_list.pop(0)
 
@@ -1863,7 +2105,8 @@ if __name__ == "__main__":
 
                 _, _, _, _, test_val_maes, _, _ = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=1,train_shuffle=train_shuffle,get_train_mae=1,transform_constants=transform_constants,
                     lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split-(val_split_org-val_skip),val_skip=(val_skip-1),model_type=model_type,num_layers=num_layers,
-                    model_optim=model_optim,loss_func=loss_func,save_mod=False,load_mod=True,load_file=model_name,skip_training=True,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id)
+                    model_optim=model_optim,loss_func=loss_func,save_mod=False,load_mod=True,load_file=model_name,skip_training=True,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id,flag_batch_norm=flag_batch_norm,
+                    dataset_dic=dataset_dic,num_cnn_layers=num_cnn_layers)
                 
                 crs_test_maes.append(test_val_maes)
 
@@ -1872,6 +2115,7 @@ if __name__ == "__main__":
                 if change_start == True :
                     strt = strt - 1
 
+                #print(asd)
                 """ print(crs_train_ls)
                 print(crs_val_ls)
                 print(crs_train_maes)
@@ -1936,7 +2180,7 @@ if __name__ == "__main__":
             writer.add_hparams(hparam_def, crs_hparam_logs)
             writer.close()
 
-            trial.report(crs_val_ls[-1], ((j+1)*num_epochs))
+            trial.report(crs_val_maes[-1], ((j+1)*num_epochs))
 
             if trial.should_prune():
                 raise optuna.TrialPruned()
@@ -1945,7 +2189,7 @@ if __name__ == "__main__":
         return crs_val_maes[-1]
 
 
-    study = optuna.create_study(study_name='temp1',storage='sqlite:///data\\sqdb\\sq_lit_left_mae.db',load_if_exists=True,direction='minimize',sampler=TPESampler(),
+    study = optuna.create_study(study_name='batch_norm',storage='sqlite:///data\\sqdb\\sq_img_both_mae.db',load_if_exists=True,direction='minimize',sampler=TPESampler(),
             pruner=HyperbandPruner(min_resource=1, max_resource=int(super_epochs*num_epochs), reduction_factor=3))
 
     study.optimize(objtv)
