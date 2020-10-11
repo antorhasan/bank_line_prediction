@@ -36,7 +36,7 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         if self.flag_batch_norm == True :
             self.batch_norm_1 = nn.BatchNorm2d(num_filters_out)
         vert_tracker = vert_img_hgt - 2
-        if vert_tracker < 3 :
+        if vert_tracker == 1 :
             kernel_hgt = 1
 
 
@@ -61,9 +61,13 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
                 if (i+2) % 2 != 0:
                     num_filters = num_filters_out
 
+                vert_tracker = vert_tracker - 2
+                if vert_tracker == 1 :
+                    kernel_hgt = 1
+
         self.conv_out = nn.Conv2d(num_filters,num_filters*2,(kernel_hgt,3), padding=0)
         if self.flag_batch_norm == True :
-            self.batch_norm_1 = nn.BatchNorm2d(num_filters_out)
+            self.batch_norm_out = nn.BatchNorm2d(num_filters*2)
         
         lstm_inp_feat = 256
 
@@ -102,7 +106,7 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         x = self.conv_inp(x)
         #print(x.size())
         if self.flag_batch_norm == True :
-            x = self.batch_norm10(x)
+            x = self.batch_norm_1(x)
         x = F.relu(x)
         x = F.avg_pool2d(x, (1,2))
 
@@ -117,20 +121,25 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
                 if self.flag_batch_norm == True :
                     x = self.cnn_layers_bn['batch_norm2d_'+str(i+2)](x)
                 x = F.relu(x)
+                #if int(x.size()[3]) > 1 :
                 x = F.avg_pool2d(x, (1,2))
                 #print(x.size())
 
         x = self.conv_out(x)
-        #print(x.size())
         if self.flag_batch_norm == True :
-            x = self.batch_norm10(x)
+            x = self.batch_norm_out(x)
         x = F.relu(x)
+        #print(x.size())
+        #print(asd)
+
 
         x = torch.flatten(x, start_dim=1)
 
         #print(x.size())
-
-        x = torch.reshape(x, (self.batch_size, (self.time_step-1), -1))
+        if self.training :
+            x = torch.reshape(x, (self.batch_size, (self.time_step-1), -1))
+        else :
+            x = torch.reshape(x, (self.batch_size, (self.time_step-1), -1))
         
         #print(x.size())
 
@@ -138,7 +147,7 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         x = x[-1,:,:]
 
         #print(x.size())
-        
+        x = torch.reshape(x, (-1, self.lstm_hidden_units))
 
         if self.num_layers > 0 :
             for i in range(self.num_layers):
@@ -153,7 +162,7 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
 
         #print(x.size())
         #print(asd)
-        
+        #print(asd)
         return x
 
 
