@@ -1251,20 +1251,17 @@ def cegis_refine():
     cv2.imwrite(os.path.join('./data/cegis_refined.png'),img_new)
 
 if __name__ == "__main__" :
-    write_tf_img_lines()
+    #write_tf_img_lines()
 
 
 
-    """ img = viz(os.path.join('./data/img/finaltif/199201.tif'))
-    img.get_image('rgb',True)
-    img.cv_view() """
-
-    #img_new = cv2.imread(os.path.join('./data/cegis_refined.png'))
-
-    #np_arr = np.zeros((img_new.shape[0],2))
-
-    #cegis_refine()
-
+    """ img = cv2.imread(os.path.join('./data/img/up_lines_imgs/201901.png'))
+    #img = img[:,:,0]
+    cv2.namedWindow('image', cv2.WINDOW_NORMAL)
+    cv2.imshow('image', img) 
+    cv2.setMouseCallback('image', click_event) 
+    cv2.waitKey(0) 
+    cv2.destroyAllWindows() """
 
 
 

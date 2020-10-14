@@ -4,7 +4,7 @@ import torch
 
 class CNN_LSTM_Dynamic_Model(nn.Module):
     def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,
-                    inp_lr_flag, lf_rt_tag, lstm_hidden_units, flag_reach_use, num_layers,out_use_mid,flag_batch_norm,num_cnn_layers):
+                    inp_lr_flag, lf_rt_tag, lstm_hidden_units, flag_reach_use, num_layers,out_use_mid,flag_batch_norm,num_cnn_layers,device):
         super(CNN_LSTM_Dynamic_Model, self).__init__()
         self.vert_img_hgt = vert_img_hgt
 
@@ -18,8 +18,10 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         elif lf_rt_tag == 'both' :
             output_num = 2
 
+        self.flag_reach_use = flag_reach_use
+
         self.lstm_dropout = 0
-        self.device = 'cuda'
+        self.device = device
         self.batch_size = batch_size
         self.val_batch_size = val_batch_size
         self.time_step = time_step
@@ -69,7 +71,9 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         if self.flag_batch_norm == True :
             self.batch_norm_out = nn.BatchNorm2d(num_filters*2)
         
-        lstm_inp_feat = 256
+        lstm_inp_feat = 256 
+        if flag_reach_use :
+            lstm_inp_feat = 256 + ((self.vert_img_hgt*2)+1)
 
         self.lstm = nn.LSTM( lstm_inp_feat, self.lstm_hidden_units, num_layers=num_lstm_layers, batch_first=True)
 
@@ -89,14 +93,22 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
                         ['fc_'+str(i+2), nn.Linear(self.lstm_hidden_units, self.lstm_hidden_units)],
                     ])
 
+        if self.flag_reach_use :
+            self.fc_left_out = nn.Linear(self.lstm_hidden_units, 1)
+            self.fc_right_out = nn.Linear(self.lstm_hidden_units, 1)
+            self.fc_binl_out = nn.Linear(self.lstm_hidden_units, 2)
+            self.fc_binr_out = nn.Linear(self.lstm_hidden_units, 2)
 
-        if out_use_mid == False :
-            self.fc_out = nn.Linear(self.lstm_hidden_units,(self.vert_img_hgt *output_num))
-        elif out_use_mid == True :
-            self.fc_out = nn.Linear(self.lstm_hidden_units,(1 *output_num))
+        else :
+            if out_use_mid == False :
+                self.fc_out = nn.Linear(self.lstm_hidden_units,(self.vert_img_hgt *output_num))
+            elif out_use_mid == True :
+                self.fc_out = nn.Linear(self.lstm_hidden_units,(1 *output_num))
         
 
-    def forward(self, x):
+    def forward(self, x, lines, reach):
+        #print(x.size())
+        last_batch_size = x.size(0)
 
         x = torch.reshape(x, (-1, self.vert_img_hgt, 745, 7))
         x = torch.transpose(x, 1,3)
@@ -125,25 +137,38 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
                 x = F.avg_pool2d(x, (1,2))
                 #print(x.size())
 
+        #print(asd)
+
         x = self.conv_out(x)
         if self.flag_batch_norm == True :
             x = self.batch_norm_out(x)
         x = F.relu(x)
         #print(x.size())
-        #print(asd)
 
+        #print(asd)
 
         x = torch.flatten(x, start_dim=1)
 
         #print(x.size())
-        if self.training :
+        """ if self.training :
             x = torch.reshape(x, (self.batch_size, (self.time_step-1), -1))
-        else :
-            x = torch.reshape(x, (self.batch_size, (self.time_step-1), -1))
+        else : """
+        x = torch.reshape(x, (last_batch_size, (self.time_step-1), -1))
         
-        #print(x.size())
+        if self.flag_reach_use :
+            lines = torch.reshape(lines, (last_batch_size, (self.time_step-1), -1))
+            reach = torch.reshape(reach, (last_batch_size, 1, -1))
+            reach = reach.expand(-1,(self.time_step-1),-1)
+            #print(reach[0:5,:,:])
+            x = torch.cat((x,lines,reach), 2)
 
-        _, (x, _) = self.lstm(x)
+        h_n = torch.zeros((self.num_lstm_layers,x.size(0),self.lstm_hidden_units), device=self.device)
+        c_n = torch.zeros((self.num_lstm_layers,x.size(0),self.lstm_hidden_units), device=self.device)
+        
+        #print(h_n.size())
+        #print(asd)
+
+        _, (x, _) = self.lstm(x, (h_n, c_n))
         x = x[-1,:,:]
 
         #print(x.size())
@@ -158,12 +183,31 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
 
         #print(x.size())
 
-        x = self.fc_out(x)
+        if self.flag_reach_use :
+            x_left = self.fc_left_out(x)
+            x_right = self.fc_right_out(x)
+            x_binl = self.fc_binl_out(x)
+            x_binr = self.fc_binr_out(x)
+
+        else:
+            x = self.fc_out(x)
+            x_left = None
+            x_right = None
+            x_binl = None
+            x_binr = None
 
         #print(x.size())
+        #print(x_left.size())
+        #print(x_right.size())
+        #print(x_bin.size())
+
         #print(asd)
+        #print(x_left.shape)
+        #print(x_right.shape)
+        #print(x_binl.shape)
+        #print(x_binr.shape)
         #print(asd)
-        return x
+        return x, x_left, x_right, x_binl, x_binr
 
 
 
