@@ -1253,6 +1253,30 @@ def cegis_refine():
 if __name__ == "__main__" :
     #write_tf_img_lines()
 
+    """ f = open(os.path.join('./data/data2.txt'),'r')
+    f2 = open(os.path.join('./data/data1.txt'),'a')
+    coun = 0
+    while True:
+        print(coun)
+        line = list(f.readline())
+        if line == [] :
+            break
+        #line = list(line)
+        for i in range(len(line)):
+            if line[i] == '\t' :
+                first_tab = i
+                break
+
+        line = line[first_tab+1:]
+        line = ''.join(str(i) for i in line) 
+        #print(line)
+        f2.write(line)
+
+        coun +=1
+    #print(line)
+
+    f.close()
+    f2.close() """
 
 
     """ img = cv2.imread(os.path.join('./data/img/up_lines_imgs/201901.png'))
