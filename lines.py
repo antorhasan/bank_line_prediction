@@ -1423,7 +1423,7 @@ def create_dic_val_dataset(total_time_step,val_split,val_skip,reach_win_size,rea
     return dataloader
 
 def calculate_loss(pred_left, pred_right, pred_binl, pred_binr, out_flatten, bin_out_flatten_left,
-                        bin_out_flatten_right,flag_use_lines,flag_bin_out,loss_func):
+                        bin_out_flatten_right,flag_use_lines,flag_bin_out,loss_func,right_loss_weight):
     
     #print(out_flatten[:,0:1].shape)
     
@@ -1435,8 +1435,8 @@ def calculate_loss(pred_left, pred_right, pred_binl, pred_binr, out_flatten, bin
                     F.binary_cross_entropy(pred_binl, bin_out_flatten_left,reduction='mean') + \
                     F.binary_cross_entropy(pred_binr, bin_out_flatten_right,reduction='mean')
         else :
-            loss = F.l1_loss(pred_left, out_flatten[:,0:1],reduction='mean') + \
-                    F.l1_loss(pred_right, out_flatten[:,1:2],reduction='mean')
+            loss = ((1-right_loss_weight)*F.l1_loss(pred_left, out_flatten[:,0:1],reduction='mean')) + \
+                    (right_loss_weight*F.l1_loss(pred_right, out_flatten[:,1:2],reduction='mean'))
     elif loss_func == 'mse_loss' :
         if flag_bin_out :
             loss = F.mse_loss(pred_left, out_flatten[:,0:1],reduction='mean') + \
@@ -1444,8 +1444,8 @@ def calculate_loss(pred_left, pred_right, pred_binl, pred_binr, out_flatten, bin
                     F.binary_cross_entropy(pred_binl, bin_out_flatten_left,reduction='mean') + \
                     F.binary_cross_entropy(pred_binr, bin_out_flatten_right,reduction='mean')
         else :
-            loss = F.mse_loss(pred_left, out_flatten[:,0:1],reduction='mean') + \
-                    F.mse_loss(pred_right, out_flatten[:,1:2],reduction='mean') 
+            loss = ((1-right_loss_weight)*F.mse_loss(pred_left, out_flatten[:,0:1],reduction='mean')) + \
+                    (right_loss_weight*F.mse_loss(pred_right, out_flatten[:,1:2],reduction='mean'))
     elif loss_func == 'huber_loss' :
         if flag_bin_out :
             loss = F.smooth_l1_loss(pred_left, out_flatten[:,0:1],reduction='mean') + \
@@ -1453,8 +1453,8 @@ def calculate_loss(pred_left, pred_right, pred_binl, pred_binr, out_flatten, bin
                     F.binary_cross_entropy(pred_binl, bin_out_flatten_left,reduction='mean') + \
                     F.binary_cross_entropy(pred_binr, bin_out_flatten_right,reduction='mean')
         else :
-            loss = F.smooth_l1_loss(pred_left, out_flatten[:,0:1],reduction='mean') + \
-                    F.smooth_l1_loss(pred_right, out_flatten[:,1:2],reduction='mean')
+            loss = ((1-right_loss_weight)*F.smooth_l1_loss(pred_left, out_flatten[:,0:1],reduction='mean')) + \
+                    (right_loss_weight*F.smooth_l1_loss(pred_right, out_flatten[:,1:2],reduction='mean'))
 
     """ else :
         if loss_func == 'l1_loss' :
@@ -1535,7 +1535,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 lstm_layers,lstm_hidden_units,batch_size,inp_bnk,out_bnk,val_split,val_skip,model_type,num_layers,
                 model_optim,loss_func,save_mod,load_mod,load_file,skip_training,output_subtracted,train_val_gap,
                 out_use_mid,trail_id,flag_batch_norm,dataset_dic,num_cnn_layers,flag_use_lines,pooling_layer,flag_bin_out,
-                only_lstm_units,num_branch_layers,branch_layer_neurons):
+                only_lstm_units,num_branch_layers,branch_layer_neurons,right_loss_weight,num_filter_choice):
     
     load_mod = load_mod
     load_file = load_file
@@ -1625,10 +1625,10 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     #output_vert_indx = int((vert_img_hgt-1)/2)
     time_win_shift = 1
 
-    #reach_start_indx = 1526 
-    #reach_end_num = 664 
     reach_start_indx = 1461 
     reach_end_num = 377
+    #reach_start_indx = 0 
+    #reach_end_num = 0
 
     reach_shift_cons = 2222
     reach_win_size = reach_shift_cons - reach_end_num 
@@ -1735,7 +1735,8 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     elif (model_type == 'CNN_LSTM') and (inp_lr_flag == 'img'):
         model = CNN_LSTM_Dynamic_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
                 vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units,flag_reach_use,num_layers,out_use_mid,flag_batch_norm,
-                num_cnn_layers,device,flag_use_lines,flag_bin_out,only_lstm_units,pooling_layer,num_branch_layers,branch_layer_neurons)
+                num_cnn_layers,device,flag_use_lines,flag_bin_out,only_lstm_units,pooling_layer,num_branch_layers,
+                branch_layer_neurons,num_filter_choice)
 
 
     
@@ -1888,7 +1889,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 
                 
                 loss = calculate_loss(pred_left, pred_right, pred_binl, pred_binr, out_flatten, bin_out_flatten_left,
-                        bin_out_flatten_right,flag_use_lines,flag_bin_out,loss_func)
+                        bin_out_flatten_right,flag_use_lines,flag_bin_out,loss_func,right_loss_weight)
 
                 loss.backward()
                 optimizer.step()
@@ -2026,7 +2027,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                     
 
                     loss = calculate_loss(pred_left, pred_right, pred_binl, pred_binr, out_flatten, bin_out_flatten_left,
-                        bin_out_flatten_right,flag_use_lines,flag_bin_out,loss_func)
+                        bin_out_flatten_right,flag_use_lines,flag_bin_out,loss_func,right_loss_weight)
 
 
                     val_epoch_loss = val_epoch_loss+loss
@@ -2290,7 +2291,8 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 #print(asd)
                 test_logs, test_logs_scores, imp_val_logs = log_performance_metrics(pred_list,actual_list,prev_actual_list,
                                                     num_val_img, epoch, val_img_ids,writer)
-                
+                print('validation reach MAE ......')
+                print(test_logs['reach_mae'])
                 val_maes.append(test_logs['reach_mae'])
 
         """ if early_stop_flag:
@@ -2343,6 +2345,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         train_mae = pt_train_per(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,
             batch_size,time_step,vert_img_hgt,flag_sdd_act_data,inp_lines_mean,inp_lines_std,out_mean,out_std,model,loss_func,
             transform_constants,num_val_img,output_subtracted,out_use_mid,flag_use_lines)
+        print(train_mae)
         train_maes.append(train_mae)
     
 
@@ -2465,52 +2468,59 @@ def get_all_data():
 
 if __name__ == "__main__":
 
-    super_epochs = 5
-    num_epochs = 1
+    super_epochs = 4
+    num_epochs = 5
 
     def objtv(trial):
 
         dataset_dic = get_all_data()
         #print(asd)
 
-        super_epochs = 5
-        num_epochs = 1
+        super_epochs = 4
+        num_epochs = 5
 
         trail_id = trial.number
         load_models_list = []
         transform_constants_list = []
-        #tm_stp=trial.suggest_int('time_step', 3, 11, 4)
+        #tm_stp=trial.suggest_int('time_step', 3, 6, 1)
         tm_stp = 6
-        lr_pow = trial.suggest_discrete_uniform('learning_rate', -5.0, -1.0, 0.5)
+        lr_pow = trial.suggest_discrete_uniform('learning_rate', -5.0, -2.0, 0.5)
+        #lr_pow = -4.0
         lstm_hidden_units = trial.suggest_int('neurons_per_layer', 50, 250, 50 )
-        #lstm_hidden_units = 150
+        #lstm_hidden_units = 200
         #batch_size_pow = trial.suggest_int('batch_size_power', 2, 6 , 1)
         batch_size_pow = 5
-        num_layers = trial.suggest_int('num_of_layers', 0, 6, 2)
-        #num_layers = 11
+        num_layers = trial.suggest_int('num_of_layers', 0, 8, 2)
+        #num_layers = 0
         num_cnn_layers = 6
         #strt = trial.suggest_int('starting_year', 0, 20, 5)
-        strt = 20
+        strt = 0
         #vert_hgt = trial.suggest_int('vertical_window_size', 3, 7, 2)
-        vert_hgt = 7
-        loss_func = trial.suggest_categorical('loss_function', ['mse_loss', 'l1_loss', 'huber_loss'])
-        #loss_func = 'mse_loss'
+        vert_hgt = 15
+        #loss_func = trial.suggest_categorical('loss_function', ['mse_loss', 'l1_loss', 'huber_loss'])
+        loss_func = 'huber_loss'
         #output_subtracted = trial.suggest_categorical('output_subtracted', [0,False])
-        lstm_layers = trial.suggest_int('lstm_depth_layers', 1, 3, 1)
-        #lstm_layers = 1
+        #lstm_layers = trial.suggest_int('lstm_depth_layers', 1, 3, 1)
+        lstm_layers = 1
         #model_type = trial.suggest_categorical('model_type', ['ANN', 'LSTM'])
         model_type = 'CNN_LSTM'
         #flag_batch_norm_bin = trial.suggest_int('batch_norm', 0, 1, 1)
         #flag_batch_norm_bin = 0
         flag_use_lines = True
         pooling_layer = trial.suggest_categorical('pooling_layer', ['MaxPool', 'AvgPool'])
-        only_lstm_units = trial.suggest_int('only_lstm_units', 50, 250, 50 )
+        #pooling_layer = 'AvgPool'
+        only_lstm_units = trial.suggest_int('only_lstm_units', 50, 300, 50 )
+        #only_lstm_units = 250
         num_branch_layers = trial.suggest_int('num_branch_layers', 0, 6, 2)
-        branch_layer_neurons = trial.suggest_int('branch_layer_neurons', 50, 250, 50)
+        #num_branch_layers = 0
+        branch_layer_neurons = trial.suggest_int('branch_layer_neurons', 50, 150, 50)
+        #branch_layer_neurons = 100
+        right_loss_weight = 0.75
+        num_filter_choice = trial.suggest_int('num_filter_choice', 0, 1, 1)
 
         for j in range(super_epochs):
 
-            cross_val_nums = 5
+            cross_val_nums = 3
             val_split_org = 3
             val_skip = 2
             out_use_mid = True
@@ -2531,7 +2541,7 @@ if __name__ == "__main__":
             out_bnk='both'
             model_optim='SGD'
             #loss_func='mse_loss'
-            output_subtracted = True
+            output_subtracted = False
             train_shuffle = True
             train_val_gap = False
             #flg_btch_list = [False, True]
@@ -2555,12 +2565,14 @@ if __name__ == "__main__":
                     model_name, train_losses, val_losses, train_maes, val_maes, hparam_def, transform_constants = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=num_epochs,train_shuffle=train_shuffle,
                     get_train_mae=get_train_mae,transform_constants=None,lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,model_type=model_type,num_layers=num_layers,
                     model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=False,load_file=None,skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id,flag_batch_norm=flag_batch_norm,dataset_dic=dataset_dic,
-                    num_cnn_layers=num_cnn_layers,flag_use_lines=flag_use_lines,pooling_layer=pooling_layer,flag_bin_out=flag_bin_out,only_lstm_units=only_lstm_units,num_branch_layers=num_branch_layers,branch_layer_neurons=branch_layer_neurons)
+                    num_cnn_layers=num_cnn_layers,flag_use_lines=flag_use_lines,pooling_layer=pooling_layer,flag_bin_out=flag_bin_out,only_lstm_units=only_lstm_units,num_branch_layers=num_branch_layers,branch_layer_neurons=branch_layer_neurons,right_loss_weight=right_loss_weight,
+                    num_filter_choice=num_filter_choice)
                 elif j > 0 :
                     model_name, train_losses, val_losses, train_maes, val_maes, hparam_def, transform_constants = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=num_epochs,train_shuffle=train_shuffle,
                     get_train_mae=get_train_mae,transform_constants=transform_constants_list[i],lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,model_type=model_type,num_layers=num_layers,
                     model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=True,load_file=load_models_list[0],skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id,flag_batch_norm=flag_batch_norm,dataset_dic=dataset_dic,
-                    num_cnn_layers=num_cnn_layers,flag_use_lines=flag_use_lines,pooling_layer=pooling_layer,flag_bin_out=flag_bin_out,only_lstm_units=only_lstm_units,num_branch_layers=num_branch_layers,branch_layer_neurons=branch_layer_neurons)
+                    num_cnn_layers=num_cnn_layers,flag_use_lines=flag_use_lines,pooling_layer=pooling_layer,flag_bin_out=flag_bin_out,only_lstm_units=only_lstm_units,num_branch_layers=num_branch_layers,branch_layer_neurons=branch_layer_neurons,right_loss_weight=right_loss_weight,
+                    num_filter_choice=num_filter_choice)
 
                     load_models_list.pop(0)
 
@@ -2576,7 +2588,8 @@ if __name__ == "__main__":
                 _, _, _, _, test_val_maes, _, _ = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=1,train_shuffle=train_shuffle,get_train_mae=1,transform_constants=transform_constants,
                     lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split-(val_split_org-val_skip),val_skip=(val_skip-1),model_type=model_type,num_layers=num_layers,
                     model_optim=model_optim,loss_func=loss_func,save_mod=False,load_mod=True,load_file=model_name,skip_training=True,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id,flag_batch_norm=flag_batch_norm,
-                    dataset_dic=dataset_dic,num_cnn_layers=num_cnn_layers,flag_use_lines=flag_use_lines,pooling_layer=pooling_layer,flag_bin_out=flag_bin_out,only_lstm_units=only_lstm_units,num_branch_layers=num_branch_layers,branch_layer_neurons=branch_layer_neurons)
+                    dataset_dic=dataset_dic,num_cnn_layers=num_cnn_layers,flag_use_lines=flag_use_lines,pooling_layer=pooling_layer,flag_bin_out=flag_bin_out,only_lstm_units=only_lstm_units,num_branch_layers=num_branch_layers,branch_layer_neurons=branch_layer_neurons,
+                    right_loss_weight=right_loss_weight,num_filter_choice=num_filter_choice)
                 
                 crs_test_maes.append(test_val_maes)
 
@@ -2662,9 +2675,12 @@ if __name__ == "__main__":
         return crs_val_maes[-1]
 
 
-    study = optuna.create_study(study_name='batch_norm',storage='sqlite:///data\\sqdb\\temp_mae.db',load_if_exists=True,direction='minimize',sampler=TPESampler(),
+    study = optuna.create_study(study_name='batch_norm',storage='sqlite:///data\\sqdb\\img_lin_both_fls_man_2.db',load_if_exists=True,direction='minimize',sampler=TPESampler(),
             pruner=HyperbandPruner(min_resource=1, max_resource=int(super_epochs*num_epochs), reduction_factor=3))
 
-    study.optimize(objtv)
+    #study = optuna.create_study(study_name='batch_norm',storage='sqlite:///data\\sqdb\\img_lin_both_fls_man_2.db',
+    #        load_if_exists=True,direction='minimize')
+
+    study.optimize(objtv,n_trials=1)
 
     pass
