@@ -2484,19 +2484,19 @@ if __name__ == "__main__":
         transform_constants_list = []
         #tm_stp=trial.suggest_int('time_step', 3, 6, 1)
         tm_stp = 6
-        lr_pow = trial.suggest_discrete_uniform('learning_rate', -5.0, -2.0, 0.5)
-        #lr_pow = -4.0
-        lstm_hidden_units = trial.suggest_int('neurons_per_layer', 50, 250, 50 )
-        #lstm_hidden_units = 200
+        #lr_pow = trial.suggest_discrete_uniform('learning_rate', -5.0, -2.0, 0.5)
+        lr_pow = -3.0
+        #lstm_hidden_units = trial.suggest_int('neurons_per_layer', 200, 500, 50 )
+        lstm_hidden_units = 100
         #batch_size_pow = trial.suggest_int('batch_size_power', 2, 6 , 1)
-        batch_size_pow = 5
-        num_layers = trial.suggest_int('num_of_layers', 0, 8, 2)
-        #num_layers = 0
+        batch_size_pow = 3
+        #num_layers = trial.suggest_int('num_of_layers', 3, 5, 1)
+        num_layers = 0
         num_cnn_layers = 6
         #strt = trial.suggest_int('starting_year', 0, 20, 5)
         strt = 0
         #vert_hgt = trial.suggest_int('vertical_window_size', 3, 7, 2)
-        vert_hgt = 15
+        vert_hgt = 96
         #loss_func = trial.suggest_categorical('loss_function', ['mse_loss', 'l1_loss', 'huber_loss'])
         loss_func = 'huber_loss'
         #output_subtracted = trial.suggest_categorical('output_subtracted', [0,False])
@@ -2506,21 +2506,23 @@ if __name__ == "__main__":
         model_type = 'CNN_LSTM'
         #flag_batch_norm_bin = trial.suggest_int('batch_norm', 0, 1, 1)
         #flag_batch_norm_bin = 0
-        flag_use_lines = True
-        pooling_layer = trial.suggest_categorical('pooling_layer', ['MaxPool', 'AvgPool'])
-        #pooling_layer = 'AvgPool'
-        only_lstm_units = trial.suggest_int('only_lstm_units', 50, 300, 50 )
-        #only_lstm_units = 250
-        num_branch_layers = trial.suggest_int('num_branch_layers', 0, 6, 2)
-        #num_branch_layers = 0
-        branch_layer_neurons = trial.suggest_int('branch_layer_neurons', 50, 150, 50)
-        #branch_layer_neurons = 100
-        right_loss_weight = 0.75
-        num_filter_choice = trial.suggest_int('num_filter_choice', 0, 1, 1)
+        flag_use_lines = False
+        #pooling_layer = trial.suggest_categorical('pooling_layer', ['MaxPool', 'AvgPool'])
+        pooling_layer = 'AvgPool'
+        #only_lstm_units = trial.suggest_int('only_lstm_units', 200, 500, 50 )
+        only_lstm_units = 250
+        #num_branch_layers = trial.suggest_int('num_branch_layers', 2, 10, 2)
+        num_branch_layers = 0
+        #branch_layer_neurons = trial.suggest_int('branch_layer_neurons', 50, 150, 50)
+        branch_layer_neurons = 200
+        #right_loss_weight = trial.suggest_discrete_uniform('right_loss_weight', 0.5, 0.95, 0.05)
+        right_loss_weight = 0.85
+        #num_filter_choice = trial.suggest_int('num_filter_choice', 0, 1, 1)
+        num_filter_choice = 1
 
         for j in range(super_epochs):
 
-            cross_val_nums = 3
+            cross_val_nums = 1
             val_split_org = 3
             val_skip = 2
             out_use_mid = True
@@ -2675,12 +2677,12 @@ if __name__ == "__main__":
         return crs_val_maes[-1]
 
 
-    study = optuna.create_study(study_name='batch_norm',storage='sqlite:///data\\sqdb\\img_lin_both_fls_man_2.db',load_if_exists=True,direction='minimize',sampler=TPESampler(),
-            pruner=HyperbandPruner(min_resource=1, max_resource=int(super_epochs*num_epochs), reduction_factor=3))
+    #study = optuna.create_study(study_name='batch_norm',storage='sqlite:///data\\sqdb\\img_lin_both_fls_man_2.db',load_if_exists=True,direction='minimize',sampler=RandomSampler(),
+    #        pruner=HyperbandPruner(min_resource=1, max_resource=int(super_epochs*num_epochs), reduction_factor=3))
 
-    #study = optuna.create_study(study_name='batch_norm',storage='sqlite:///data\\sqdb\\img_lin_both_fls_man_2.db',
-    #        load_if_exists=True,direction='minimize')
+    study = optuna.create_study(study_name='batch_norm',storage='sqlite:///data\\sqdb\\img_lin_both_fls_man_4.db',
+            load_if_exists=True,direction='minimize')
 
     study.optimize(objtv,n_trials=1)
-
+    #study.optimize(objtv)
     pass

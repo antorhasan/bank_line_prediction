@@ -39,7 +39,10 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         if num_filter_list[num_filter_choice] == 16 :
             self.before_lstm_neurons = 256
         elif num_filter_list[num_filter_choice] == 32 :
-            self.before_lstm_neurons = 512
+            if self.vert_img_hgt >17 :
+                self.before_lstm_neurons = 256
+            else :
+                self.before_lstm_neurons = 512
         self.num_cnn_layers = num_cnn_layers
         self.ind_lf_rg = True    ######very important modification
         self.flag_bin_out = flag_bin_out
@@ -52,9 +55,15 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         self.conv_inp = nn.Conv2d(num_channels,num_filters_out,(kernel_hgt,3), padding=0)
         if self.flag_batch_norm == True :
             self.batch_norm_1 = nn.BatchNorm2d(num_filters_out)
-        vert_tracker = vert_img_hgt - 2
-        if vert_tracker == 1 :
-            kernel_hgt = 1
+
+        if self.vert_img_hgt >17 :
+            vert_tracker = int((vert_img_hgt - 2)/2)
+            if vert_tracker <= 1 :
+                kernel_hgt = 1
+        else :
+            vert_tracker = vert_img_hgt - 2
+            if vert_tracker == 1 :
+                kernel_hgt = 1
 
 
         self.cnn_layers_bn = nn.ModuleDict({})
@@ -78,13 +87,19 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
                 if (i+2) % 2 != 0:
                     num_filters = num_filters_out
 
-                vert_tracker = vert_tracker - 2
-                if vert_tracker == 1 :
-                    kernel_hgt = 1
+                if self.vert_img_hgt >17 :
+                    vert_tracker = int((vert_tracker - 2)/2)
+                    #print(vert_tracker)
+                    if vert_tracker <= 1 :
+                        kernel_hgt = 1
+                else :
+                    vert_tracker = vert_tracker - 2
+                    if vert_tracker == 1 :
+                        kernel_hgt = 1
 
-        self.conv_out = nn.Conv2d(num_filters,num_filters*2,(kernel_hgt,3), padding=0)
+        self.conv_out = nn.Conv2d(num_filters,num_filters,(kernel_hgt,3), padding=0)
         if self.flag_batch_norm == True :
-            self.batch_norm_out = nn.BatchNorm2d(num_filters*2)
+            self.batch_norm_out = nn.BatchNorm2d(num_filters)
         
         lstm_inp_feat = self.before_lstm_neurons
         if self.flag_use_lines :
@@ -197,7 +212,11 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         x = F.relu(x)
 
         if self.pooling_layer == 'AvgPool' :
-            x = F.avg_pool2d(x, (1,2))
+            if self.vert_img_hgt > 17 :
+                
+                x = F.avg_pool2d(x, (2,2))
+            else :
+                x = F.avg_pool2d(x, (1,2))
         elif self.pooling_layer == 'MaxPool' :
             x = F.max_pool2d(x, (1,2))
 
@@ -214,7 +233,13 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
                 x = F.relu(x)
                 #if int(x.size()[3]) > 1 :
                 if self.pooling_layer == 'AvgPool' :
-                    x = F.avg_pool2d(x, (1,2))
+                    if self.vert_img_hgt > 17 :
+                        if x.size()[2] == 1 :
+                            x = F.avg_pool2d(x, (1,2))
+                        else :
+                            x = F.avg_pool2d(x, (2,2))
+                    else :
+                        x = F.avg_pool2d(x, (1,2))
                 elif self.pooling_layer == 'MaxPool' :
                     x = F.max_pool2d(x, (1,2))
                 #print(x.size())
