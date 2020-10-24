@@ -2,6 +2,7 @@ data/
 bank_env/
 env2/
 wandb/
+writing_old/
 env/
 env3/
 .vscode

@@ -58,7 +58,9 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
 
         if self.vert_img_hgt >17 :
             vert_tracker = int((vert_img_hgt - 2)/2)
-            if vert_tracker <= 1 :
+            if vert_tracker == 2 :
+                kernel_hgt = 2
+            elif vert_tracker <= 1 :
                 kernel_hgt = 1
         else :
             vert_tracker = vert_img_hgt - 2
@@ -90,8 +92,11 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
                 if self.vert_img_hgt >17 :
                     vert_tracker = int((vert_tracker - 2)/2)
                     #print(vert_tracker)
-                    if vert_tracker <= 1 :
+                    if vert_tracker == 2 :
+                        kernel_hgt = 2
+                    elif vert_tracker <= 1 :
                         kernel_hgt = 1
+                    
                 else :
                     vert_tracker = vert_tracker - 2
                     if vert_tracker == 1 :
@@ -234,7 +239,7 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
                 #if int(x.size()[3]) > 1 :
                 if self.pooling_layer == 'AvgPool' :
                     if self.vert_img_hgt > 17 :
-                        if x.size()[2] == 1 :
+                        if x.size()[2] <= 1 :
                             x = F.avg_pool2d(x, (1,2))
                         else :
                             x = F.avg_pool2d(x, (2,2))

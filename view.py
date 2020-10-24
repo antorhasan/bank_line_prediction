@@ -852,8 +852,8 @@ def write_lines_1(strt_year,val_split):
     #rgb_list = rgb_list[]
 
     temp_img = cv2.imread(rgb_path+rgb_list[0]+'.png')
-    sum_writer = SummaryWriter()
-    writer = tf.io.TFRecordWriter(os.path.join('./data/tfrecord/'+ 'lines_'+str(strt)+'_'+str(val_split)+'.tfrecords'))
+    sum_writer = SummaryWriter('writing_old')
+    writer = tf.io.TFRecordWriter(os.path.join('./data/tfrecord/'+ 'lines_don_use_'+str(strt)+'_'+str(val_split)+'.tfrecords'))
 
     lft_full_diff = []
     rgt_full_diff = []
@@ -1252,7 +1252,7 @@ def cegis_refine():
 
 if __name__ == "__main__" :
     #write_tf_img_lines()
-
+    #write_lines_1(0,1)
     """ f = open(os.path.join('./data/data2.txt'),'r')
     f2 = open(os.path.join('./data/data1.txt'),'a')
     coun = 0

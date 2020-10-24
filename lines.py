@@ -1570,6 +1570,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     
     log_performance = get_train_mae ###number of epochs after which performance metrics are calculated
     log_val_loss_at = get_train_mae
+    #log_val_loss_at = 1
     early_stop_flag = False
     early_stop_thresh = 30
     path_to_val_img = os.path.join('./data/img/up_rgb/')
@@ -1750,6 +1751,8 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         optimizer = torch.optim.SGD(model.parameters(), lr=lr_rate, weight_decay=adm_wd)
     elif model_optim == 'Adam':
         optimizer = torch.optim.Adam(model.parameters(), lr=lr_rate, weight_decay=adm_wd)
+    elif model_optim == 'SGD_M' :
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr_rate, momentum=0.9, weight_decay=adm_wd)
 
     if (load_mod == True) and (load_file != None):
         print('loading model .......')
@@ -1775,7 +1778,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     else :
         inp_lines_mean = None
         inp_lines_std = None
-        inp_reach_std = None
+        inp_reach_mean = None
         inp_reach_std = None
 
     out_mean = transform_constants['out_mean']
@@ -1794,13 +1797,14 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         model.train()
         counter = 0
         epoch_loss = 0
+        batch_loss_counter = 0
+        batch_loss = 0
+        batch_counter = 0
         #print(dataset_f)
 
         if skip_training == False :
             for i_batch, sample_batched in enumerate(dataset_f) :
                 #print(i_batch)
-
-
                 #print(out_flatten)
                 #print(asd)
                 """ print(concat_img.shape)
@@ -1897,6 +1901,20 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 epoch_loss = epoch_loss+loss
                 counter += 1
 
+                batch_loss = batch_loss + loss
+                
+                batch_counter += 1
+
+                if ((i_batch+1)*batch_size) <= ((batch_loss_counter+1)*100) < ((i_batch+2)*batch_size) :
+                    
+                    batch_loss_counter += 1
+                    batch_loss = batch_loss / batch_counter
+
+                    batch_template = 'Epoch {}, {} batch Loss: {}'
+                    print(batch_template.format(epoch+1, i_batch+1, batch_loss))
+                    batch_counter = 0
+                    batch_loss = 0
+
                 """ if i_batch == 0 :
                     inp_tuple = (inp_flatten, lines_prev, reach_id)
                     writer.add_graph(model, inp_tuple) """
@@ -1937,7 +1955,8 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         #torch.cuda.empty_cache()
         #print(asd)
         model.eval()
-        if epoch % log_val_loss_at == log_val_loss_at-1 :
+        #if epoch % log_val_loss_at == log_val_loss_at-1 :
+        if True :
             print('starting validation .......')
             with torch.no_grad():
                 
@@ -2314,17 +2333,18 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
 
 
     #print(asd)
-    if skip_training == True :
-        for iter_num in range((num_val_img)):
-            temp_conf = wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids, writer,smooth_flag,
-                        reach_start_indx,out_use_mid,vert_img_hgt)
+    #if skip_training == True :
+    for iter_num in range((num_val_img)):
+        temp_conf = wrt_img(iter_num, actual_list, prev_actual_list, pred_list, val_img_ids, writer,smooth_flag,
+                    reach_start_indx,out_use_mid,vert_img_hgt)
 
-            if iter_num == 0 :
-                final_conf = temp_conf
-            else :
-                final_conf = final_conf + temp_conf
-        
-        plt_conf_mat(final_conf, 'total_test_confusion_matrix', writer) #'trial_name':str(model_name),
+        if iter_num == 0 :
+            final_conf = temp_conf
+        else :
+            final_conf = final_conf + temp_conf
+    
+    plt_conf_mat(final_conf, 'total_test_confusion_matrix', writer) #'trial_name':str(model_name),
+    
     hyperparameter_defaults.update(epochs=epoch+1)
     hyperparameter_defaults.update(trial_name=model_name)
     
@@ -2468,28 +2488,28 @@ def get_all_data():
 
 if __name__ == "__main__":
 
-    super_epochs = 4
-    num_epochs = 5
+    super_epochs = 3
+    num_epochs = 2
 
     def objtv(trial):
 
         dataset_dic = get_all_data()
         #print(asd)
 
-        super_epochs = 4
-        num_epochs = 5
+        super_epochs = 3
+        num_epochs = 2
 
         trail_id = trial.number
         load_models_list = []
         transform_constants_list = []
         #tm_stp=trial.suggest_int('time_step', 3, 6, 1)
-        tm_stp = 6
+        tm_stp = 5
         #lr_pow = trial.suggest_discrete_uniform('learning_rate', -5.0, -2.0, 0.5)
-        lr_pow = -3.0
+        lr_pow = -3.5
         #lstm_hidden_units = trial.suggest_int('neurons_per_layer', 200, 500, 50 )
         lstm_hidden_units = 100
         #batch_size_pow = trial.suggest_int('batch_size_power', 2, 6 , 1)
-        batch_size_pow = 3
+        batch_size_pow = 4
         #num_layers = trial.suggest_int('num_of_layers', 3, 5, 1)
         num_layers = 0
         num_cnn_layers = 6
@@ -2498,7 +2518,7 @@ if __name__ == "__main__":
         #vert_hgt = trial.suggest_int('vertical_window_size', 3, 7, 2)
         vert_hgt = 96
         #loss_func = trial.suggest_categorical('loss_function', ['mse_loss', 'l1_loss', 'huber_loss'])
-        loss_func = 'huber_loss'
+        loss_func = 'l1_loss'
         #output_subtracted = trial.suggest_categorical('output_subtracted', [0,False])
         #lstm_layers = trial.suggest_int('lstm_depth_layers', 1, 3, 1)
         lstm_layers = 1
@@ -2506,7 +2526,7 @@ if __name__ == "__main__":
         model_type = 'CNN_LSTM'
         #flag_batch_norm_bin = trial.suggest_int('batch_norm', 0, 1, 1)
         #flag_batch_norm_bin = 0
-        flag_use_lines = False
+        flag_use_lines = True
         #pooling_layer = trial.suggest_categorical('pooling_layer', ['MaxPool', 'AvgPool'])
         pooling_layer = 'AvgPool'
         #only_lstm_units = trial.suggest_int('only_lstm_units', 200, 500, 50 )
@@ -2514,15 +2534,18 @@ if __name__ == "__main__":
         #num_branch_layers = trial.suggest_int('num_branch_layers', 2, 10, 2)
         num_branch_layers = 0
         #branch_layer_neurons = trial.suggest_int('branch_layer_neurons', 50, 150, 50)
-        branch_layer_neurons = 200
+        branch_layer_neurons = 100
         #right_loss_weight = trial.suggest_discrete_uniform('right_loss_weight', 0.5, 0.95, 0.05)
-        right_loss_weight = 0.85
+        right_loss_weight = 0.7
         #num_filter_choice = trial.suggest_int('num_filter_choice', 0, 1, 1)
         num_filter_choice = 1
+        model_optim = 'SGD_M'
+        ad_pow = 1*(10**-1.0)
+        #ad_pow = 0
 
         for j in range(super_epochs):
 
-            cross_val_nums = 1
+            cross_val_nums = 3
             val_split_org = 3
             val_skip = 2
             out_use_mid = True
@@ -2533,7 +2556,7 @@ if __name__ == "__main__":
             get_train_mae = num_epochs
             #lr_pow=-3.0
             #ad_pow=1*(10**-1.0)
-            ad_pow=0
+            
             #vert_hgt=1
             vert_step_num=1
             #num_epochs=num_epochs
@@ -2541,7 +2564,7 @@ if __name__ == "__main__":
             #neurons_per_layer_list = [20,50,70,]
             inp_bnk='img'
             out_bnk='both'
-            model_optim='SGD'
+            
             #loss_func='mse_loss'
             output_subtracted = False
             train_shuffle = True
