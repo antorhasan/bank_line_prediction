@@ -6,7 +6,7 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
     def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,
                     inp_lr_flag, lf_rt_tag, lstm_hidden_units, flag_reach_use, num_layers,out_use_mid,flag_batch_norm,
                     num_cnn_layers,device,flag_use_lines,flag_bin_out,only_lstm_units,pooling_layer,num_branch_layers,
-                    branch_layer_neurons,num_filter_choice):
+                    branch_layer_neurons,num_filter_choice,flag_use_imgs):
         super(CNN_LSTM_Dynamic_Model, self).__init__()
         self.vert_img_hgt = vert_img_hgt
 
@@ -32,6 +32,7 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         self.lstm_hidden_units = lstm_hidden_units
         self.flag_batch_norm = flag_batch_norm
         self.num_layers = num_layers
+        self.flag_use_imgs = flag_use_imgs
         num_filter_list = [16, 32]
         num_filters = num_filter_list[num_filter_choice]
         num_filters_out = num_filter_list[num_filter_choice]
@@ -52,62 +53,66 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         self.branch_layer_neurons = branch_layer_neurons
         self.pooling_layer = pooling_layer
 
-        self.conv_inp = nn.Conv2d(num_channels,num_filters_out,(kernel_hgt,3), padding=0)
-        if self.flag_batch_norm == True :
-            self.batch_norm_1 = nn.BatchNorm2d(num_filters_out)
+        if flag_use_imgs :
+            self.conv_inp = nn.Conv2d(num_channels,num_filters_out,(kernel_hgt,3), padding=0)
+            if self.flag_batch_norm == True :
+                self.batch_norm_1 = nn.BatchNorm2d(num_filters_out)
 
-        if self.vert_img_hgt >17 :
-            vert_tracker = int((vert_img_hgt - 2)/2)
-            if vert_tracker == 2 :
-                kernel_hgt = 2
-            elif vert_tracker <= 1 :
-                kernel_hgt = 1
-        else :
-            vert_tracker = vert_img_hgt - 2
-            if vert_tracker == 1 :
-                kernel_hgt = 1
+            if self.vert_img_hgt >17 :
+                vert_tracker = int((vert_img_hgt - 2)/2)
+                if vert_tracker == 2 :
+                    kernel_hgt = 2
+                elif vert_tracker <= 1 :
+                    kernel_hgt = 1
+            else :
+                vert_tracker = vert_img_hgt - 2
+                if vert_tracker == 1 :
+                    kernel_hgt = 1
 
 
-        self.cnn_layers_bn = nn.ModuleDict({})
+            self.cnn_layers_bn = nn.ModuleDict({})
 
-        if num_cnn_layers > 0 :
-            for i in range(num_cnn_layers) :
-                #print(num_filters)
-                if self.flag_batch_norm == True :
-                    self.cnn_layers_bn.update([
-                        ['cnn_'+str(i+2), nn.Conv2d(num_filters,num_filters_out,(kernel_hgt,3), padding=0) ],
-                        ['batch_norm2d_'+str(i+2), nn.BatchNorm2d(num_filters_out)]
-                    ])
-                
-                elif self.flag_batch_norm == False :
-                    self.cnn_layers_bn.update([
-                        ['cnn_'+str(i+2), nn.Conv2d(num_filters,num_filters_out,(kernel_hgt,3), padding=0) ],
-                    ])
-
-                if (i+2) % 2 == 0:
-                    num_filters_out = num_filters * 2
-                if (i+2) % 2 != 0:
-                    num_filters = num_filters_out
-
-                if self.vert_img_hgt >17 :
-                    vert_tracker = int((vert_tracker - 2)/2)
-                    #print(vert_tracker)
-                    if vert_tracker == 2 :
-                        kernel_hgt = 2
-                    elif vert_tracker <= 1 :
-                        kernel_hgt = 1
+            if num_cnn_layers > 0 :
+                for i in range(num_cnn_layers) :
+                    #print(num_filters)
+                    if self.flag_batch_norm == True :
+                        self.cnn_layers_bn.update([
+                            ['cnn_'+str(i+2), nn.Conv2d(num_filters,num_filters_out,(kernel_hgt,3), padding=0) ],
+                            ['batch_norm2d_'+str(i+2), nn.BatchNorm2d(num_filters_out)]
+                        ])
                     
-                else :
-                    vert_tracker = vert_tracker - 2
-                    if vert_tracker == 1 :
-                        kernel_hgt = 1
+                    elif self.flag_batch_norm == False :
+                        self.cnn_layers_bn.update([
+                            ['cnn_'+str(i+2), nn.Conv2d(num_filters,num_filters_out,(kernel_hgt,3), padding=0) ],
+                        ])
 
-        self.conv_out = nn.Conv2d(num_filters,num_filters,(kernel_hgt,3), padding=0)
-        if self.flag_batch_norm == True :
-            self.batch_norm_out = nn.BatchNorm2d(num_filters)
+                    if (i+2) % 2 == 0:
+                        num_filters_out = num_filters * 2
+                    if (i+2) % 2 != 0:
+                        num_filters = num_filters_out
+
+                    if self.vert_img_hgt >17 :
+                        vert_tracker = int((vert_tracker - 2)/2)
+                        #print(vert_tracker)
+                        if vert_tracker == 2 :
+                            kernel_hgt = 2
+                        elif vert_tracker <= 1 :
+                            kernel_hgt = 1
+                        
+                    else :
+                        vert_tracker = vert_tracker - 2
+                        if vert_tracker == 1 :
+                            kernel_hgt = 1
+
+            self.conv_out = nn.Conv2d(num_filters,num_filters,(kernel_hgt,3), padding=0)
+            if self.flag_batch_norm == True :
+                self.batch_norm_out = nn.BatchNorm2d(num_filters)
         
+
         lstm_inp_feat = self.before_lstm_neurons
-        if self.flag_use_lines :
+        if self.flag_use_imgs == False :
+            lstm_inp_feat =  (self.vert_img_hgt*2)+1
+        elif (self.flag_use_lines == True) and (self.flag_use_lines == True) :
             lstm_inp_feat = self.before_lstm_neurons + ((self.vert_img_hgt*2)+1)
 
         self.lstm = nn.LSTM( lstm_inp_feat, self.only_lstm_units, num_layers=num_lstm_layers, batch_first=True)
@@ -203,76 +208,85 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
     def forward(self,x, lines, reach):
         #print(x.size())
         # = inp_tuple
-        last_batch_size = x.size(0)
+        
+        
+        if self.flag_use_imgs :
+            last_batch_size = x.size(0)
 
-        x = torch.reshape(x, (-1, self.vert_img_hgt, 745, 7))
-        x = torch.transpose(x, 1,3)
-        x = torch.transpose(x, 2,3)
-        #print(x.size())
+            x = torch.reshape(x, (-1, self.vert_img_hgt, 745, 7))
+            x = torch.transpose(x, 1,3)
+            x = torch.transpose(x, 2,3)
+            #print(x.size())
 
-        x = self.conv_inp(x)
-        #print(x.size())
-        if self.flag_batch_norm == True :
-            x = self.batch_norm_1(x)
-        x = F.relu(x)
+            x = self.conv_inp(x)
+            #print(x.size())
+            if self.flag_batch_norm == True :
+                x = self.batch_norm_1(x)
+            x = F.relu(x)
 
-        if self.pooling_layer == 'AvgPool' :
-            if self.vert_img_hgt > 17 :
-                
-                x = F.avg_pool2d(x, (2,2))
-            else :
-                x = F.avg_pool2d(x, (1,2))
-        elif self.pooling_layer == 'MaxPool' :
-            x = F.max_pool2d(x, (1,2))
+            if self.pooling_layer == 'AvgPool' :
+                if self.vert_img_hgt > 17 :
+                    
+                    x = F.avg_pool2d(x, (2,2))
+                else :
+                    x = F.avg_pool2d(x, (1,2))
+            elif self.pooling_layer == 'MaxPool' :
+                x = F.max_pool2d(x, (1,2))
 
-        #print(x.size())
+            #print(x.size())
 
 
-        if self.num_cnn_layers > 0 :
-            for i in range(self.num_cnn_layers):
+            if self.num_cnn_layers > 0 :
+                for i in range(self.num_cnn_layers):
 
-                x = self.cnn_layers_bn['cnn_'+str(i+2)](x)
-                #print(x.size())
-                if self.flag_batch_norm == True :
-                    x = self.cnn_layers_bn['batch_norm2d_'+str(i+2)](x)
-                x = F.relu(x)
-                #if int(x.size()[3]) > 1 :
-                if self.pooling_layer == 'AvgPool' :
-                    if self.vert_img_hgt > 17 :
-                        if x.size()[2] <= 1 :
-                            x = F.avg_pool2d(x, (1,2))
+                    x = self.cnn_layers_bn['cnn_'+str(i+2)](x)
+                    #print(x.size())
+                    if self.flag_batch_norm == True :
+                        x = self.cnn_layers_bn['batch_norm2d_'+str(i+2)](x)
+                    x = F.relu(x)
+                    #if int(x.size()[3]) > 1 :
+                    if self.pooling_layer == 'AvgPool' :
+                        if self.vert_img_hgt > 17 :
+                            if x.size()[2] <= 1 :
+                                x = F.avg_pool2d(x, (1,2))
+                            else :
+                                x = F.avg_pool2d(x, (2,2))
                         else :
-                            x = F.avg_pool2d(x, (2,2))
-                    else :
-                        x = F.avg_pool2d(x, (1,2))
-                elif self.pooling_layer == 'MaxPool' :
-                    x = F.max_pool2d(x, (1,2))
-                #print(x.size())
+                            x = F.avg_pool2d(x, (1,2))
+                    elif self.pooling_layer == 'MaxPool' :
+                        x = F.max_pool2d(x, (1,2))
+                    #print(x.size())
 
-        #print(asd)
+            #print(asd)
 
-        x = self.conv_out(x)
-        if self.flag_batch_norm == True :
-            x = self.batch_norm_out(x)
-        x = F.relu(x)
-        #print(x.size())
+            x = self.conv_out(x)
+            if self.flag_batch_norm == True :
+                x = self.batch_norm_out(x)
+            x = F.relu(x)
+            #print(x.size())
 
-        #print(asd)
+            #print(asd)
 
-        x = torch.flatten(x, start_dim=1)
+            x = torch.flatten(x, start_dim=1)
 
-        #print(x.size())
-        """ if self.training :
-            x = torch.reshape(x, (self.batch_size, (self.time_step-1), -1))
-        else : """
-        x = torch.reshape(x, (last_batch_size, (self.time_step-1), -1))
-        #print(x.size())
+            #print(x.size())
+            """ if self.training :
+                x = torch.reshape(x, (self.batch_size, (self.time_step-1), -1))
+            else : """
+            x = torch.reshape(x, (last_batch_size, (self.time_step-1), -1))
+            #print(x.size())
+
+        
         if self.flag_use_lines :
+            last_batch_size = lines.size(0)
             lines = torch.reshape(lines, (last_batch_size, (self.time_step-1), -1))
             reach = torch.reshape(reach, (last_batch_size, 1, -1))
             reach = reach.expand(-1,(self.time_step-1),-1)
             #print(reach[0:5,:,:])
-            x = torch.cat((x,lines,reach), 2)
+            if self.flag_use_imgs :
+                x = torch.cat((x,lines,reach), 2)
+            else :
+                x = torch.cat((lines,reach), 2)
 
         h_n = torch.zeros((self.num_lstm_layers,x.size(0),self.only_lstm_units), device=self.device)
         c_n = torch.zeros((self.num_lstm_layers,x.size(0),self.only_lstm_units), device=self.device)

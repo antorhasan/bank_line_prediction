@@ -1163,7 +1163,7 @@ def train_performance(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,fla
 
 def pt_train_per(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,
         batch_size,time_step,vert_img_hgt,flag_sdd_act_data,inp_mean,inp_std,out_mean,out_std,model,
-        loss_func,transform_constants,num_val_img,output_subtracted,out_use_mid,flag_use_lines):
+        loss_func,transform_constants,num_val_img,output_subtracted,out_use_mid,flag_use_lines,flag_use_imgs):
     
     out_mean = transform_constants['out_mean']
     out_std = transform_constants['out_std']
@@ -1183,13 +1183,20 @@ def pt_train_per(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_sta
         num_batches = len(dataset_tr_pr)
         for i_batch, sample_batched in enumerate(dataset_tr_pr) :
 
-            inp_flatten = sample_batched['img']
+            if flag_use_imgs :
+                inp_flatten = sample_batched['img']
+                inp_flatten = inp_flatten[:,:-1,:,:,:]
+                inp_flatten = inp_flatten / 255.0
+                inp_flatten = np.asarray(inp_flatten, dtype=np.float32)
+                inp_flatten = torch.Tensor(inp_flatten).cuda()   
+            else :
+                inp_flatten = None             
+
             out_flatten_org = sample_batched['lines']
 
             if (i_batch+1) == num_batches :
                 last_batch_size = out_flatten_org.shape[0]
 
-            inp_flatten = inp_flatten[:,:-1,:,:,:]
             
             lines_last = out_flatten_org[:,-1:,int((vert_img_hgt-1)/2):int((vert_img_hgt-1)/2)+1,:]
             lines_prev = out_flatten_org[:,-2:-1,int((vert_img_hgt-1)/2):int((vert_img_hgt-1)/2)+1,:]
@@ -1198,15 +1205,12 @@ def pt_train_per(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_sta
             lines_prev = torch.reshape(lines_prev, (lines_prev.shape[0], 2))
 
             #out_flatten = lines_last - lines_prev
-            inp_flatten = inp_flatten / 255.0
 
             #out_flatten = (out_flatten - out_mean) / out_std 
             
-            inp_flatten = np.asarray(inp_flatten, dtype=np.float32)
             #print(inp_flatten.shape)
             #print(asd)
             #out_flatten = np.asarray(out_flatten, dtype=np.float32)
-            inp_flatten = torch.Tensor(inp_flatten).cuda()                
             #out_flatten = torch.Tensor(out_flatten).cuda()
 
             if flag_use_lines :
@@ -1467,12 +1471,18 @@ def calculate_loss(pred_left, pred_right, pred_binl, pred_binr, out_flatten, bin
     return loss
 
 def pytorch_process_inp(sample_batched,vert_img_hgt,output_subtracted,flag_bin_out,out_mean,out_std,
-    flag_use_lines,inp_lines_mean,inp_lines_std,flag_reach_use,inp_reach_mean,inp_reach_std):
+    flag_use_lines,inp_lines_mean,inp_lines_std,flag_reach_use,inp_reach_mean,inp_reach_std,flag_use_imgs):
 
-    inp_flatten = sample_batched['img']
+    if flag_use_imgs :
+        inp_flatten = sample_batched['img']
+        inp_flatten = inp_flatten[:,:-1,:,:,:]
+        inp_flatten = inp_flatten / 255.0
+        inp_flatten = inp_flatten.cuda().requires_grad_(False)
+    else :
+        inp_flatten = None
+
     out_flatten_org = sample_batched['lines']
 
-    inp_flatten = inp_flatten[:,:-1,:,:,:]
 
     lines_last = out_flatten_org[:,-1:,int((vert_img_hgt-1)/2):int((vert_img_hgt-1)/2)+1,:]
     lines_prev = out_flatten_org[:,-2:-1,int((vert_img_hgt-1)/2):int((vert_img_hgt-1)/2)+1,:]
@@ -1505,11 +1515,9 @@ def pytorch_process_inp(sample_batched,vert_img_hgt,output_subtracted,flag_bin_o
         bin_out_flatten_left = None
         bin_out_flatten_right = None
 
-    inp_flatten = inp_flatten / 255.0
 
     out_flatten = (out_flatten - out_mean) / out_std 
 
-    inp_flatten = inp_flatten.cuda().requires_grad_(False)
     out_flatten = out_flatten.float().cuda().requires_grad_(False)
 
     if flag_use_lines :
@@ -1535,7 +1543,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 lstm_layers,lstm_hidden_units,batch_size,inp_bnk,out_bnk,val_split,val_skip,model_type,num_layers,
                 model_optim,loss_func,save_mod,load_mod,load_file,skip_training,output_subtracted,train_val_gap,
                 out_use_mid,trail_id,flag_batch_norm,dataset_dic,num_cnn_layers,flag_use_lines,pooling_layer,flag_bin_out,
-                only_lstm_units,num_branch_layers,branch_layer_neurons,right_loss_weight,num_filter_choice):
+                only_lstm_units,num_branch_layers,branch_layer_neurons,right_loss_weight,num_filter_choice,flag_use_imgs):
     
     load_mod = load_mod
     load_file = load_file
@@ -1626,10 +1634,10 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     #output_vert_indx = int((vert_img_hgt-1)/2)
     time_win_shift = 1
 
-    reach_start_indx = 1461 
-    reach_end_num = 377
-    #reach_start_indx = 0 
-    #reach_end_num = 0
+    #reach_start_indx = 1461 
+    #reach_end_num = 377
+    reach_start_indx = 0 
+    reach_end_num = 0
 
     reach_shift_cons = 2222
     reach_win_size = reach_shift_cons - reach_end_num 
@@ -1687,7 +1695,8 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         only_lstm_units = only_lstm_units,
         num_branch_layers = num_branch_layers,
         branch_layer_neurons = branch_layer_neurons,
-        pooling_layer = pooling_layer
+        pooling_layer = pooling_layer,
+        flag_use_imgs = flag_use_imgs
         )
 
     if skip_training == False :
@@ -1737,7 +1746,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         model = CNN_LSTM_Dynamic_Model(num_channels, batch_size, val_batch_size,time_step, num_lstm_layers, drop_rate, 
                 vert_img_hgt, inp_lr_flag, out_lr_tag, lstm_hidden_units,flag_reach_use,num_layers,out_use_mid,flag_batch_norm,
                 num_cnn_layers,device,flag_use_lines,flag_bin_out,only_lstm_units,pooling_layer,num_branch_layers,
-                branch_layer_neurons,num_filter_choice)
+                branch_layer_neurons,num_filter_choice,flag_use_imgs)
 
 
     
@@ -1862,12 +1871,13 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 bin_out_flatten_right,_ = pytorch_process_inp(sample_batched,vert_img_hgt,
                                             output_subtracted,flag_bin_out,out_mean,out_std,
                                             flag_use_lines,inp_lines_mean,inp_lines_std,
-                                            flag_reach_use,inp_reach_mean,inp_reach_std)
+                                            flag_reach_use,inp_reach_mean,inp_reach_std,flag_use_imgs)
 
                 if i_batch == 0 :
                     #print(inp_flatten[i_batch,:,:,:,:])
-                    print(inp_flatten.shape)
-                    print(inp_flatten.dtype)
+                    if flag_use_imgs :
+                        print(inp_flatten.shape)
+                        print(inp_flatten.dtype)
                     print(out_flatten.shape)
                     print(out_flatten.dtype)
 
@@ -2020,12 +2030,13 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                     bin_out_flatten_right,lines_prev = pytorch_process_inp(sample_batched,vert_img_hgt,
                                             output_subtracted,flag_bin_out,out_mean,out_std,
                                             flag_use_lines,inp_lines_mean,inp_lines_std,
-                                            flag_reach_use,inp_reach_mean,inp_reach_std)
+                                            flag_reach_use,inp_reach_mean,inp_reach_std,flag_use_imgs)
 
                     if i_batch == 0 :
                         #print(inp_flatten[i_batch,:,:,:,:])
-                        print(inp_flatten.shape)
-                        print(inp_flatten.dtype)
+                        if flag_use_imgs :
+                            print(inp_flatten.shape)
+                            print(inp_flatten.dtype)
                         print(out_flatten.shape)
                         print(out_flatten.dtype)
 
@@ -2364,7 +2375,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         print('calculating training MAE performance ........')
         train_mae = pt_train_per(dataset_tr_pr,inp_mode,inp_lr_flag,out_mode,out_lr_tag,flag_standardize_actual,flag_reach_use,
             batch_size,time_step,vert_img_hgt,flag_sdd_act_data,inp_lines_mean,inp_lines_std,out_mean,out_std,model,loss_func,
-            transform_constants,num_val_img,output_subtracted,out_use_mid,flag_use_lines)
+            transform_constants,num_val_img,output_subtracted,out_use_mid,flag_use_lines,flag_use_imgs)
         print(train_mae)
         train_maes.append(train_mae)
     
@@ -2488,64 +2499,67 @@ def get_all_data():
 
 if __name__ == "__main__":
 
-    super_epochs = 3
-    num_epochs = 2
+    super_epochs = 10
+    num_epochs = 5
 
     def objtv(trial):
 
         dataset_dic = get_all_data()
         #print(asd)
 
-        super_epochs = 3
-        num_epochs = 2
+        super_epochs = 10
+        num_epochs = 5
 
         trail_id = trial.number
         load_models_list = []
         transform_constants_list = []
         #tm_stp=trial.suggest_int('time_step', 3, 6, 1)
         tm_stp = 5
-        #lr_pow = trial.suggest_discrete_uniform('learning_rate', -5.0, -2.0, 0.5)
-        lr_pow = -3.5
-        #lstm_hidden_units = trial.suggest_int('neurons_per_layer', 200, 500, 50 )
-        lstm_hidden_units = 100
+        lr_pow = trial.suggest_discrete_uniform('learning_rate', -5.0, -3.0, 0.5)
+        #lr_pow = -3.0
+        lstm_hidden_units = trial.suggest_int('neurons_per_layer', 200, 500, 50 )
+        #lstm_hidden_units = 100
         #batch_size_pow = trial.suggest_int('batch_size_power', 2, 6 , 1)
         batch_size_pow = 4
-        #num_layers = trial.suggest_int('num_of_layers', 3, 5, 1)
-        num_layers = 0
+        num_layers = trial.suggest_int('num_of_layers', 3, 5, 1)
+        #num_layers = 0
         num_cnn_layers = 6
         #strt = trial.suggest_int('starting_year', 0, 20, 5)
         strt = 0
-        #vert_hgt = trial.suggest_int('vertical_window_size', 3, 7, 2)
-        vert_hgt = 96
-        #loss_func = trial.suggest_categorical('loss_function', ['mse_loss', 'l1_loss', 'huber_loss'])
-        loss_func = 'l1_loss'
+        vert_hgt = trial.suggest_int('vertical_window_size', 128, 256, 128)
+        #vert_hgt = 128
+        loss_func = trial.suggest_categorical('loss_function', ['mse_loss', 'l1_loss', 'huber_loss'])
+        #loss_func = 'l1_loss'
         #output_subtracted = trial.suggest_categorical('output_subtracted', [0,False])
-        #lstm_layers = trial.suggest_int('lstm_depth_layers', 1, 3, 1)
-        lstm_layers = 1
+        lstm_layers = trial.suggest_int('lstm_depth_layers', 1, 3, 1)
+        #lstm_layers = 1
         #model_type = trial.suggest_categorical('model_type', ['ANN', 'LSTM'])
         model_type = 'CNN_LSTM'
         #flag_batch_norm_bin = trial.suggest_int('batch_norm', 0, 1, 1)
         #flag_batch_norm_bin = 0
         flag_use_lines = True
+        flag_use_imgs = False
+        flag_bin_out = False
+        output_subtracted = False
         #pooling_layer = trial.suggest_categorical('pooling_layer', ['MaxPool', 'AvgPool'])
         pooling_layer = 'AvgPool'
         #only_lstm_units = trial.suggest_int('only_lstm_units', 200, 500, 50 )
         only_lstm_units = 250
-        #num_branch_layers = trial.suggest_int('num_branch_layers', 2, 10, 2)
-        num_branch_layers = 0
-        #branch_layer_neurons = trial.suggest_int('branch_layer_neurons', 50, 150, 50)
-        branch_layer_neurons = 100
-        #right_loss_weight = trial.suggest_discrete_uniform('right_loss_weight', 0.5, 0.95, 0.05)
-        right_loss_weight = 0.7
+        num_branch_layers = trial.suggest_int('num_branch_layers', 2, 10, 2)
+        #num_branch_layers = 6
+        branch_layer_neurons = trial.suggest_int('branch_layer_neurons', 50, 150, 50)
+        #branch_layer_neurons = 100
+        right_loss_weight = trial.suggest_discrete_uniform('right_loss_weight', 0.5, 0.95, 0.05)
+        #right_loss_weight = 0.7
         #num_filter_choice = trial.suggest_int('num_filter_choice', 0, 1, 1)
         num_filter_choice = 1
         model_optim = 'SGD_M'
-        ad_pow = 1*(10**-1.0)
-        #ad_pow = 0
+        #ad_pow = 1*(10**-1.0)
+        ad_pow = 0
 
         for j in range(super_epochs):
 
-            cross_val_nums = 3
+            cross_val_nums = 5
             val_split_org = 3
             val_skip = 2
             out_use_mid = True
@@ -2566,13 +2580,13 @@ if __name__ == "__main__":
             out_bnk='both'
             
             #loss_func='mse_loss'
-            output_subtracted = False
+            
             train_shuffle = True
             train_val_gap = False
             #flg_btch_list = [False, True]
             #flag_batch_norm = flg_btch_list[int(flag_batch_norm_bin)]
             flag_batch_norm = True
-            flag_bin_out = False
+            
             #model_type = 'ANN'
             #num_layers_list = [1,3,5,7,9,12,14]
     
@@ -2591,13 +2605,13 @@ if __name__ == "__main__":
                     get_train_mae=get_train_mae,transform_constants=None,lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,model_type=model_type,num_layers=num_layers,
                     model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=False,load_file=None,skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id,flag_batch_norm=flag_batch_norm,dataset_dic=dataset_dic,
                     num_cnn_layers=num_cnn_layers,flag_use_lines=flag_use_lines,pooling_layer=pooling_layer,flag_bin_out=flag_bin_out,only_lstm_units=only_lstm_units,num_branch_layers=num_branch_layers,branch_layer_neurons=branch_layer_neurons,right_loss_weight=right_loss_weight,
-                    num_filter_choice=num_filter_choice)
+                    num_filter_choice=num_filter_choice,flag_use_imgs=flag_use_imgs)
                 elif j > 0 :
                     model_name, train_losses, val_losses, train_maes, val_maes, hparam_def, transform_constants = objective(tm_stp=tm_stp,strt=strt,lr_pow=lr_pow,ad_pow=ad_pow,vert_hgt=vert_hgt,vert_step_num=vert_step_num,num_epochs=num_epochs,train_shuffle=train_shuffle,
                     get_train_mae=get_train_mae,transform_constants=transform_constants_list[i],lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split,val_skip=val_skip,model_type=model_type,num_layers=num_layers,
                     model_optim=model_optim,loss_func=loss_func,save_mod=True,load_mod=True,load_file=load_models_list[0],skip_training=False,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id,flag_batch_norm=flag_batch_norm,dataset_dic=dataset_dic,
                     num_cnn_layers=num_cnn_layers,flag_use_lines=flag_use_lines,pooling_layer=pooling_layer,flag_bin_out=flag_bin_out,only_lstm_units=only_lstm_units,num_branch_layers=num_branch_layers,branch_layer_neurons=branch_layer_neurons,right_loss_weight=right_loss_weight,
-                    num_filter_choice=num_filter_choice)
+                    num_filter_choice=num_filter_choice,flag_use_imgs=flag_use_imgs)
 
                     load_models_list.pop(0)
 
@@ -2614,7 +2628,7 @@ if __name__ == "__main__":
                     lstm_layers=lstm_layers,lstm_hidden_units=lstm_hidden_units,batch_size=batch_size,inp_bnk=inp_bnk,out_bnk=out_bnk,val_split=val_split-(val_split_org-val_skip),val_skip=(val_skip-1),model_type=model_type,num_layers=num_layers,
                     model_optim=model_optim,loss_func=loss_func,save_mod=False,load_mod=True,load_file=model_name,skip_training=True,output_subtracted=output_subtracted,train_val_gap=train_val_gap,out_use_mid=out_use_mid,trail_id=trail_id,flag_batch_norm=flag_batch_norm,
                     dataset_dic=dataset_dic,num_cnn_layers=num_cnn_layers,flag_use_lines=flag_use_lines,pooling_layer=pooling_layer,flag_bin_out=flag_bin_out,only_lstm_units=only_lstm_units,num_branch_layers=num_branch_layers,branch_layer_neurons=branch_layer_neurons,
-                    right_loss_weight=right_loss_weight,num_filter_choice=num_filter_choice)
+                    right_loss_weight=right_loss_weight,num_filter_choice=num_filter_choice,flag_use_imgs=flag_use_imgs)
                 
                 crs_test_maes.append(test_val_maes)
 
@@ -2700,12 +2714,12 @@ if __name__ == "__main__":
         return crs_val_maes[-1]
 
 
-    #study = optuna.create_study(study_name='batch_norm',storage='sqlite:///data\\sqdb\\img_lin_both_fls_man_2.db',load_if_exists=True,direction='minimize',sampler=RandomSampler(),
-    #        pruner=HyperbandPruner(min_resource=1, max_resource=int(super_epochs*num_epochs), reduction_factor=3))
+    study = optuna.create_study(study_name='batch_norm',storage='sqlite:///data\\sqdb\\lin_both_fls_man.db',load_if_exists=True,direction='minimize',sampler=RandomSampler(),
+            pruner=HyperbandPruner(min_resource=1, max_resource=int(super_epochs*num_epochs), reduction_factor=3))
 
-    study = optuna.create_study(study_name='batch_norm',storage='sqlite:///data\\sqdb\\img_lin_both_fls_man_4.db',
-            load_if_exists=True,direction='minimize')
+    #study = optuna.create_study(study_name='batch_norm',storage='sqlite:///data\\sqdb\\lin_both_fls_man.db',
+    #        load_if_exists=True,direction='minimize')
 
-    study.optimize(objtv,n_trials=1)
-    #study.optimize(objtv)
+    #study.optimize(objtv,n_trials=1)
+    study.optimize(objtv)
     pass
