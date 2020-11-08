@@ -6,7 +6,7 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
     def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,
                     inp_lr_flag, lf_rt_tag, lstm_hidden_units, flag_reach_use, num_layers,out_use_mid,flag_batch_norm,
                     num_cnn_layers,device,flag_use_lines,flag_bin_out,only_lstm_units,pooling_layer,num_branch_layers,
-                    branch_layer_neurons,num_filter_choice,flag_use_imgs):
+                    branch_layer_neurons,num_filter_choice,flag_use_imgs,num_lft_brn_lyrs,num_rgt_brn_lyrs):
         super(CNN_LSTM_Dynamic_Model, self).__init__()
         self.vert_img_hgt = vert_img_hgt
 
