@@ -6,7 +6,7 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
     def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,
                     inp_lr_flag, lf_rt_tag, lstm_hidden_units, flag_reach_use, num_layers,out_use_mid,flag_batch_norm,
                     num_cnn_layers,device,flag_use_lines,flag_bin_out,only_lstm_units,pooling_layer,num_branch_layers,
-                    branch_layer_neurons,num_filter_choice,flag_use_imgs,num_lft_brn_lyrs,num_rgt_brn_lyrs):
+                    branch_layer_neurons,num_filter_choice,flag_use_imgs,num_lft_brn_lyrs,num_rgt_brn_lyrs,lstm_dropout):
         super(CNN_LSTM_Dynamic_Model, self).__init__()
         self.vert_img_hgt = vert_img_hgt
 
@@ -22,7 +22,7 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
 
         self.flag_reach_use = flag_reach_use
 
-        self.lstm_dropout = 0
+        self.lstm_dropout = lstm_dropout
         self.device = device
         self.batch_size = batch_size
         self.val_batch_size = val_batch_size
@@ -50,6 +50,9 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         self.flag_use_lines = flag_use_lines
         self.only_lstm_units = only_lstm_units
         self.num_branch_layers = num_branch_layers
+        self.num_lft_brn_lyrs = num_lft_brn_lyrs
+        self.num_rgt_brn_lyrs = num_rgt_brn_lyrs
+
         self.branch_layer_neurons = branch_layer_neurons
         self.pooling_layer = pooling_layer
 
@@ -115,7 +118,8 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         elif (self.flag_use_lines == True) and (self.flag_use_lines == True) :
             lstm_inp_feat = self.before_lstm_neurons + ((self.vert_img_hgt*2)+1)
 
-        self.lstm = nn.LSTM( lstm_inp_feat, self.only_lstm_units, num_layers=num_lstm_layers, batch_first=True)
+        self.lstm = nn.LSTM( lstm_inp_feat, self.only_lstm_units, num_layers=num_lstm_layers, 
+                            batch_first=True,dropout = self.lstm_dropout)
         
         #self.post_lstm_fc = nn.Linear(self.only_lstm_units, self.lstm_hidden_units)
 
@@ -142,58 +146,123 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         
         if self.ind_lf_rg == True :
             
-            if self.num_branch_layers > 0 :
+            #if self.num_branch_layers > 0 :
 
+            """ self.linear_left_reg_branch = nn.ModuleDict({})
+            self.linear_right_reg_branch = nn.ModuleDict({}) """
+
+            """ if self.flag_bin_out :
+                self.linear_left_bin_branch = nn.ModuleDict({})
+                self.linear_right_bin_branch = nn.ModuleDict({})
+            
+            if self.flag_bin_out :
+                branch_layers_dic = {'left_reg':self.linear_left_reg_branch, 
+                                    'right_reg':self.linear_right_reg_branch,
+                                    'left_bin':self.linear_left_bin_branch, 
+                                    'right_bin':self.linear_right_bin_branch}
+            else :
+                branch_layers_dic = {'left_reg':self.linear_left_reg_branch, 
+                                    'right_reg':self.linear_right_reg_branch} """
+            
+            """ for j in branch_layers_dic :
+                
+                for i in range(self.num_branch_layers) :
+                    linear_layer_input_features = self.branch_layer_neurons
+                    linear_layer_output_features = self.branch_layer_neurons
+
+                    if (i == 0) and (self.num_layers == 0) :
+                        linear_layer_input_features = self.only_lstm_units
+                    elif (i == 0) and (self.num_layers != 0) :
+                        linear_layer_input_features = self.lstm_hidden_units
+
+                    if self.flag_batch_norm == True :
+                        branch_layers_dic[j].update([
+                            ['fc_'+j+'_branch_'+str(i), nn.Linear(linear_layer_input_features, linear_layer_output_features)],
+                            ['bn_'+j+'_branch_'+str(i), nn.BatchNorm1d(linear_layer_output_features)]
+                        ])
+                    
+                    elif self.flag_batch_norm == False :
+                        branch_layers_dic[j].update([
+                            ['fc_'+j+'_branch_'+str(i), nn.Linear(linear_layer_input_features, linear_layer_output_features)],
+                        ]) """
+
+            
+            if self.num_lft_brn_lyrs > 0 :
                 self.linear_left_reg_branch = nn.ModuleDict({})
+
+                for i in range(self.num_lft_brn_lyrs) :
+                    linear_layer_input_features = self.branch_layer_neurons
+                    linear_layer_output_features = self.branch_layer_neurons
+
+                    if (i == 0) and (self.num_layers == 0) :
+                        linear_layer_input_features = self.only_lstm_units
+                    elif (i == 0) and (self.num_layers != 0) :
+                        linear_layer_input_features = self.lstm_hidden_units
+
+                    if self.flag_batch_norm == True :
+                        self.linear_left_reg_branch.update([
+                            ['fc_'+'left_reg'+'_branch_'+str(i), nn.Linear(linear_layer_input_features, linear_layer_output_features)],
+                            ['bn_'+'left_reg'+'_branch_'+str(i), nn.BatchNorm1d(linear_layer_output_features)]
+                        ])
+                    
+                    elif self.flag_batch_norm == False :
+                        self.linear_left_reg_branch.update([
+                            ['fc_'+'left_reg'+'_branch_'+str(i), nn.Linear(linear_layer_input_features, linear_layer_output_features)],
+                        ])
+            
+            if self.num_rgt_brn_lyrs > 0 :
                 self.linear_right_reg_branch = nn.ModuleDict({})
 
-                if self.flag_bin_out :
-                    self.linear_left_bin_branch = nn.ModuleDict({})
-                    self.linear_right_bin_branch = nn.ModuleDict({})
-                
-                if self.flag_bin_out :
-                    branch_layers_dic = {'left_reg':self.linear_left_reg_branch, 
-                                        'right_reg':self.linear_right_reg_branch,
-                                        'left_bin':self.linear_left_bin_branch, 
-                                        'right_bin':self.linear_right_bin_branch}
-                else :
-                    branch_layers_dic = {'left_reg':self.linear_left_reg_branch, 
-                                        'right_reg':self.linear_right_reg_branch}
-                
-                for j in branch_layers_dic :
+                for i in range(self.num_rgt_brn_lyrs) :
+
+                    linear_layer_input_features = self.branch_layer_neurons
+                    linear_layer_output_features = self.branch_layer_neurons
+
+                    if (i == 0) and (self.num_layers == 0) :
+                        linear_layer_input_features = self.only_lstm_units
+                    elif (i == 0) and (self.num_layers != 0) :
+                        linear_layer_input_features = self.lstm_hidden_units
+
+                    if self.flag_batch_norm == True :
+                        self.linear_right_reg_branch.update([
+                            ['fc_'+'right_reg'+'_branch_'+str(i), nn.Linear(linear_layer_input_features, linear_layer_output_features)],
+                            ['bn_'+'right_reg'+'_branch_'+str(i), nn.BatchNorm1d(linear_layer_output_features)]
+                        ])
                     
-                    for i in range(self.num_branch_layers) :
-                        linear_layer_input_features = self.branch_layer_neurons
-                        linear_layer_output_features = self.branch_layer_neurons
+                    elif self.flag_batch_norm == False :
+                        self.linear_right_reg_branch.update([
+                            ['fc_'+'right_reg'+'_branch_'+str(i), nn.Linear(linear_layer_input_features, linear_layer_output_features)],
+                        ])
+            
 
-                        if (i == 0) and (self.num_layers == 0) :
-                            linear_layer_input_features = self.only_lstm_units
-                        elif (i == 0) and (self.num_layers != 0) :
-                            linear_layer_input_features = self.lstm_hidden_units
+            if (self.num_lft_brn_lyrs == 0) and (self.num_layers == 0) :
+                last_lft_branch_layer_input_features = self.only_lstm_units
+            elif self.num_lft_brn_lyrs == 0 :
+                last_lft_branch_layer_input_features = self.lstm_hidden_units
+            elif self.num_lft_brn_lyrs > 0 :
+                last_lft_branch_layer_input_features = self.branch_layer_neurons
 
-                        if self.flag_batch_norm == True :
-                            branch_layers_dic[j].update([
-                                ['fc_'+j+'_branch_'+str(i), nn.Linear(linear_layer_input_features, linear_layer_output_features)],
-                                ['bn_'+j+'_branch_'+str(i), nn.BatchNorm1d(linear_layer_output_features)]
-                            ])
-                        
-                        elif self.flag_batch_norm == False :
-                            branch_layers_dic[j].update([
-                                ['fc_'+j+'_branch_'+str(i), nn.Linear(linear_layer_input_features, linear_layer_output_features)],
-                            ])
+            self.fc_left_out = nn.Linear(last_lft_branch_layer_input_features, 1)
+
+            if (self.num_rgt_brn_lyrs == 0) and (self.num_layers == 0) :
+                last_rgt_branch_layer_input_features = self.only_lstm_units
+            elif self.num_rgt_brn_lyrs == 0 :
+                last_rgt_branch_layer_input_features = self.lstm_hidden_units
+            elif self.num_rgt_brn_lyrs > 0 :
+                last_rgt_branch_layer_input_features = self.branch_layer_neurons
+
+            self.fc_right_out = nn.Linear(last_rgt_branch_layer_input_features, 1)
 
 
-            if (self.num_branch_layers == 0) and (self.num_layers == 0) :
-                last_branch_layer_input_features = self.only_lstm_units
-            elif self.num_branch_layers == 0 :
-                last_branch_layer_input_features = self.lstm_hidden_units
-            elif self.num_branch_layers > 0 :
-                last_branch_layer_input_features = self.branch_layer_neurons
-
-            self.fc_left_out = nn.Linear(last_branch_layer_input_features, 1)
-            self.fc_right_out = nn.Linear(last_branch_layer_input_features, 1)
 
             if self.flag_bin_out == True :
+                if (self.num_branch_layers == 0) and (self.num_layers == 0) :
+                    last_branch_layer_input_features = self.only_lstm_units
+                elif self.num_branch_layers == 0 :
+                    last_branch_layer_input_features = self.lstm_hidden_units
+                elif self.num_branch_layers > 0 :
+                    last_branch_layer_input_features = self.branch_layer_neurons
+
                 self.fc_binl_out = nn.Linear(last_branch_layer_input_features, 2)
                 self.fc_binr_out = nn.Linear(last_branch_layer_input_features, 2)
 
@@ -311,8 +380,10 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
 
         if self.ind_lf_rg :
             
-            if self.num_branch_layers > 0 :
-                for i in range(self.num_branch_layers):
+            #if self.num_branch_layers > 0 :
+
+            if self.num_lft_brn_lyrs > 0 :
+                for i in range(self.num_lft_brn_lyrs):
                     if i == 0 :
                         x_left = self.linear_left_reg_branch['fc_left_reg_branch_'+str(i)](x)
                     else :
@@ -326,7 +397,8 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
                     
                 #print(asd)
 
-                for i in range(self.num_branch_layers):
+            if self.num_rgt_brn_lyrs > 0 :
+                for i in range(self.num_rgt_brn_lyrs):
                     if i == 0 :
                         x_right = self.linear_right_reg_branch['fc_right_reg_branch_'+str(i)](x)
                     else :
@@ -337,6 +409,7 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
                     x_right = F.relu(x_right)
                     #print(x_right.size())
 
+            if self.num_branch_layers > 0 :
                 if self.flag_bin_out :
                     for i in range(self.num_branch_layers):
                         if i == 0 :
@@ -360,11 +433,20 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
             #print(x_left.size())
             
 
-            if self.num_branch_layers > 0 :
-                x_left = self.fc_left_out(x_left)
-                x_right = self.fc_right_out(x_right)
+            
 
-                if self.flag_bin_out :
+            if self.num_lft_brn_lyrs > 0 :
+                x_left = self.fc_left_out(x_left)
+            else :
+                x_left = self.fc_left_out(x)
+            
+            if self.num_rgt_brn_lyrs > 0 :
+                x_right = self.fc_right_out(x_right)
+            else :
+                x_right = self.fc_right_out(x)
+
+
+                """ if self.flag_bin_out :
                     x_binl = F.softmax(self.fc_binl_out(x_binl), dim=0)
                     x_binr = F.softmax(self.fc_binr_out(x_binr), dim=0)
                 else :
@@ -373,14 +455,14 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
                 #print(x_left.size())
             else :
                 x_left = self.fc_left_out(x)
-                x_right = self.fc_right_out(x)
+                x_right = self.fc_right_out(x) """
 
-                if self.flag_bin_out :
-                    x_binl = F.softmax(self.fc_binl_out(x), dim=0)
-                    x_binr = F.softmax(self.fc_binr_out(x), dim=0)
-                else :
-                    x_binl = None
-                    x_binr = None
+            if self.flag_bin_out :
+                x_binl = F.softmax(self.fc_binl_out(x), dim=0)
+                x_binr = F.softmax(self.fc_binr_out(x), dim=0)
+            else :
+                x_binl = None
+                x_binr = None
 
 
         else:
