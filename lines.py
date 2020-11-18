@@ -2477,7 +2477,7 @@ if __name__ == "__main__":
         #tm_stp=trial.suggest_int('time_step', 3, 6, 1)
         tm_stp = 6
         #lr_pow = trial.suggest_discrete_uniform('learning_rate', -5.0, -3.0, 0.5)
-        lr_pow = -3.0
+        lr_pow = -4.0
         #lstm_hidden_units = trial.suggest_int('neurons_per_layer', 200, 500, 50 )
         lstm_hidden_units = 100
         #batch_size_pow = trial.suggest_int('batch_size_power', 2, 6 , 1)
@@ -2488,7 +2488,7 @@ if __name__ == "__main__":
         #strt = trial.suggest_int('starting_year', 0, 20, 5)
         strt = 0
         #vert_hgt = trial.suggest_int('vertical_window_size', 128, 256, 128)
-        vert_hgt = 128
+        vert_hgt = 96
         #loss_func = trial.suggest_categorical('loss_function', ['mse_loss', 'l1_loss', 'huber_loss','log_cosh])
         loss_func = 'mse_loss'
         #output_subtracted = trial.suggest_categorical('output_subtracted', [0,False])
@@ -2498,7 +2498,7 @@ if __name__ == "__main__":
         model_type = 'CNN_LSTM'
         #flag_batch_norm_bin = trial.suggest_int('batch_norm', 0, 1, 1)
         #flag_batch_norm_bin = 0
-        flag_use_lines = False
+        flag_use_lines = True
         flag_use_imgs = True
         flag_bin_out = False
         output_subtracted = False
