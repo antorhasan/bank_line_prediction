@@ -243,7 +243,8 @@ def regress_erro(act_err_bin, act_reg, pred_reg, prev_reg, iter_num, side,writer
 
     return mean_pos_dev, pos_std, mean_neg_dev, neg_std, ero_mae, comb_std, non_ero_mae, non_std, reach_mae, reach_std, reach_diff, mean_ero_diff,mean_act_overfit,reach_overfit
 
-def regress_erro_up(act_err_bin, act_reg, pred_reg, prev_reg, iter_num, side,writer, val_img_ids,epoch):
+def regress_erro_up(act_err_bin, act_reg, pred_reg, prev_reg, iter_num, side,writer, 
+                val_img_ids,epoch,thresh_flag):
     #print(pred_reg)
     #print(act_reg)
     #print(asd)
@@ -273,11 +274,16 @@ def regress_erro_up(act_err_bin, act_reg, pred_reg, prev_reg, iter_num, side,wri
     reach_mae = np.mean(np.absolute(temp_arr))
     reach_std = np.std(np.absolute(temp_arr))
     
-    writer.add_scalar(str(val_img_ids[iter_num])+'/reach_mae'+side+str(val_img_ids[iter_num]), reach_mae, epoch+1)
-    writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_reach_error'+side+str(val_img_ids[iter_num]), reach_std, epoch+1)
-    writer.add_scalar(str(val_img_ids[iter_num])+'/erosion_mae'+side+str(val_img_ids[iter_num]), erosion_mae, epoch+1)
-    writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_erosion_error'+side+str(val_img_ids[iter_num]), erosion_std, epoch+1)
-    
+    if thresh_flag == 'org':
+        writer.add_scalar(str(val_img_ids[iter_num])+'/reach_mae'+side+str(val_img_ids[iter_num]), reach_mae, epoch+1)
+        writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_reach_error'+side+str(val_img_ids[iter_num]), reach_std, epoch+1)
+        writer.add_scalar(str(val_img_ids[iter_num])+'/erosion_mae'+side+str(val_img_ids[iter_num]), erosion_mae, epoch+1)
+        writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_erosion_error'+side+str(val_img_ids[iter_num]), erosion_std, epoch+1)
+    elif thresh_flag == 'first_thresh':
+        writer.add_scalar(str(val_img_ids[iter_num])+'/reach_mae_3'+side+str(val_img_ids[iter_num]), reach_mae, epoch+1)
+        writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_reach_error_3'+side+str(val_img_ids[iter_num]), reach_std, epoch+1)
+        writer.add_scalar(str(val_img_ids[iter_num])+'/erosion_mae_3'+side+str(val_img_ids[iter_num]), erosion_mae, epoch+1)
+        writer.add_scalar(str(val_img_ids[iter_num])+'/std_of_erosion_error_3'+side+str(val_img_ids[iter_num]), erosion_std, epoch+1)
 
     #return mean_pos_dev, pos_std, mean_neg_dev, neg_std, ero_mae, comb_std, non_ero_mae, non_std, reach_mae, reach_std, reach_diff, mean_ero_diff,mean_act_overfit,reach_overfit
     return reach_mae, reach_std, erosion_mae, erosion_std
@@ -303,13 +309,19 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     actual_ers_lft = np.reshape(np.where(prev_left - act_left >= erosion_thresh, 1, 0),(act_left.shape[0],1))
     actual_ers_rht = np.reshape(np.where(act_right - prev_right >= erosion_thresh, 1, 0),(act_right.shape[0],1))
 
+    pix_3_ero_thresh = erosion_thresh + 2
+    actual_ers_lft_3 = np.reshape(np.where(prev_left - act_left >= pix_3_ero_thresh, 1, 0),(act_left.shape[0],1))
+    actual_ers_rht_3 = np.reshape(np.where(act_right - prev_right >= pix_3_ero_thresh, 1, 0),(act_right.shape[0],1))
 
     #left_mae_pos,left_std_pos,left_mae_neg,left_std_neg,lft_cm_m,lft_cm_std,lft_non_m,lft_non_s,lft_r_m,lft_r_s,lft_reach_diff,lft_ero_dif,lft_ove_act,lft_ove_rea = regress_erro(actual_ers_lft, act_left, pred_left, prev_left, iter_num, 'left',writer,val_img_ids,epoch)
     #right_mae_pos,right_std_pos,right_mae_neg,right_std_neg,rg_cm_m,rg_cm_std,rg_non_m,rg_non_s,rg_r_m,rg_r_s,rg_reach_diff,rg_ero_dif,rg_ove_act,rg_ove_rea = regress_erro(actual_ers_rht, act_right, pred_right, prev_right, iter_num, 'right',writer,val_img_ids,epoch)
     #print(asd)
     
-    lft_r_m,lft_r_s,lft_er_m,lft_er_std = regress_erro_up(actual_ers_lft, act_left, pred_left, prev_left, iter_num, 'left',writer,val_img_ids,epoch)
-    rg_r_m,rg_r_s,rg_er_m,rg_er_std = regress_erro_up(actual_ers_rht, act_right, pred_right, prev_right, iter_num, 'right',writer,val_img_ids,epoch)
+    lft_r_m,lft_r_s,lft_er_m,lft_er_std = regress_erro_up(actual_ers_lft, act_left, pred_left, prev_left, iter_num, 'left',writer,val_img_ids,epoch,'org')
+    rg_r_m,rg_r_s,rg_er_m,rg_er_std = regress_erro_up(actual_ers_rht, act_right, pred_right, prev_right, iter_num, 'right',writer,val_img_ids,epoch,'org')
+
+    lft_r_m_3,lft_r_s_3,lft_er_m_3,lft_er_std_3 = regress_erro_up(actual_ers_lft_3, act_left, pred_left, prev_left, iter_num, 'left',writer,val_img_ids,epoch,'first_thresh')
+    rg_r_m_3_3,rg_r_s_3,rg_er_m_3,rg_er_std_3 = regress_erro_up(actual_ers_rht_3, act_right, pred_right, prev_right, iter_num, 'right',writer,val_img_ids,epoch,'first_thresh')
 
     """ log_dic_lef_rght = {'pos_mae': [left_mae_pos,right_mae_pos], 'pos_std':[left_std_pos,right_std_pos],
     'neg_mae':[left_mae_neg,right_mae_neg],'neg_std':[left_std_neg,right_std_neg],
@@ -320,13 +332,20 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     'reach_overfit_diff':[lft_ove_rea,rg_ove_rea],'act_overfit_diff':[lft_ove_act,rg_ove_act]} """
 
     log_dic_lef_rght = {'reach_mae':[lft_r_m,rg_r_m],'reach_std':[lft_r_s,rg_r_s],
-                        'erosion_mae':[lft_er_m,rg_er_m],'erosion_std':[lft_er_std,rg_er_std]}
+                        'erosion_mae':[lft_er_m,rg_er_m],'erosion_std':[lft_er_std,rg_er_std],
+                        'reach_mae_3':[lft_r_m_3,rg_r_m_3_3],'reach_std_3':[lft_r_s_3,rg_r_s_3],
+                        'erosion_mae_3':[lft_er_m_3,rg_er_m_3],'erosion_std_3':[lft_er_std_3,rg_er_std_3]
+                        }
 
     #for i,j in zip(log_dic_lef_rght.keys(),log_dic_lef_rght.values()):
     #    log_perform_lef_rght(i, j[0], j[1], writer, val_img_ids, iter_num, epoch)
 
     pred_ers_lft = np.reshape(np.where(prev_left - pred_left >= erosion_thresh, 1, 0),(pred_left.shape[0],1))
     pred_ers_rht = np.reshape(np.where(pred_right - prev_right >= erosion_thresh, 1, 0),(pred_right.shape[0],1))
+
+
+    pred_ers_lft_3 = np.reshape(np.where(prev_left - pred_left >= pix_3_ero_thresh, 1, 0),(pred_left.shape[0],1))
+    pred_ers_rht_3 = np.reshape(np.where(pred_right - prev_right >= pix_3_ero_thresh, 1, 0),(pred_right.shape[0],1))
 
     """ conf_mat_lft = confusion_matrix(actual_ers_lft, pred_ers_lft)
     conf_mat_rht = confusion_matrix(actual_ers_rht, pred_ers_rht)
@@ -368,7 +387,12 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     recall_rht = recall_score(actual_ers_rht, pred_ers_rht, average='binary')
     #f1_rht = f1_score(actual_ers_rht, pred_ers_rht, average='binary')
 
-    
+    precision_lft_3 = precision_score(actual_ers_lft_3, pred_ers_lft_3, average='binary')
+    recall_lft_3 = recall_score(actual_ers_lft_3, pred_ers_lft_3, average='binary')
+
+    precision_rht_3 = precision_score(actual_ers_rht_3, pred_ers_rht_3, average='binary')
+    recall_rht_3 = recall_score(actual_ers_rht_3, pred_ers_rht_3, average='binary')
+
     #writer.add_scalar(str(val_img_ids[iter_num])+'/precision_'+ str(val_img_ids[iter_num]), precision_comb, epoch+1)
     #writer.add_scalar(str(val_img_ids[iter_num])+'/recall_'+ str(val_img_ids[iter_num]), recall_comb, epoch+1)
     #writer.add_scalar(str(val_img_ids[iter_num])+'/f1_score_'+ str(val_img_ids[iter_num]), f1_comb, epoch+1)
@@ -417,7 +441,13 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
 
     log_dic_scores = {'lr_reach_mae':avg_reach_mae, 'lr_erosion_mae':avg_erosion_mae,
     'left_precision':precision_lft,'left_recall':recall_lft,
-    'right_precision':precision_rht,'right_recall':recall_rht
+    'right_precision':precision_rht,'right_recall':recall_rht,
+    'left_precision_3':precision_lft_3,'left_recall_3':recall_lft_3,
+    'right_precision_3':precision_rht_3,'right_recall_3':recall_rht_3,
+    'left_act_regions':actual_ers_lft,'right_act_regions':actual_ers_rht,
+    'left_pred_regions':pred_ers_lft,'right_pred_regions':pred_ers_rht,
+    'left_act_regions_3':actual_ers_lft_3,'right_act_regions_3':actual_ers_rht_3,
+    'left_pred_regions_3':pred_ers_lft_3,'right_pred_regions_3':pred_ers_rht_3,
     }
 
     """ imp_val_log = {str(val_img_ids[iter_num])+'_augmented_metric':augmented_metric, str(val_img_ids[iter_num])+'_lr_f1_score':lr_f1_score,
@@ -1532,7 +1562,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     #batch_size = batch_size
     
     
-    log_performance = get_train_mae ###number of epochs after which performance metrics are calculated
+    log_performance = 1 ###number of epochs after which performance metrics are calculated
     log_val_loss_at = get_train_mae
     #log_val_loss_at = 1
     early_stop_flag = False
@@ -1657,7 +1687,8 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         flag_use_imgs = flag_use_imgs,
         erosion_thresh = erosion_thresh,
         right_loss_weight = right_loss_weight,
-        lstm_dropout = lstm_dropout
+        lstm_dropout = lstm_dropout,
+        num_filter_choice = num_filter_choice
         )
 
     if skip_training == False :
@@ -1761,11 +1792,13 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     val_losses = []
     train_maes = []
     val_maes = []
+    train_batch_count_global = 0
     print('started training ..........')
     for epoch in range(EPOCHS):
 
         model.train()
         counter = 0
+        
         epoch_loss = 0
         batch_loss_counter = 0
         batch_loss = 0
@@ -1876,15 +1909,17 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 
                 batch_counter += 1
 
-                if ((i_batch+1)*batch_size) <= ((batch_loss_counter+1)*100) < ((i_batch+2)*batch_size) :
+                if ((i_batch+1)*batch_size) <= ((batch_loss_counter+1)*400) < ((i_batch+2)*batch_size) :
                     
                     batch_loss_counter += 1
                     batch_loss = batch_loss / batch_counter
 
                     batch_template = 'Epoch {}, {} batch Loss: {}'
                     print(batch_template.format(epoch+1, i_batch+1, batch_loss))
+                    writer.add_scalar('Loss/train_batch', batch_loss, train_batch_count_global)
                     batch_counter = 0
                     batch_loss = 0
+                    train_batch_count_global += 1
 
                 """ if i_batch == 0 :
                     inp_tuple = (inp_flatten, lines_prev, reach_id)
@@ -2373,8 +2408,18 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
     hparam_logs = {'hparam/val_loss':avg_val_epoch_loss,
         'hparam/lr_reach_mae':test_logs_scores['lr_reach_mae'],
         'hparam/left_reach_mae':test_logs['reach_mae'][0],'hparam/right_reach_mae':test_logs['reach_mae'][1],
+        'hparam/left_reach_std':test_logs['reach_std'][0],'hparam/right_reach_std':test_logs['reach_std'][1],  
+        'hparam/left_reach_mae_3':test_logs['reach_mae_3'][0],'hparam/right_reach_mae_3':test_logs['reach_mae_3'][1],
+        'hparam/left_reach_std_3':test_logs['reach_std_3'][0],'hparam/right_reach_std_3':test_logs['reach_std_3'][1],
         'hparam/left_precision':test_logs_scores['left_precision'],'hparam/right_precision':test_logs_scores['right_precision'],
-        'hparam/left_recall':test_logs_scores['left_recall'],'hparam/right_recall':test_logs_scores['right_recall']}
+        'hparam/left_recall':test_logs_scores['left_recall'],'hparam/right_recall':test_logs_scores['right_recall'],
+        'hparam/left_precision_3':test_logs_scores['left_precision_3'],'hparam/right_precision_3':test_logs_scores['right_precision_3'],
+        'hparam/left_recall_3':test_logs_scores['left_recall_3'],'hparam/right_recall_3':test_logs_scores['right_recall_3'],
+        'hparam/left_act_regions':test_logs_scores['left_act_regions'],'hparam/right_act_regions':test_logs_scores['right_act_regions'],
+        'hparam/left_pred_regions':test_logs_scores['left_pred_regions'],'hparam/right_pred_regions':test_logs_scores['right_pred_regions'],
+        'hparam/left_act_regions_3':test_logs_scores['left_act_regions_3'],'hparam/right_act_regions_3':test_logs_scores['right_act_regions_3'],
+        'hparam/left_pred_regions_3':test_logs_scores['left_pred_regions_3'],'hparam/right_pred_regions_3':test_logs_scores['right_pred_regions_3'],
+        }      
 
     """ 'hparam/left_F1Score':float(2*((test_logs_scores['left_precision']*test_logs_scores['left_recall'])/(test_logs_scores['left_precision']+test_logs_scores['left_recall']))),
         'hparam/Right_F1Score':float(2*((test_logs_scores['right_precision']*test_logs_scores['right_recall'])/(test_logs_scores['right_precision']+test_logs_scores['right_recall']))), """
@@ -2477,11 +2522,11 @@ if __name__ == "__main__":
         #tm_stp=trial.suggest_int('time_step', 3, 6, 1)
         tm_stp = 5
         #lr_pow = trial.suggest_discrete_uniform('learning_rate', -5.0, -3.0, 0.5)
-        lr_pow = -4.5
+        lr_pow = -4.0
         #lstm_hidden_units = trial.suggest_int('neurons_per_layer', 200, 500, 50 )
         lstm_hidden_units = 100
         #batch_size_pow = trial.suggest_int('batch_size_power', 2, 6 , 1)
-        batch_size_pow = 2
+        batch_size_pow = 3
         #num_layers = trial.suggest_int('num_of_layers', 3, 5, 1)
         num_layers = 0
         num_cnn_layers = 6
@@ -2490,7 +2535,7 @@ if __name__ == "__main__":
         #vert_hgt = trial.suggest_int('vertical_window_size', 128, 256, 128)
         vert_hgt = 128
         #loss_func = trial.suggest_categorical('loss_function', ['mse_loss', 'l1_loss', 'huber_loss','log_cosh])
-        loss_func = 'huber_loss'
+        loss_func = 'mse_loss'
         #output_subtracted = trial.suggest_categorical('output_subtracted', [0,False])
         #lstm_layers = trial.suggest_int('lstm_depth_layers', 1, 3, 1)
         lstm_layers = 1
@@ -2516,7 +2561,7 @@ if __name__ == "__main__":
         #right_loss_weight = trial.suggest_discrete_uniform('right_loss_weight', 0.5, 0.95, 0.05)
         right_loss_weight = 0.4
         #num_filter_choice = trial.suggest_int('num_filter_choice', 0, 1, 1)
-        num_filter_choice = 0
+        num_filter_choice = 3
         model_optim = 'Adam'
         #ad_pow = 1*(10**-1.0)
         ad_pow = 0

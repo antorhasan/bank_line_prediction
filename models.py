@@ -33,7 +33,7 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         self.flag_batch_norm = flag_batch_norm
         self.num_layers = num_layers
         self.flag_use_imgs = flag_use_imgs
-        num_filter_list = [8, 16, 32]
+        num_filter_list = [4, 8, 16, 32]
         num_filters = num_filter_list[num_filter_choice]
         num_filters_out = num_filter_list[num_filter_choice]
 
@@ -46,6 +46,8 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
                 self.before_lstm_neurons = 512
         elif num_filter_list[num_filter_choice] == 8 :
             self.before_lstm_neurons = 64
+        elif num_filter_list[num_filter_choice] == 4 :
+            self.before_lstm_neurons = 32
 
         self.num_cnn_layers = num_cnn_layers
         self.ind_lf_rg = True    ######very important modification
