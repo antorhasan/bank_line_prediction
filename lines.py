@@ -295,6 +295,38 @@ def log_perform_lef_rght(log_item, left_comp, right_comp, writer, val_img_ids, i
     avg_comp = (left_comp + right_comp)/2
     writer.add_scalar('left_right_avg_'+log_item+'_for_actual_erosion'+str(val_img_ids[iter_num]), avg_comp, epoch+1)
 
+def get_recall_values(act_ero_arr, perd_ero_arr):
+
+    erosion_region_length = 6
+    erosion_length_counter = 0
+    erosion_region_numbers = 0
+    act_ero_start_indx = -1
+    pred_erosion_region_numbers = 0
+
+    for i in range(act_ero_arr.shape[0]):
+        if erosion_length_counter == erosion_region_length :
+            erosion_region_numbers += 1
+            erosion_length_counter = 0
+
+            pred_erosion_len_counter = 0
+            for j in range(act_ero_start_indx,act_ero_start_indx+erosion_region_length):
+                if perd_ero_arr[j] == 1 :
+                    pred_erosion_len_counter += 1
+
+            if pred_erosion_len_counter == erosion_region_length :
+                pred_erosion_region_numbers += 1
+
+            act_ero_start_indx = -1
+        
+        if act_ero_arr[i] == 1 :
+            erosion_length_counter += 1
+            if act_ero_start_indx == -1 :
+                act_ero_start_indx = i
+        elif act_ero_arr[i] == 0 :
+            erosion_length_counter = 0
+            act_ero_start_indx = -1
+
+    return erosion_region_numbers, pred_erosion_region_numbers
 
 def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer,val_img_ids,erosion_thresh):
     act_left = actual_list[:,iter_num,0]
@@ -439,16 +471,29 @@ def calc_fscore(iter_num, actual_list, prev_actual_list, pred_list, epoch,writer
     'left_prec_th':prec_th_lft,'left_recall_th':recall_th_lft,
     'right_prec_th':prec_th_rht,'right_recall_th':recall_th_rht} """
 
+    lft_act_ero_reg_num, lft_pred_ero_reg_num_dep = get_recall_values(actual_ers_lft_3, pred_ers_lft_3)
+    lft_pred_ero_reg_num, lft_act_ero_reg_num_dep = get_recall_values(pred_ers_lft_3, actual_ers_lft_3)
+    rgt_act_ero_reg_num, rgt_pred_ero_reg_num_dep = get_recall_values(actual_ers_rht_3, pred_ers_rht_3)
+    rgt_pred_ero_reg_num, rgt_act_ero_reg_num_dep = get_recall_values(pred_ers_rht_3, actual_ers_rht_3)
+
+    
+
     log_dic_scores = {'lr_reach_mae':avg_reach_mae, 'lr_erosion_mae':avg_erosion_mae,
     'left_precision':precision_lft,'left_recall':recall_lft,
     'right_precision':precision_rht,'right_recall':recall_rht,
     'left_precision_3':precision_lft_3,'left_recall_3':recall_lft_3,
     'right_precision_3':precision_rht_3,'right_recall_3':recall_rht_3,
-    'left_act_regions':actual_ers_lft,'right_act_regions':actual_ers_rht,
-    'left_pred_regions':pred_ers_lft,'right_pred_regions':pred_ers_rht,
-    'left_act_regions_3':actual_ers_lft_3,'right_act_regions_3':actual_ers_rht_3,
-    'left_pred_regions_3':pred_ers_lft_3,'right_pred_regions_3':pred_ers_rht_3,
+    'left_act_regions':np.sum(actual_ers_lft),'right_act_regions':np.sum(actual_ers_rht),
+    'left_pred_regions':np.sum(pred_ers_lft),'right_pred_regions':np.sum(pred_ers_rht),
+    'left_act_regions_3':np.sum(actual_ers_lft_3),'right_act_regions_3':np.sum(actual_ers_rht_3),
+    'left_pred_regions_3':np.sum(pred_ers_lft_3),'right_pred_regions_3':np.sum(pred_ers_rht_3),
+    'lft_act_ero_reg_num':lft_act_ero_reg_num,'lft_pred_ero_reg_num_dep':lft_pred_ero_reg_num_dep,
+    'lft_pred_ero_reg_num':lft_pred_ero_reg_num,'lft_act_ero_reg_num_dep':lft_act_ero_reg_num_dep,
+    'rgt_act_ero_reg_num':rgt_act_ero_reg_num,'rgt_pred_ero_reg_num_dep':rgt_pred_ero_reg_num_dep,
+    'rgt_pred_ero_reg_num':rgt_pred_ero_reg_num,'rgt_act_ero_reg_num_dep':rgt_act_ero_reg_num_dep
     }
+
+
 
     """ imp_val_log = {str(val_img_ids[iter_num])+'_augmented_metric':augmented_metric, str(val_img_ids[iter_num])+'_lr_f1_score':lr_f1_score,
                 str(val_img_ids[iter_num])+'_lr_reach_mae':avg_reach_mae,
@@ -1909,7 +1954,7 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
                 
                 batch_counter += 1
 
-                if ((i_batch+1)*batch_size) <= ((batch_loss_counter+1)*400) < ((i_batch+2)*batch_size) :
+                if ((i_batch+1)*batch_size) <= ((batch_loss_counter+1)*500) < ((i_batch+2)*batch_size) :
                     
                     batch_loss_counter += 1
                     batch_loss = batch_loss / batch_counter
@@ -2419,6 +2464,10 @@ def objective(tm_stp, strt, lr_pow, ad_pow, vert_hgt, vert_step_num, num_epochs,
         'hparam/left_pred_regions':test_logs_scores['left_pred_regions'],'hparam/right_pred_regions':test_logs_scores['right_pred_regions'],
         'hparam/left_act_regions_3':test_logs_scores['left_act_regions_3'],'hparam/right_act_regions_3':test_logs_scores['right_act_regions_3'],
         'hparam/left_pred_regions_3':test_logs_scores['left_pred_regions_3'],'hparam/right_pred_regions_3':test_logs_scores['right_pred_regions_3'],
+        'hparam/lft_act_ero_reg_num':test_logs_scores['lft_act_ero_reg_num'],'hparam/lft_pred_ero_reg_num_dep':test_logs_scores['lft_pred_ero_reg_num_dep'],
+        'hparam/lft_pred_ero_reg_num':test_logs_scores['lft_pred_ero_reg_num'],'hparam/lft_act_ero_reg_num_dep':test_logs_scores['lft_act_ero_reg_num_dep'],
+        'hparam/rgt_act_ero_reg_num':test_logs_scores['rgt_act_ero_reg_num'],'hparam/rgt_pred_ero_reg_num_dep':test_logs_scores['rgt_pred_ero_reg_num_dep'],
+        'hparam/rgt_pred_ero_reg_num':test_logs_scores['rgt_pred_ero_reg_num'],'hparam/rgt_act_ero_reg_num_dep':test_logs_scores['rgt_act_ero_reg_num_dep']
         }      
 
     """ 'hparam/left_F1Score':float(2*((test_logs_scores['left_precision']*test_logs_scores['left_recall'])/(test_logs_scores['left_precision']+test_logs_scores['left_recall']))),
@@ -2520,13 +2569,13 @@ if __name__ == "__main__":
         load_models_list = []
         transform_constants_list = []
         #tm_stp=trial.suggest_int('time_step', 3, 6, 1)
-        tm_stp = 5
+        tm_stp = 6
         #lr_pow = trial.suggest_discrete_uniform('learning_rate', -5.0, -3.0, 0.5)
         lr_pow = -4.0
         #lstm_hidden_units = trial.suggest_int('neurons_per_layer', 200, 500, 50 )
-        lstm_hidden_units = 100
+        lstm_hidden_units = 50
         #batch_size_pow = trial.suggest_int('batch_size_power', 2, 6 , 1)
-        batch_size_pow = 3
+        batch_size_pow = 4
         #num_layers = trial.suggest_int('num_of_layers', 3, 5, 1)
         num_layers = 0
         num_cnn_layers = 6
@@ -2561,7 +2610,7 @@ if __name__ == "__main__":
         #right_loss_weight = trial.suggest_discrete_uniform('right_loss_weight', 0.5, 0.95, 0.05)
         right_loss_weight = 0.4
         #num_filter_choice = trial.suggest_int('num_filter_choice', 0, 1, 1)
-        num_filter_choice = 3
+        num_filter_choice = 2
         model_optim = 'Adam'
         #ad_pow = 1*(10**-1.0)
         ad_pow = 0

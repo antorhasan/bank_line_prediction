@@ -21,7 +21,7 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
             output_num = 2
 
         self.flag_reach_use = flag_reach_use
-
+        self.dilation = 1
         self.lstm_dropout = lstm_dropout
         self.device = device
         self.batch_size = batch_size
@@ -38,7 +38,7 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         num_filters_out = num_filter_list[num_filter_choice]
 
         if num_filter_list[num_filter_choice] == 16 :
-            self.before_lstm_neurons = 256
+            self.before_lstm_neurons = 128
         elif num_filter_list[num_filter_choice] == 32 :
             if self.vert_img_hgt >17 :
                 self.before_lstm_neurons = 256
@@ -62,7 +62,8 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
         self.pooling_layer = pooling_layer
 
         if flag_use_imgs :
-            self.conv_inp = nn.Conv2d(num_channels,num_filters_out,(kernel_hgt,3), padding=0)
+            self.conv_inp = nn.Conv2d(num_channels,num_filters_out,(kernel_hgt,3),
+                                    padding=0,dilation=self.dilation)
             if self.flag_batch_norm == True :
                 self.batch_norm_1 = nn.BatchNorm2d(num_filters_out)
 
@@ -85,13 +86,13 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
                     #print(num_filters)
                     if self.flag_batch_norm == True :
                         self.cnn_layers_bn.update([
-                            ['cnn_'+str(i+2), nn.Conv2d(num_filters,num_filters_out,(kernel_hgt,3), padding=0) ],
+                            ['cnn_'+str(i+2), nn.Conv2d(num_filters,num_filters_out,(kernel_hgt,3),padding=0,dilation=self.dilation) ],
                             ['batch_norm2d_'+str(i+2), nn.BatchNorm2d(num_filters_out)]
                         ])
                     
                     elif self.flag_batch_norm == False :
                         self.cnn_layers_bn.update([
-                            ['cnn_'+str(i+2), nn.Conv2d(num_filters,num_filters_out,(kernel_hgt,3), padding=0) ],
+                            ['cnn_'+str(i+2), nn.Conv2d(num_filters,num_filters_out,(kernel_hgt,3), padding=0,dilation=self.dilation) ],
                         ])
 
                     if (i+2) % 2 == 0:
@@ -112,16 +113,23 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
                         if vert_tracker == 1 :
                             kernel_hgt = 1
 
-            self.conv_out = nn.Conv2d(num_filters,num_filters,(kernel_hgt,3), padding=0)
+            self.conv_out = nn.Conv2d(num_filters,num_filters,(kernel_hgt,3), padding=0,dilation=self.dilation)
             if self.flag_batch_norm == True :
                 self.batch_norm_out = nn.BatchNorm2d(num_filters)
         
+        if (self.flag_use_lines == True) and (self.flag_use_imgs == True) :
+            self.fc_lines_encoder = nn.Linear((self.vert_img_hgt*2)+1,self.before_lstm_neurons)
+            if self.flag_batch_norm == True :
+                self.lines_encoder_bn = nn.BatchNorm1d(self.before_lstm_neurons)
+
+            
 
         lstm_inp_feat = self.before_lstm_neurons
         if self.flag_use_imgs == False :
             lstm_inp_feat =  (self.vert_img_hgt*2)+1
         elif (self.flag_use_lines == True) and (self.flag_use_lines == True) :
-            lstm_inp_feat = self.before_lstm_neurons + ((self.vert_img_hgt*2)+1)
+            #lstm_inp_feat = self.before_lstm_neurons + ((self.vert_img_hgt*2)+1)
+            lstm_inp_feat = 2*self.before_lstm_neurons
 
         self.lstm = nn.LSTM( lstm_inp_feat, self.only_lstm_units, num_layers=num_lstm_layers, 
                             batch_first=True,dropout = self.lstm_dropout)
@@ -358,7 +366,21 @@ class CNN_LSTM_Dynamic_Model(nn.Module):
             reach = reach.expand(-1,(self.time_step-1),-1)
             #print(reach[0:5,:,:])
             if self.flag_use_imgs :
-                x = torch.cat((x,lines,reach), 2)
+                lines = torch.cat((lines,reach), 2)
+                #print(lines.shape)
+                lines = torch.reshape(lines, (-1, (2*self.vert_img_hgt)+1))
+                lines = self.fc_lines_encoder(lines)
+                #print(lines.shape)
+                if self.flag_batch_norm == True :
+                    lines = self.lines_encoder_bn(lines)
+
+                #print(lines.shape)
+                lines = F.relu(lines)
+                #print(lines.shape)
+                #print(asd)
+                lines = torch.reshape(lines, (last_batch_size, (self.time_step-1), -1))
+
+                x = torch.cat((x,lines), 2)
             else :
                 x = torch.cat((lines,reach), 2)
 
