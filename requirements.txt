@@ -40,7 +40,7 @@ opencv-python==4.2.0.34
 opt-einsum==3.2.1
 optuna==1.5.0
 pbr==5.4.5
-Pillow==7.2.0
+Pillow==8.2.0
 prettytable==0.7.2
 protobuf==3.12.2
 pyasn1==0.4.8
