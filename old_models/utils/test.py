@@ -10,7 +10,7 @@ from os.path import isfile, join
 import os
 import sys
 import wandb
-from models import CNN_Model
+from Models import CNN_Model
 from sklearn.metrics import mean_absolute_error, precision_score, recall_score, confusion_matrix, f1_score
 from sklearn.preprocessing import OneHotEncoder
 import matplotlib.pyplot as plt

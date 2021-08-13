@@ -9,7 +9,7 @@ from os import listdir
 from os.path import isfile, join
 import sys
 import wandb
-from models import CNN_Model
+from Models import CNN_Model
 from sklearn.metrics import mean_absolute_error
 
 msk_mean = np.load('./data/np_arr/mean.npy')
