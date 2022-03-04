@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
+
 class CNN_LSTM_Dynamic_Model(nn.Module):
     def __init__(self, num_channels, batch_size, val_batch_size, time_step, num_lstm_layers, drop_out,vert_img_hgt,
                     inp_lr_flag, lf_rt_tag, lstm_hidden_units, flag_reach_use, num_layers,out_use_mid,flag_batch_norm,
